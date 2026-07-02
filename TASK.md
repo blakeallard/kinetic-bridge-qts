@@ -1,0 +1,132 @@
+# BI1-T71: Implement Zoho-based form/template for quotes (item master, price book, automated calculations) and prototype applet for distributor pricing/margins
+
+Zoho Task ID: 2543412000001469015
+
+## Metadata
+
+- Task key: `BI1-T71`
+- Immutable task ID: `2543412000001469015`
+- Title: Implement Zoho-based form/template for quotes (item master, price book, automated calculations) and prototype applet for distributor pricing/margins
+- Status: In Progress
+- Owner: 923987103
+- Tags: automation, internal-work, repo-needed
+- Zoho task URL: Not provided
+- Repository URL: https://github.com/blake-bevco-tech/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations
+- Generated at: 2026-07-02T12:32:43-07:00
+
+## Description
+
+1. REQUEST + DESIRED WORKFLOW Requested task: Build a Zoho-based quote form using Zoho Forms or Creator that integrates with item master and price books to auto-calculate quotes; create a prototype applet for distributor pricing with margin controls Business problem: Quote generation is currently manual using draft templates without automation, inventory integration, or dynamic pricing; need form-driven workflow to route inquiries by type (BMS vs battery products) and auto-calculate pricing with margin controls How should this work: Sales team submits Zoho form with inquiry details → form auto-pulls items from item master and applies price books → applet performs calculations for BMS and battery product flows → generates quote with margin controls → stores in WorkDrive ready for delivery Success / done criteria: Working Zoho form that auto-populates from item master and price books, performs calculations for both BMS and battery products, applies correct margin/discount rules, generates a complete quote document, and includes a functional distributor pricing applet prototype 2. CURRENT SITUATION Current status: Existing but inefficient Problem type: Manual, Slow, Missing info 3. SYSTEMS + INPUTS Systems involved: CRM/Bigin, Creator, Books, Flow, WorkDrive Data needed: Item master (SKUs, base pricing), price book structure with discount/tier rules, margin control formulas, BMS vs battery product definitions, example quote calculations from Brian, customer inquiry routing requirements Access / approval needed: Zoho Creator/Forms access, item master access in CRM or Books, price book configuration rights, temporary org-admin approval for form/automation setup if needed 4. FOLLOW-UP QUESTIONS What info needs to move between systems: Zoho Form captures inquiry → pulls item master & price books from CRM/Books → Creator applet calculates pricing/margins → stores finished quote in WorkDrive 5. SUMMARY + NEXT ACTION Diagnosis: Quotes are manual template-based; build a Zoho Forms/Creator workflow that auto-pulls items and price books, performs dynamic margin-aware calculations for BMS and battery products, and generates routable quotes. Next action: Research From meeting: 2026-06-16 | Owner: Blake
+
+## Sanitized Zoho API metadata
+
+```json
+{
+  "milestone_id": "2543412000000000073",
+  "link": {
+    "timesheet": {
+      "url": "https://projectsapi.zoho.com/restapi/portal/898600220/projects/2543412000001324010/tasks/2543412000001469015/logs/"
+    },
+    "web": {
+      "url": "https://projects.zoho.com/portal/bevcollc#zp/task-detail/2543412000001469015"
+    },
+    "self": {
+      "url": "https://projectsapi.zoho.com/restapi/portal/898600220/projects/2543412000001324010/tasks/2543412000001469015/"
+    }
+  },
+  "description": "<b>1. REQUEST + DESIRED WORKFLOW</b><br/><b>Requested task:</b> Build a Zoho-based quote form using Zoho Forms or Creator that integrates with item master and price books to auto-calculate quotes; create a prototype applet for distributor pricing with margin controls<br/><b>Business problem:</b> Quote generation is currently manual using draft templates without automation, inventory integration, or dynamic pricing; need form-driven workflow to route inquiries by type (BMS vs battery products) and auto-calculate pricing with margin controls<br/><b>How should this work:</b> Sales team submits Zoho form with inquiry details → form auto-pulls items from item master and applies price books → applet performs calculations for BMS and battery product flows → generates quote with margin controls → stores in WorkDrive ready for delivery<br/><b>Success / done criteria:</b> Working Zoho form that auto-populates from item master and price books, performs calculations for both BMS and battery products, applies correct margin/discount rules, generates a complete quote document, and includes a functional distributor pricing applet prototype<br/><br/><b>2. CURRENT SITUATION</b><br/><b>Current status:</b> Existing but inefficient<br/><b>Problem type:</b> Manual, Slow, Missing info<br/><br/><b>3. SYSTEMS + INPUTS</b><br/><b>Systems involved:</b> CRM/Bigin, Creator, Books, Flow, WorkDrive<br/><b>Data needed:</b> Item master (SKUs, base pricing), price book structure with discount/tier rules, margin control formulas, BMS vs battery product definitions, example quote calculations from Brian, customer inquiry routing requirements<br/><b>Access / approval needed:</b> Zoho Creator/Forms access, item master access in CRM or Books, price book configuration rights, temporary org-admin approval for form/automation setup if needed<br/><br/><b>4. FOLLOW-UP QUESTIONS</b><br/><b>What info needs to move between systems:</b> Zoho Form captures inquiry → pulls item master &amp; price books from CRM/Books → Creator applet calculates pricing/margins → stores finished quote in WorkDrive<br/><br/><b>5. SUMMARY + NEXT ACTION</b><br/><b>Diagnosis:</b> Quotes are manual template-based; build a Zoho Forms/Creator workflow that auto-pulls items and price books, performs dynamic margin-aware calculations for BMS and battery products, and generates routable quotes.<br/><b>Next action:</b> Research<br/><br/><i>From meeting: 2026-06-16 | Owner: Blake</i>",
+  "created_by_zpuid": "2543412000001324206",
+  "work_form": "standard_work",
+  "is_comment_added": true,
+  "duration": "0",
+  "added_via": "api",
+  "last_updated_time_long": 1783019682501,
+  "is_forum_associated": false,
+  "details": {
+    "owners": [
+      {
+        "zpuid": "2543412000001324206",
+        "full_name": "Blake Allard",
+        "work": "100",
+        "name": "Blake Allard",
+        "last_name": "Allard",
+        "id": "923987103",
+        "first_name": "Blake",
+        "email": "blake@bevco-tech.com"
+      }
+    ]
+  },
+  "id": 2543412000001469015,
+  "created_by_email": "blake@bevco-tech.com",
+  "key": "BI1-T71",
+  "created_person": "Blake Allard",
+  "created_time_long": 1782079695879,
+  "created_time": "06-21-2026",
+  "is_reminder_set": false,
+  "is_recurrence_set": false,
+  "created_time_format": "06-21-2026 03:08:15 PM",
+  "created_by_full_name": "Blake Allard",
+  "subtasks": false,
+  "work": "00:00",
+  "custom_fields": [],
+  "duration_type": "days",
+  "isparent": false,
+  "work_type": "work_hours",
+  "completed": false,
+  "task_followers": {
+    "FOLUSERS": "",
+    "FOLLOWERSIZE": -1,
+    "FOLLOWERS": []
+  },
+  "priority": "None",
+  "task_duration_as_work": true,
+  "created_by": "923987103",
+  "percent_complete": "0",
+  "tags": [
+    {
+      "color_hexcode": "#562ca3",
+      "name": "automation",
+      "id": "2543412000001391053"
+    },
+    {
+      "color_hexcode": "#686b68",
+      "name": "internal-work",
+      "id": "2543412000001391061"
+    },
+    {
+      "color_hexcode": "#000000",
+      "name": "repo-needed",
+      "id": "2543412000001523001"
+    }
+  ],
+  "GROUP_NAME": {
+    "ASSOCIATED_TEAMS": {
+      "AnyTeam": "Not Associated"
+    },
+    "ASSOCIATED_TEAMS_COUNT": 0,
+    "IS_TEAM_UNASSIGNED": true
+  },
+  "last_updated_time": "07-02-2026",
+  "name": "Implement Zoho-based form/template for quotes (item master, price book, automated calculations) and prototype applet for distributor pricing/margins",
+  "is_docs_assocoated": false,
+  "id_string": "2543412000001469015",
+  "log_hours": {
+    "non_billable_hours": "0.0",
+    "billable_hours": "0.0"
+  },
+  "tasklist": {
+    "name": "Meeting Actions – 2026-06-16",
+    "id_string": "2543412000001458027",
+    "id": "2543412000001458027"
+  },
+  "last_updated_time_format": "07-02-2026 12:14:42 PM",
+  "billingtype": "None",
+  "order_sequence": 4,
+  "status": {
+    "name": "In Progress",
+    "id": "2543412000000031001",
+    "type": "open",
+    "color_code": "#f56b62"
+  }
+}
+```

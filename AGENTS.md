@@ -1,0 +1,11 @@
+# Agent Instructions
+
+Zoho Task ID: 2543412000001469015
+
+- Treat `TASK.md` as the source-task snapshot.
+- Make bounded, reviewable changes and document assumptions.
+- Do not commit credentials, generated caches, logs, or local state.
+- Do not delete or rewrite existing work without explicit approval.
+- Record verification commands and results in the relevant handoff or pull request.
+
+Shared template extraction from `zoho_task_folder_sync.py` is deferred pending separate approval.
