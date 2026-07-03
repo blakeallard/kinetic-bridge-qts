@@ -126,6 +126,17 @@ void fn_sync_to_sheet(string p_quote_id)
 			qty = ifnull(line.Qty,0);
 			part = ifnull(line.Part_Number,"");
 			eur_price = thisapp.fn_get_tier_price(part,qty.toLong());
+			// fn_get_tier_price returns -1 when no valid price tier was found — same
+			// guard as fn_calc_quote_lines.deluge; never let the sentinel flow into
+			// this function's independently-computed cost/margin math. Note:
+			// line.Description already carries the "[NO PRICE ON FILE]" marker
+			// written by fn_calc_quote_lines (which always runs first in the save
+			// workflow), so it does not need to be re-added here.
+			price_found = (eur_price >= 0);
+			if(!price_found)
+			{
+				eur_price = 0;
+			}
 			usd_cost_unit = eur_price * eur_usd;
 			discount = 0.0;
 			for each  item in Item_Master[Part_Number == part]
