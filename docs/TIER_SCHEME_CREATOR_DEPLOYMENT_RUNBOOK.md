@@ -43,15 +43,12 @@ Do not target production. Per `QTS_PROJECT_STATUS.md`, production promotion is a
 |---|---|
 | Form | `Item_Master` |
 | Field display name | `Tier_Scheme` |
-| Recommended field type | **Dropdown** (not Single Line) — constrains input to the two valid values so a typo can't silently fall through to the "unknown → default hardware" path undetected. |
-| Recommended choices | `hardware_9_band`, `license_6_band` |
+| Recommended field type | **Dropdown / picklist** (not Single Line) — constrains input to the two valid values so a typo can't silently fall through to the "unknown → default hardware" path undetected. |
+| Recommended choices | `hardware`, `license` — **exact strings**, matching what the already-committed `functions/fn_get_tier_price.deluge` compares against (case-insensitively — the function lowercases before comparing) and what `import_preview/item_master_import_preview.csv`'s `Tier_Scheme` column already contains. `hardware` = hardware 9-band pricing (BMS boards + Accessories); `license` = software/license/service 6-band pricing (Creator Tool, Service Tool, obsolete software). |
 | Required? | **No — must remain optional/not-required.** The patched `fn_get_tier_price.deluge` explicitly treats blank/missing `Tier_Scheme` as "default to hardware," which is the intentional backward-compatibility path for any `Item_Master` rows that predate this field. Making it required would be safer long-term but must not be turned on until every existing row has been given a value — turn it required only as a later hardening step, never in this same change. |
 | Default/backward-compatible behavior if blank | Treated as `hardware` (9-band) by `fn_get_tier_price.deluge`. This matches 100% of Creator's currently deployed behavior (single universal 9-band mapping) — no existing quote or Item_Master row changes behavior from this deployment alone. |
 
-**Important — value mismatch with the local patch.** The patched Deluge code (`fn_get_tier_price.deluge`) currently compares the normalized field value against the literal strings `"hardware"` and `"license"` (matching what `import_preview/item_master_import_preview.csv`'s `Tier_Scheme` column already contains — confirmed by inspecting the CSV). This runbook's required dropdown choices (`hardware_9_band` / `license_6_band`) were specified by the task as the desired Creator-facing display values, but **do not match the strings the deployed function currently checks for**. Two ways to reconcile — pick one before deploying, do not deploy with a mismatch:
-
-- **Option A (recommended, no code change)**: use Creator dropdown choices `hardware` / `license` instead of `hardware_9_band` / `license_6_band`, so the field values match the already-patched function and the already-generated import preview CSV exactly. Simplest, zero additional risk.
-- **Option B**: keep `hardware_9_band` / `license_6_band` as the Creator choices, but then `fn_get_tier_price.deluge` must be edited again (locally first, then redeployed) to compare against these longer strings instead, **and** `import_preview/generate_preview.py` must also be updated to emit these values instead of `hardware`/`license` so the CSV and the deployed function stay in sync, **and** the already-generated `import_preview/item_master_import_preview.csv` would need regenerating. This is more work and more surface area for a mismatch bug (a mismatch here reproduces exactly the "silent default to hardware" behavior the patch was built to avoid for genuinely-license items) — this document does not choose between A and B, that's flagged here for whoever executes this runbook to resolve first.
+**Value consistency confirmed.** An earlier draft of this runbook proposed `hardware_9_band`/`license_6_band` as the Creator-facing dropdown choices, which did not match the strings the committed `fn_get_tier_price.deluge` compares against (`"hardware"`/`"license"`). That mismatch has been resolved: this runbook, the Deluge patch, `import_preview/generate_preview.py`, and the generated `import_preview/item_master_import_preview.csv` all now consistently use the short-form values `hardware` and `license` — verified directly against the CSV (`python3 -c "import csv; ..."` over the `Tier_Scheme` column returns exactly `{'hardware', 'license'}`, no other values present). No code change was needed in `generate_preview.py` or the CSV — they already emitted the correct values; only this runbook's proposed Creator choices needed correcting.
 
 ---
 
@@ -79,9 +76,7 @@ The patched `fn_get_tier_price.deluge` reads `item.Tier_Scheme` inside its `Item
 3. Click **Add Field** (or drag a new field from the field palette onto the form layout).
 4. Set **Field Type** = `Dropdown`.
 5. Set **Field Name / Display Name** = `Tier_Scheme`.
-6. Under **Choices**, add exactly two values — see the mismatch note in Section 3 and resolve Option A vs B *before* typing these in:
-   - If Option A: `hardware`, `license`
-   - If Option B: `hardware_9_band`, `license_6_band` (and defer deployment until the corresponding code/CSV update described in Option B is also done)
+6. Under **Choices**, add exactly two values, matching the committed Deluge patch and import preview CSV: `hardware`, `license`.
 7. Leave **"Mandatory field"** / **Required** = **unchecked** (per Section 3 — must stay optional for backward compatibility).
 8. Do **not** set a default value in the field's Creator configuration — leaving it genuinely blank for un-classified rows is the intended state; the Deluge function (not the field's own default) supplies the hardware fallback.
 9. Save the form.
@@ -173,6 +168,6 @@ None of these are resolved by this runbook or the local patch. All remain busine
 
 ## 12. Clear final answer
 
-- **Is Creator ready for field addition (Section 6)?** **Yes** — the `Tier_Scheme` field is purely additive, optional, and backward-compatible; it can be added to the dev `Item_Master` form at any time without waiting on any of the Section 11 business decisions. The only prerequisite is resolving the Option A/B value-string mismatch noted in Section 3.
+- **Is Creator ready for field addition (Section 6)?** **Yes** — the `Tier_Scheme` field is purely additive, optional, and backward-compatible; it can be added to the dev `Item_Master` form at any time without waiting on any of the Section 11 business decisions. The value-string mismatch that previously blocked this (Section 3) is now resolved — the field's dropdown choices (`hardware`, `license`) already match the committed Deluge patch and the generated import preview CSV exactly.
 - **Is Creator ready for function deployment (Section 7)?** **Conditionally yes, but only after the field exists (Section 6) and only in the dev environment.** The local patch is committed, dry-run verified, and self-contained to 3 functions with no other dependencies. It is safe to deploy to dev once the field is added; it has not been deployed anywhere yet.
 - **Is Creator ready for `Item_Master` import?** **No.** All five items in Section 11 remain open business decisions, and the duplicate-SKU risk (Section 9, test 4) is not mitigated by the code patch itself — it must be enforced by whatever process performs the import. Import should not proceed until Section 11 is fully resolved, regardless of whether the field/function deployment above has happened.
