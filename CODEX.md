@@ -1,0 +1,21 @@
+# Codex Instructions
+
+Use this repo as the source of truth for BI1-T71 / QTS.
+
+Before making changes, read:
+
+1. `README.md`
+2. `TASK.md`
+3. `STATUS.md`
+4. `QTS_PROJECT_STATUS.md`
+5. `AGENTS.md`
+
+Rules:
+
+- Prefer review, tests, validation, diffs, and small implementation tasks.
+- Do not modify Zoho, Creator, CRM, Sheet, WorkDrive, or workflows unless explicitly approved.
+- Do not edit legacy folder `/Users/blakeallard/bevco/apps/quote_app`.
+- Work from this repo path only.
+- Preserve Deluge functions as full-function files.
+- Do not commit secrets, tokens, `.env` files, private customer data, or credential-bearing URLs.
+- For implementation work, create a branch and PR when possible.
