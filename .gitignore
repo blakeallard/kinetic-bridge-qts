@@ -8,3 +8,11 @@ __pycache__/
 node_modules/
 .venv/
 venv/
+
+# Local/private references
+reference_docs/private_examples/
+
+# Binary source artifacts
+*.xlsx
+*.docx
+*.pdf

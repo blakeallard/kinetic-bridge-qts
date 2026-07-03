@@ -1,0 +1,261 @@
+void fn_generate_pdf(string p_quote_id)
+{
+	quoteIdLong = p_quote_id.toLong();
+	for each quote in Quote_Request[ID == quoteIdLong]
+	{
+		quoteDate = zoho.currentdate.toString("yyyy-MM-dd");
+		validUntil = zoho.currentdate.addDay(30).toString("yyyy-MM-dd");
+
+		// The Writer template ("lg6haa9fe623ad500461ea6708547e49c8a4a") only has
+		// flat single-instance merge fields (item_no/description/qty/unit_price/
+		// line_total) — confirmed via Get_All_Fields, no repeating table region.
+		// A real fix needs that template rebuilt with a repeating table bound to
+		// a line-items list, which isn't doable via the Writer API (no content-edit
+		// endpoint) and must be done by hand in Writer's editor. Until then, stack
+		// every line into these fields with newlines so multi-line quotes at least
+		// show complete, correct data instead of only line 1.
+		item_no = "1";
+		item_desc = "";
+		item_qty = "1";
+		item_unit = "$0.00";
+		item_line = "$0.00";
+		item_ship = "4-6 weeks";
+
+		item_no_joined = "";
+		item_desc_joined = "";
+		item_qty_joined = "";
+		item_unit_joined = "";
+		item_line_joined = "";
+		lineCounter = 0;
+		for each ln in quote.Quote_Lines
+		{
+			lineCounter = lineCounter + 1;
+			rawQty = ifnull(ln.Qty, 0);
+			rawUnit = ifnull(ln.Unit_Price, 0);
+			rawLine = ifnull(ln.Line_Total_USD, 0);
+			lnNo = ifnull(ln.Line_Number, lineCounter).toString();
+			lnDesc = ifnull(ln.Description, "");
+			lnQty = rawQty.round(0).toLong().toString();
+			lnUnit = "$" + rawUnit.round(2).toString();
+			lnLine = "$" + rawLine.round(2).toString();
+			if(lineCounter > 1)
+			{
+				// Literal "\n" (backslash + n), not an actual newline byte — this
+				// gets concatenated straight into a JSON string literal below with
+				// no escaping step, so a raw newline would produce invalid JSON.
+				item_no_joined = item_no_joined + "\\n";
+				item_desc_joined = item_desc_joined + "\\n";
+				item_qty_joined = item_qty_joined + "\\n";
+				item_unit_joined = item_unit_joined + "\\n";
+				item_line_joined = item_line_joined + "\\n";
+			}
+			item_no_joined = item_no_joined + lnNo;
+			item_desc_joined = item_desc_joined + lnDesc;
+			item_qty_joined = item_qty_joined + lnQty;
+			item_unit_joined = item_unit_joined + lnUnit;
+			item_line_joined = item_line_joined + lnLine;
+		}
+		if(lineCounter > 0)
+		{
+			item_no = item_no_joined;
+			item_desc = item_desc_joined;
+			item_qty = item_qty_joined;
+			item_unit = item_unit_joined;
+			item_line = item_line_joined;
+		}
+
+		subtotalAmt = 0.0;
+		for each ln in quote.Quote_Lines
+		{
+			subtotalAmt = subtotalAmt + ifnull(ln.Line_Total_USD, 0);
+		}
+		subtotalAmt = subtotalAmt.round(2);
+
+		wireAmt = 25.00;
+		shippingAmt = 25.00;
+		taxAmt = 0.00;
+		otherAmt = 0.00;
+		fxAmt = 0.00;
+
+		fxMode = ifnull(quote.FX_Charge_Mode, "non_usd_only");
+		currency = ifnull(quote.Currency, "USD");
+
+		if(fxMode == "always")
+		{
+			fxAmt = (subtotalAmt * 0.015).round(2);
+		}
+		else if(fxMode == "non_usd_only" && currency != "USD")
+		{
+			fxAmt = (subtotalAmt * 0.015).round(2);
+		}
+		else if(fxMode == "usd_only" && currency == "USD")
+		{
+			fxAmt = (subtotalAmt * 0.015).round(2);
+		}
+
+		totalAmt = (subtotalAmt + wireAmt + shippingAmt + taxAmt + fxAmt + otherAmt).round(2);
+
+		qNum = ifnull(quote.Quote_Number, "");
+		cCompany = ifnull(quote.Customer_Company, "");
+		cName = ifnull(quote.Customer_Name, "");
+		cEmail = ifnull(quote.Customer_Email, "");
+		// Creator phone field may serialize as a structured value like
+		// {country_code=US, phone_number=+15550123} instead of a plain string.
+		// Never call .get() on it — it may already be a plain string. Parse
+		// the toString() form instead and pull out the number part.
+		cPhoneRaw = ifnull(quote.Customer_Phone, "");
+		cPhone = "";
+		if(cPhoneRaw != "")
+		{
+			cPhoneText = cPhoneRaw.toString();
+			if(cPhoneText.contains("phone_number"))
+			{
+				phoneParts = cPhoneText.toList("phone_number=");
+				if(phoneParts.size() > 1)
+				{
+					cPhone = phoneParts.get(1).toString();
+					cPhone = cPhone.replaceAll("[}\\],].*", "");
+					cPhone = cPhone.replaceAll("\"", "").trim();
+				}
+			}
+			else if(cPhoneText.contains("number"))
+			{
+				phoneParts = cPhoneText.toList("number=");
+				if(phoneParts.size() > 1)
+				{
+					cPhone = phoneParts.get(1).toString();
+					cPhone = cPhone.replaceAll("[}\\],].*", "");
+					cPhone = cPhone.replaceAll("\"", "").trim();
+				}
+			}
+			else
+			{
+				cPhone = cPhoneText.trim();
+			}
+		}
+		rName = ifnull(quote.Recipient_Name, "Blake Allard");
+		rEmail = ifnull(quote.Recipient_Email, "blake@bevco-tech.com");
+
+		mergeJSON = "{\"data\": [{";
+		mergeJSON = mergeJSON + "\"quote_number\": \"" + qNum + "\",";
+		mergeJSON = mergeJSON + "\"quote_date\": \"" + quoteDate + "\",";
+		mergeJSON = mergeJSON + "\"valid_until\": \"" + validUntil + "\",";
+		mergeJSON = mergeJSON + "\"currency\": \"" + currency + "\",";
+		mergeJSON = mergeJSON + "\"customer_company\": \"" + cCompany + "\",";
+		mergeJSON = mergeJSON + "\"customer_name\": \"" + cName + "\",";
+		mergeJSON = mergeJSON + "\"customer_email\": \"" + cEmail + "\",";
+		mergeJSON = mergeJSON + "\"customer_phone\": \"" + cPhone + "\",";
+		mergeJSON = mergeJSON + "\"recipient_name\": \"" + rName + "\",";
+		mergeJSON = mergeJSON + "\"recipient_email\": \"" + rEmail + "\",";
+		mergeJSON = mergeJSON + "\"company_phone\": \"+1 800-555-0100\",";
+		mergeJSON = mergeJSON + "\"payment_terms\": \"Net 30\",";
+		mergeJSON = mergeJSON + "\"lead_time\": \"4-6 weeks\",";
+		mergeJSON = mergeJSON + "\"shipping_terms\": \"FOB Origin\",";
+		mergeJSON = mergeJSON + "\"quote_validity\": \"30 days\",";
+		mergeJSON = mergeJSON + "\"fx_notes\": \"All prices in USD. No FX conversion applied.\",";
+		mergeJSON = mergeJSON + "\"additional_notes\": \"Pricing based on current distributor pricelist. Subject to change after expiration.\",";
+		mergeJSON = mergeJSON + "\"item_no\": \"" + item_no + "\",";
+		mergeJSON = mergeJSON + "\"description\": \"" + item_desc + "\",";
+		mergeJSON = mergeJSON + "\"qty\": \"" + item_qty + "\",";
+		mergeJSON = mergeJSON + "\"unit_price\": \"" + item_unit + "\",";
+		mergeJSON = mergeJSON + "\"line_total\": \"" + item_line + "\",";
+		mergeJSON = mergeJSON + "\"ship_time_note\": \"" + item_ship + "\",";
+		mergeJSON = mergeJSON + "\"subtotal\": \"$" + subtotalAmt.toString() + "\",";
+		mergeJSON = mergeJSON + "\"tax\": \"$" + taxAmt.toString() + "\",";
+		mergeJSON = mergeJSON + "\"shipping_handling\": \"$" + shippingAmt.toString() + "\",";
+		mergeJSON = mergeJSON + "\"wire_charge\": \"$" + wireAmt.toString() + "\",";
+		mergeJSON = mergeJSON + "\"fx_charge\": \"$" + fxAmt.toString() + "\",";
+		mergeJSON = mergeJSON + "\"other\": \"$" + otherAmt.toString() + "\",";
+		mergeJSON = mergeJSON + "\"total_revenue\": \"$" + totalAmt.toString() + "\"";
+		mergeJSON = mergeJSON + "}]}";
+
+		signerJSON = "[";
+		signerJSON = signerJSON + "{\"recipient_1\": \"" + rEmail + "\",";
+		signerJSON = signerJSON + "\"recipient_name\": \"" + rName + "\",";
+		signerJSON = signerJSON + "\"action_type\": \"sign\",";
+		signerJSON = signerJSON + "\"private_notes\": \"Internal Bevco signature - review and authorize the quote before sending to customer.\"},";
+		signerJSON = signerJSON + "{\"recipient_2\": \"" + cEmail + "\",";
+		signerJSON = signerJSON + "\"recipient_name\": \"" + cName + "\",";
+		signerJSON = signerJSON + "\"action_type\": \"sign\",";
+		signerJSON = signerJSON + "\"private_notes\": \"Please review and sign the attached Kinetic Bridge quotation. Contact blake@bevco-tech.com with any questions.\"}";
+		signerJSON = signerJSON + "]";
+
+		params = Map();
+		params.put("filename", "Kinetic_Bridge_Quote_" + qNum);
+		params.put("service_name", "zohosign");
+		params.put("sign_in_order", true);
+		params.put("set_expire", 30);
+		params.put("reminder_period", 3);
+		params.put("message", "Please review and sign the attached Kinetic Bridge quotation. Contact blake@bevco-tech.com with any questions.");
+		params.put("merge_data", mergeJSON);
+		params.put("signer_data", signerJSON);
+
+		response = invokeurl
+		[
+			url: "https://writer.zoho.com/writer/api/v1/documents/lg6haa9fe623ad500461ea6708547e49c8a4a/merge/sign"
+			type: POST
+			parameters: params
+			connection: "zoho_writter"
+		];
+
+		info "fn_generate_pdf: " + response.toString();
+
+		responseRecords = response.get("records");
+		if(!isnull(responseRecords) && responseRecords.size() > 0)
+		{
+			docRecord = responseRecords.get(0);
+			signReqId = ifnull(docRecord.get("sign_request_id"), "");
+			if(signReqId != "")
+			{
+				for each rec in Quote_Request[ID == quoteIdLong]
+				{
+					rec.Sign_Request_ID = signReqId;
+					break;
+				}
+
+				// Build note content for CRM
+				signUrl = ifnull(docRecord.get("download_link"), "");
+				if(signUrl == "")
+				{
+					signUrl = "https://sign.zoho.com/signforms/" + signReqId;
+				}
+				noteTitle = "Quote Sent for Signature — " + qNum;
+				noteContent = "Quote Number: " + qNum + "\n";
+				noteContent = noteContent + "Date Sent: " + quoteDate + "\n";
+				noteContent = noteContent + "Sign Request ID: " + signReqId + "\n";
+				noteContent = noteContent + "Document Link: " + signUrl + "\n";
+				noteContent = noteContent + "Signers: " + rName + " (internal) → " + cName + " (customer)";
+
+				// Add Note to CRM Deal
+				dealName = cCompany + " — " + qNum;
+				dealSearch = zoho.crm.searchRecords("Deals", "Deal_Name:equals:" + dealName);
+				if(!isnull(dealSearch) && dealSearch.size() > 0)
+				{
+					dealId = dealSearch.get(0).get("id").toString();
+					dealNote = Map();
+					dealNote.put("Note_Title", noteTitle);
+					dealNote.put("Note_Content", noteContent);
+					dealNote.put("Parent_Id", dealId);
+					dealNote.put("se_module", "Deals");
+					zoho.crm.createRecord("Notes", dealNote);
+				}
+
+				// Add Note to CRM Contact
+				if(cEmail != "")
+				{
+					contactSearch = zoho.crm.searchRecords("Contacts", "Email:equals:" + cEmail);
+					if(!isnull(contactSearch) && contactSearch.size() > 0)
+					{
+						contactId = contactSearch.get(0).get("id").toString();
+						contactNote = Map();
+						contactNote.put("Note_Title", noteTitle);
+						contactNote.put("Note_Content", noteContent);
+						contactNote.put("Parent_Id", contactId);
+						contactNote.put("se_module", "Contacts");
+						zoho.crm.createRecord("Notes", contactNote);
+					}
+				}
+			}
+		}
+	}
+}

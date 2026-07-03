@@ -1,0 +1,30 @@
+string fn_get_next_number(string p_type_code)
+{
+	found = false;
+	doc_num = "";
+	for each  rec in Document_Types[Type_Code == p_type_code]
+	{
+		found = true;
+		next_seq = ifnull(rec.Last_Sequence,0) + 1;
+		prefix = ifnull(rec.Prefix1,"");
+		base = "0000" + next_seq.toString();
+		padded = base.subString(base.length() - 4,base.length());
+		doc_num = prefix + padded;
+		rec.Last_Sequence=next_seq;
+		insert into Document_Number_Log
+		[
+			Added_User=zoho.loginuser
+			Document_Number=doc_num
+			Type_Code=p_type_code
+			Issued_At=zoho.currenttime
+			Issued_By=zoho.loginuser
+			Status="Active"
+		]
+		break;
+	}
+	if(found == false)
+	{
+		return "ERROR:UNKNOWN_TYPE";
+	}
+	return doc_num;
+}

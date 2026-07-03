@@ -1,0 +1,55 @@
+void fn_sync_to_crm(string p_quote_id)
+{
+	for each  quote in Quote_Request[ID == p_quote_id.toLong()]
+	{
+		deal_name = quote.Customer_Company + " — " + ifnull(quote.Quote_Number,"DRAFT");
+		status = ifnull(quote.Status,"Draft");
+		crm_stage = "Proposal/Price Quote";
+		if(status == "Send for Signature") { crm_stage = "Negotiation/Review"; }
+		if(status == "Signed") { crm_stage = "Closed Won"; }
+		total_revenue = 0.0;
+		for each  line in quote.Quote_Lines
+		{
+			total_revenue = total_revenue + ifnull(line.Line_Total_USD,0);
+		}
+		// Look up Contact by email; create one if not found
+		contact_id = "";
+		contact_email = ifnull(quote.Customer_Email,"");
+		if(contact_email != "")
+		{
+			contact_search = zoho.crm.searchRecords("Contacts","Email:equals:" + contact_email);
+			if(contact_search.size() > 0)
+			{
+				contact_id = contact_search.get(0).get("id").toString();
+			}
+			else
+			{
+				contact_data = Map();
+				contact_data.put("Last_Name",ifnull(quote.Customer_Name,"Unknown"));
+				contact_data.put("Email",contact_email);
+				contact_data.put("Account_Name",ifnull(quote.Customer_Company,""));
+				new_contact = zoho.crm.createRecord("Contacts",contact_data);
+				contact_id = new_contact.get("id").toString();
+			}
+		}
+		deal_data = Map();
+		deal_data.put("Deal_Name",deal_name);
+		deal_data.put("Stage",crm_stage);
+		deal_data.put("Amount",total_revenue.round(2));
+		deal_data.put("Account_Name",ifnull(quote.Customer_Company,""));
+		deal_data.put("Description",ifnull(quote.Notes,""));
+		deal_data.put("Closing_Date",zoho.currentdate.addDay(30).toString("yyyy-MM-dd"));
+		if(contact_id != "") { deal_data.put("Contact_Name",contact_id); }
+		existing = zoho.crm.searchRecords("Deals","Deal_Name:equals:" + deal_name);
+		if(existing.size() == 0)
+		{
+			zoho.crm.createRecord("Deals",deal_data);
+		}
+		else
+		{
+			deal_id = existing.get(0).get("id").toLong();
+			zoho.crm.updateRecord("Deals",deal_id,deal_data);
+		}
+		break;
+	}
+}
