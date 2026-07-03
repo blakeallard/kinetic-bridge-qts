@@ -1,0 +1,35 @@
+# BI1-T71 Status
+
+Canonical current-state file:
+
+- `QTS_PROJECT_STATUS.md`
+
+Current source of truth:
+
+- This GitHub repo is the source of truth for QTS source files, docs, import previews, and implementation plans.
+- Zoho Creator is the deployed runtime copy.
+- Do not edit `/Users/blakeallard/bevco/apps/quote_app`; it is legacy/reference only.
+
+Current status summary:
+
+- QTS Creator app exists in development.
+- `fn_generate_pdf` Customer_Phone fix is redeployed and runtime-verified.
+- Writer merge/sign succeeds.
+- Sign_Request_ID writes back from Zoho Sign.
+- July 2026 RSP import preview exists under `import_preview/`.
+- Item_Master import is not approved yet.
+- Creator deployment-readiness cleanup is planned but not implemented.
+
+Next decision points:
+
+1. Review July RSP import preview.
+2. Resolve duplicate SKUs 300300 / 300500.
+3. Decide unpriced SKU behavior.
+4. Decide whether license/service/software needs `Tier_Scheme`.
+5. Decide whether Partner is exposed as `Customer_Type`.
+6. Add or confirm `Inquiry_Type` / `Quote_Type` for Battery / BMS / Other.
+
+Agent rule:
+
+- Before starting work, read `README.md`, `TASK.md`, `STATUS.md`, `QTS_PROJECT_STATUS.md`, and `AGENTS.md`.
+- Do not modify Zoho/Creator/CRM/Sheet/WorkDrive unless explicitly approved.
