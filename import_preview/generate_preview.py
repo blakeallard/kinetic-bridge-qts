@@ -24,12 +24,17 @@ M = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_XLSX = '/Users/blakeallard/.claude/jobs/d8eec8fc/tmp/july_rsp.xlsx'
+# Canonical local copy (see docs/LIBAL_REFERENCE_PRICE_QC.md) — stable path, not a
+# job-scoped temp file. Falls back to the original job tmp path if the canonical
+# copy isn't present on this machine.
+DEFAULT_XLSX = '/Users/blakeallard/bevco/data/references/lithium_balance/BMS Pricelist/Lithium Balance BMS_July 01_RSP_Distributor.xlsx'
+FALLBACK_XLSX = '/Users/blakeallard/.claude/jobs/d8eec8fc/tmp/july_rsp.xlsx'
 SHEET_NAME = 'RSP_EUR'
 
 CSV_HEADER = ['Part_Number', 'Description', 'Category', 'Tier_Scheme', 'Discountable',
               'Active', 'Price_T1', 'Price_T2', 'Price_T3', 'Price_T4', 'Price_T5',
-              'Price_T6', 'Price_T7', 'Price_T8', 'Price_T9', 'Review_Flag', 'Review_Reason']
+              'Price_T6', 'Price_T7', 'Price_T8', 'Price_T9', 'Review_Flag', 'Review_Reason',
+              'Recommended_Action']
 
 # Section header text (column B) -> (tier_scheme, category, number of price bands, band labels)
 SECTIONS = {
@@ -110,7 +115,12 @@ def fmt_price(raw):
 
 
 def main():
-    xlsx = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_XLSX
+    if len(sys.argv) > 1:
+        xlsx = sys.argv[1]
+    elif os.path.exists(DEFAULT_XLSX):
+        xlsx = DEFAULT_XLSX
+    else:
+        xlsx = FALLBACK_XLSX
     rows = read_rsp_rows(xlsx)
 
     items = []        # dicts with parse metadata
@@ -175,21 +185,49 @@ def main():
     for it in items:
         counts[it['sku']] = counts.get(it['sku'], 0) + 1
 
+    # QC doc citation used below — see docs/LIBAL_REFERENCE_PRICE_QC.md for the full
+    # evidence trail (vendor Changes_Log excerpts, raw RSP_EUR cell dump).
+    QC_DOC = 'docs/LIBAL_REFERENCE_PRICE_QC.md'
+
     for it in items:
-        flag, reason, active = '', '', 'Y'
+        flag, reason, active, action = '', '', 'Y', ''
         if counts[it['sku']] > 1:
             flag, active = 'DUPLICATE_SKU', 'REVIEW'
+            is_bundle = not it['prices'][0]
             style = ('bundle-style price row (prices only in upper bands)'
-                     if not it['prices'][0] else 'unit-price row')
+                     if is_bundle else 'unit-price row')
             reason = (f'SKU {it["sku"]} appears {counts[it["sku"]]}x in {it["section"]}; this is the {style}. '
                       'Bundle-vs-unit pricing ambiguity - confirm which row is the sellable item before import.')
+            if it['section'] == 'Service Tool':
+                # Per docs/LIBAL_REFERENCE_PRICE_QC.md: the vendor's own Changes_Log
+                # (change batch dated 2026-06-01) states "Removed bundle prices for
+                # service", but this
+                # bundle-style row is still present in the delivered RSP_EUR sheet.
+                # The unit-price row matches Service Tool pricing already confirmed
+                # identical across BMS families (e.g. c-BMS24 SKU 300200) and is the
+                # likely-intended current price. Flag only — no row is excluded or
+                # auto-approved here; Bill/Bryan must confirm before import.
+                if is_bundle:
+                    action = 'EXCLUDE_CANDIDATE (stale bundle row per vendor Changes_Log - see ' + QC_DOC + ')'
+                    reason += (' Vendor Changes_Log (2026-06-01 batch) states bundle Service Tool prices '
+                               'were removed, but this bundle row is still present in the delivered sheet - '
+                               'see ' + QC_DOC + '.')
+                else:
+                    action = 'CANONICAL_CANDIDATE (pending Bill/Bryan approval - see ' + QC_DOC + ')'
+                    reason += (' This unit-price row matches other BMS families\' Service Tool pricing and is '
+                               'the likely-intended current price per ' + QC_DOC + '; pending Bill/Bryan approval.')
+            else:
+                action = 'PENDING_CONFIRMATION (bundle-vs-unit ambiguity)'
         elif not it['priced']:
             flag, active = 'UNPRICED', 'REVIEW'
-            reason = f'No published price in July 2026 RSP (sheet row {it["row"]}); listed without price points.'
+            reason = (f'No published price in July 2026 RSP (sheet row {it["row"]}); listed without price points. '
+                      'Confirmed genuinely unpriced in the raw source cells (not a parsing gap) - see ' + QC_DOC + '.')
+            action = 'BLOCKED_NO_PRICE (pending Bill/Bryan decision - import/exclude/manual price)'
         elif it['section'] == 'Service Tool':
             flag = 'CONFIRM_DISCOUNT_CLASS'
             reason = 'confirm flat software discount applies to service tools'
-        it['flag'], it['reason'], it['active'] = flag, reason, active
+            action = 'PENDING_CONFIRMATION (discount class)'
+        it['flag'], it['reason'], it['active'], it['action'] = flag, reason, active, action
 
     # ---- CSV ----
     csv_path = os.path.join(HERE, 'item_master_import_preview.csv')
@@ -199,7 +237,7 @@ def main():
         for it in items:
             p = it['prices'] + [''] * (9 - len(it['prices']))
             w.writerow([it['sku'], it['desc'], it['category'], it['tier_scheme'],
-                        it['discountable'], it['active']] + p + [it['flag'], it['reason']])
+                        it['discountable'], it['active']] + p + [it['flag'], it['reason'], it['action']])
 
     # ---- Report ----
     total = len(items)
@@ -214,7 +252,7 @@ def main():
         p = it['prices'] + [''] * (9 - len(it['prices']))
         return ('| ' + ' | '.join([str(it['row']), it['sku'], it['desc'][:55], it['category'],
                                    it['tier_scheme'], it['discountable'], it['active']]
-                                  + p + [it['flag'], it['reason']]) + ' |')
+                                  + p + [it['flag'], it['reason'], it['action']]) + ' |')
 
     lines = []
     lines.append('# July 2026 RSP -> Item_Master Import Preview Report')
@@ -233,6 +271,8 @@ def main():
     lines.append('6. A standalone `X` in the row tail (beyond the band columns) sets `Discountable=Y`; absent = `N`. Other stray tail cells are ignored as junk (see notes).')
     lines.append('7. Category proposal: BMS boards -> Hardware; Accessories -> Accessory; Creator Tool / Service Tool / obsolete software -> Software.')
     lines.append('8. Review flag precedence per row: `DUPLICATE_SKU` > `UNPRICED` > `CONFIRM_DISCOUNT_CLASS`. `Active=REVIEW` for duplicate/unpriced rows; `Active=Y` otherwise (no `N` rows in this pass).')
+    lines.append('9. `Recommended_Action` is a non-destructive, additive column — it never changes `Active` or removes a row. It surfaces an evidence-backed recommendation (see docs/LIBAL_REFERENCE_PRICE_QC.md) for Bill/Bryan to approve or reject; no row is auto-decided or auto-excluded by this script.')
+    lines.append('10. Identical Creator License / Service Tool pricing across n-BMS, c-BMS24, c-BMS24X, and i-BMS (see rows for SKUs 200200/200500 and 300200/300500) is **not** flagged as an error here. It is vendor-documented: the source workbook\'s `Changes_Log` sheet records "Added Creator/Service Unified version" (change batch dated 2024-09-01). See docs/LIBAL_NBMS_CBMS24_PRICE_QC.md and docs/LIBAL_REFERENCE_PRICE_QC.md for the full evidence trail.')
     lines.append('')
     lines.append('## Counts')
     lines.append('')
@@ -253,7 +293,8 @@ def main():
         lines.append(f'  - Sheet row {rownum} (SKU {sku}): {note}')
     if not junk_notes:
         lines.append('  - none')
-    lines.append('- **Duplicate SKU detail**: 300500 and 300300 each appear twice in Service Tool - once as a bundle-style row (prices 3500/5900/9800 only in the 5-9 / 10-24 / 25-249 bands) and once as a unit-price row (450/337.50/292.50/...). Both variants are included with `Active=REVIEW`.')
+    lines.append('- **Duplicate SKU detail**: 300500 and 300300 each appear twice in Service Tool - once as a bundle-style row (prices 3500/5900/9800 only in the 5-9 / 10-24 / 25-249 bands) and once as a unit-price row (450/337.50/292.50/...). Both variants are included with `Active=REVIEW`. Per docs/LIBAL_REFERENCE_PRICE_QC.md, the vendor\'s own `Changes_Log` sheet (2026-06-01 change batch) states "Removed bundle prices for service", yet the bundle-style rows are still present in the delivered sheet - each bundle row is marked `Recommended_Action=EXCLUDE_CANDIDATE` (stale) and each unit-price row is marked `CANONICAL_CANDIDATE` (recommended), pending Bill/Bryan approval. Neither row is auto-excluded or auto-approved.')
+    lines.append('- **Vendor-documented unified Creator/Service pricing**: SKUs 200200/200500 (Creator License FULL) and 300200/300500 (Service Tool, unit-price rows) are priced identically across c-BMS24 and n-BMS (and i-BMS/c-BMS24X). This is confirmed intentional via the source workbook\'s `Changes_Log` ("Added Creator/Service Unified version", 2024-09-01 batch) - see docs/LIBAL_NBMS_CBMS24_PRICE_QC.md and docs/LIBAL_REFERENCE_PRICE_QC.md. Not flagged as a data-quality issue.')
     lines.append('')
     lines.append('## Skipped rows (not items)')
     lines.append('')
@@ -264,8 +305,10 @@ def main():
     lines.append('')
     lines.append('## REVIEW / flagged rows')
     lines.append('')
-    lines.append('| Sheet row | Part_Number | Description | Category | Tier_Scheme | Disc | Active | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | Review_Flag | Review_Reason |')
-    lines.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+    lines.append('`Recommended_Action` is advisory only (see Methodology #9) - it does not change `Active` or exclude any row from this preview.')
+    lines.append('')
+    lines.append('| Sheet row | Part_Number | Description | Category | Tier_Scheme | Disc | Active | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | Review_Flag | Review_Reason | Recommended_Action |')
+    lines.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
     for it in flagged:
         lines.append(md_row(it))
     lines.append('')
