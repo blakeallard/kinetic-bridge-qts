@@ -1,0 +1,167 @@
+KINETIC BRIDGE QUOTE APP - ONE-PAGE WORKFLOW OVERVIEW
+Status Date: 2026-06-28
+
+PURPOSE
+Automate quote intake, pricing, quote document generation, CRM/Sheet sync, and customer signature routing using Zoho Creator as the quote engine.
+
+================================================================================
+PRODUCTION WORKFLOW
+================================================================================
+
+[1] CUSTOMER INTAKE - FUTURE / NOT FINAL
+Customer
+  -> Zoho Forms
+  -> Zoho Flow
+  -> Zoho Creator: Quote_Request record created
+
+[2] QUOTE ENGINE - ZOHO CREATOR: kinetic-quote
+Quote_Request saved or edited
+  -> Workflow: Quote Auto Number and Recalc
+
+Workflow actions:
+  A. Quote numbering
+     -> If Quote_Number is blank
+     -> fn_get_next_number("QUOTE")
+     -> Updates Document_Types + Document_Number_Log
+
+  B. Internal recipient assignment
+     -> If Recipient_Email is blank
+     -> App_Users lookup using zoho.loginuser
+     -> Writes Recipient_Name + Recipient_Email
+
+  C. Pricing calculation
+     -> fn_calc_quote_lines
+     -> fn_get_tier_price reads Item_Master EUR list pricing
+     -> fn_get_discount reads Price_Rules customer discount logic
+     -> FX_Rates supplies EUR to USD conversion
+     -> Writes calculated Quote_Lines rows
+
+  D. Reporting sync
+     -> fn_sync_to_sheet
+     -> Writes Zoho Sheet tabs:
+        - Quote_Request
+        - Quote_Lines
+        - Quote_Output
+
+  E. CRM sync
+     -> fn_sync_to_crm
+     -> Upserts Zoho CRM Deal
+
+  F. Signature trigger
+     -> If Status = Send for Signature
+     -> fn_generate_pdf(quote_id)
+
+[3] DOCUMENT GENERATION + SIGNATURE - CREATOR -> WRITER -> SIGN
+fn_generate_pdf(quote_id)
+  -> Reads Quote_Request + Quote_Lines
+  -> Builds Writer merge payload from quote fields, first line item, totals, and signer data
+  -> Calls Zoho Writer merge/sign API
+     Document ID: lg6haa9fe623ad500461ea6708547e49c8a4a
+     Connection: zoho_writter
+  -> Zoho Writer generates merged quote PDF
+  -> Zoho Sign creates sequential signature request
+     Signer 1: Recipient_Email - internal Kinetic Bridge/BEVCO signer
+     Signer 2: Customer_Email - customer signer
+  -> Writer response returns sign_request_id
+  -> Creator writes Quote_Request.Sign_Request_ID
+
+[4] SIGNED DOCUMENT STATUS - FUTURE
+Zoho Sign webhook
+  -> Creator updates Quote_Request.Status = Signed
+  -> Future downstream actions can run from signed status
+
+================================================================================
+CURRENTLY WORKING
+================================================================================
+
+Core Creator quote engine:
+  - fn_get_next_number: creates QUOTE-#### and TEST-QUOTE-#### IDs
+  - fn_get_tier_price: reads Item_Master tier pricing
+  - fn_get_discount: reads Price_Rules customer type logic
+  - fn_calc_quote_lines: calculates line pricing, FX, subtotal, and totals
+  - fn_refresh_fx_rates: refreshes EUR to USD cache
+  - fn_sync_to_sheet: writes quote data to Zoho Sheet tabs
+  - fn_sync_to_crm: upserts Zoho CRM Deals
+  - fn_generate_pdf: Writer merge, Sign request, and Sign_Request_ID writeback
+
+Confirmed live test:
+  - Test quote: TEST-QUOTE0033
+  - Item: AcmeBMS BMS 24S - Battery Management System
+  - Qty: 5
+  - Unit price: $601.13
+  - Line total: $3,005.64
+  - Total revenue: $3,055.64
+  - Zoho Sign request created: 504457000000209074
+  - Status: inprogress
+  - Sign_Request_ID writeback confirmed
+
+================================================================================
+APPLICATIONS USED
+================================================================================
+
+Zoho Creator
+  Main system of record and quote engine.
+  Stores Quote_Request, Quote_Lines, Item_Master, Price_Rules, FX_Rates, App_Users, and Sign_Request_ID.
+
+Zoho Writer
+  Generates the customer-facing quote PDF from merge fields.
+  Uses document ID: lg6haa9fe623ad500461ea6708547e49c8a4a
+
+Zoho Sign
+  Sends the merged quote PDF for sequential signatures.
+
+Zoho CRM
+  Stores/upserts the related Deal record.
+
+Zoho Sheet
+  Stores quote reporting data across Quote_Request, Quote_Lines, and Quote_Output tabs.
+
+Zoho Forms / Zoho Flow
+  Intended future intake path from customer form to Creator Quote_Request record.
+
+================================================================================
+IMPORTANT GOTCHAS
+================================================================================
+
+1. Old placeholder Zoho Flow must stay disabled.
+   If enabled, it sends Kinetic_Bridge_Quote_Placeholder instead of the Writer merged quote.
+
+2. Creator connection is named zoho_writter with double-t.
+   Do not rename unless the function is updated.
+
+3. Writer merge/sign success returns status = inprogress, not success.
+
+4. Writer API response records are at response.get("records"), not response.get("data").get("records").
+
+5. Deluge Map.toString() can produce invalid JSON-like syntax.
+   The working implementation must send valid JSON payloads accepted by Writer.
+
+6. API record updates may not fire Creator form workflows.
+   Use Creator UI save for workflow testing unless API trigger behavior is confirmed.
+
+7. Multi-row line items are Phase 2.
+   Phase 1 MVP supports one displayed line item row in the PDF.
+
+================================================================================
+PENDING WORK - ORDERED
+================================================================================
+
+1. Build final Zoho Forms -> Zoho Flow -> Creator intake flow.
+2. Confirm Price_Rules discount rates with Bill/Bryan.
+3. Confirm tier mapping rules for quantity breaks and customer type.
+4. Verify final Zoho Sheet connection name and production sync behavior.
+5. Build Creator Home page, list view, and quote detail/edit UI.
+6. Run E2E test using real Item_Master part numbers after pricing is confirmed.
+7. Clean up TEST-QUOTE records from Creator, Sheet, CRM, Writer, and Sign.
+8. Phase 2: repeating multi-row line items in Writer PDF.
+9. Zoho Sign webhook -> Creator status update to Signed.
+10. Optional post-completion: Postgres mirror of Creator schema.
+
+================================================================================
+CURRENT BOTTOM LINE
+================================================================================
+
+The core Phase 1 production pipeline is operational:
+Creator -> Writer merged PDF -> Zoho Sign -> Sign_Request_ID saved back to Creator.
+
+Remaining work is intake, pricing validation, UI polish, Sheet verification, and Phase 2 multi-row quote PDF support.

@@ -1,0 +1,322 @@
+# Kinetic Bridge Quote App (QTS) — Project Status
+**Last updated:** 2026-07-02
+**App:** Zoho Creator `qts` | **Workspace:** `bevcollc` | **Environment:** development
+
+**Changelog:**
+- 2026-07-02: Implemented Customer_Phone normalization in `fn_generate_pdf.deluge`; avoids calling `.get()` on Creator phone field and parses the string form instead. Local only — pending Creator redeploy + PDF verification.
+
+---
+
+## What This App Does
+
+End-to-end quote-to-signature pipeline for Kinetic Bridge battery system sales. A quote is created in Zoho Creator, automatically priced against a live EUR pricelist, synced to Zoho Sheet for margin analysis, synced to Zoho CRM for deal tracking, and — when approved — merged into a PDF via Zoho Writer and sent for dual e-signature via Zoho Sign.
+
+---
+
+## Architecture
+
+```
+[Intake Form — NOT BUILT YET]
+        ↓ Zoho Flow (not built)
+[Zoho Creator — Quote_Request record]
+        ↓ On every save (workflow: "Quote Auto Number and Recalc")
+        ├── fn_calc_quote_lines   → prices line items from Item_Master + FX_Rates_Cache
+        ├── fn_sync_to_sheet      → upserts rows in 3 Zoho Sheet tabs
+        ├── fn_sync_to_crm        → creates/updates CRM Deal + Contact
+        └── fn_generate_pdf       → fires ONLY when Status = "Send for Signature"
+                                     → Writer merge → Zoho Sign request (Blake first, customer second)
+                                     → writes Sign_Request_ID back to Creator record
+```
+
+---
+
+## Connected Systems
+
+| System | Purpose | Status |
+|---|---|---|
+| Zoho Creator (`qts`) | Core record, data entry, workflow trigger | Working |
+| Zoho Sheet | Internal margin/pricing analytics (3 tabs) | Working |
+| Zoho CRM | Deal + Contact tracking | Working |
+| Zoho Writer | Quote PDF template merge | Working |
+| Zoho Sign | Sequential e-signature (Blake → Customer) | Working |
+| Zoho Flow | Intake form → Creator record creation | Not built |
+
+---
+
+## Key Resource IDs
+
+| Resource | ID |
+|---|---|
+| Creator app | `qts` (workspace: `bevcollc`) |
+| Writer template | `lg6haa9fe623ad500461ea6708547e49c8a4a` |
+| Sheet resource | `arkte96b9da3a82a542ec8ac5ba1b713ba7c4` |
+| Sheet connection | `zoho_sheet` |
+| Writer connection | `zoho_writter` |
+| Sign template | `504457000000201063` |
+| Sign action 1 (Blake) | `504457000000201075` |
+| Sign action 2 (Customer) | `504457000000201077` |
+| CRM Deal — QUOTE0001 | `6719186000002742003` |
+| CRM Contact — Phase 2 Test User | `6719186000002752001` |
+| CRM Account — Phase 2 Test Co | `6719186000002742001` |
+
+---
+
+## Zoho Sheet Tabs
+
+| Tab | Contents | Key Columns |
+|---|---|---|
+| `Quote_Request` | One row per quote — header info | Quote_Number, Customer_Name, Customer_Type, EUR_USD_Rate, DKK_per_USD_Rate, Markup_Rate_Pct, Status, Notes |
+| `Quote_Lines` | One row per line item | Quote_Number_Ref, Part_Number_Ref, Qty, EUR_List_Price, Discount_Pct, Unit_Cost_USD, Line_Revenue_USD, Gross_Margin_USD, Gross_Margin_Pct |
+| `Quote_Output` | One row per quote — financial summary | Total_Revenue_USD, Total_Cost_USD, Gross_Margin_USD, FX_Charge_USD, Wire_Charge_USD, Net_Net_Profit_USD |
+| `Items` | Read-only EUR pricelist (37 SKUs) | Part_Number, Description, Tier pricing |
+
+---
+
+## Creator Form Fields (Quote_Request)
+
+| Field | Type | Notes |
+|---|---|---|
+| `Quote_Number` | Text | Auto-assigned by workflow |
+| `Recipient_Name` | Text | Bevco internal signer name (e.g. Blake Allard) |
+| `Recipient_Email` | Text | Bevco internal signer email |
+| `KB_Email` | Email | Unused / orphaned field |
+| `Customer_Name` | Text | Customer contact full name |
+| `Customer_Company` | Text | Customer company name |
+| `Customer_Email` | Email | Customer email — used for CRM Contact + Sign signer 2 |
+| `Customer_Phone` | Phone | Doesn't serialize cleanly into merge (known issue) |
+| `Customer_Type` | Text | "End Customer" or "Distributor" — affects discount |
+| `Currency` | Text | "USD", "DKK", etc. |
+| `FX_Charge_Mode` | Text | `non_usd_only`, `always`, `usd_only` |
+| `Markup_Rate_Pct` | Decimal | Applied on top of EUR→USD cost |
+| `EUR_USD_Rate` | Decimal | Pulled from FX_Rates_Cache on save |
+| `Notes` | Text | Internal notes |
+| `Status` | Dropdown | Draft → In Review → Send for Signature → Awaiting Signatures → Signed → Cancelled |
+| `Sign_Request_ID` | Text | Written back automatically after Sign request created |
+| `Quote_Lines` | Subform | Line items: Part_Number, Qty, Unit_Price, FX_Unit_Price, Line_Total_USD, Line_Total_FX |
+
+---
+
+## Custom Functions
+
+### `fn_calc_quote_lines`
+Fires on every save. Pulls EUR list price from `Item_Master` via `fn_get_tier_price`, converts to USD using `EUR_USD_Rate` from `FX_Rates_Cache`, applies discount via `fn_get_discount` (based on Customer_Type + qty + software flag), applies markup, writes Unit_Price, FX_Unit_Price, Line_Total_USD, Line_Total_FX back to each line.
+
+### `fn_sync_to_sheet`
+Fires on every save. For each of 3 tabs:
+1. Fetch all rows
+2. Find rows matching this Quote_Number (null-guarded — `if(list != null)`)
+3. Delete matching rows
+4. Insert fresh row(s)
+
+Critical fix applied: `for each X in null` in Deluge causes a **silent abort** — all fetch results must be null-checked before iteration.
+
+### `fn_sync_to_crm`
+Fires on every save. Searches for CRM Contact by `Customer_Email` — creates one if not found. Maps `Status` → CRM Stage:
+- Draft → Proposal/Price Quote
+- Send for Signature → Negotiation/Review
+- Signed → Closed Won
+
+Searches for existing Deal by `Deal_Name` — creates or updates. Fields synced: Deal_Name, Stage, Amount (sum of line totals), Account_Name, Description, Closing_Date (+30 days), Contact_Name.
+
+### `fn_generate_pdf`
+Fires ONLY when `Status == "Send for Signature"`. Builds a JSON merge payload from all quote fields and line 1 data. Calls Writer merge→sign API with:
+- Signer 1: `Recipient_Email` / `Recipient_Name` (Bevco internal, signs first)
+- Signer 2: `Customer_Email` / `Customer_Name` (customer, signs second)
+- Sequential signing enabled, 30-day expiry, 3-day reminder
+
+On success: writes `sign_request_id` back to Creator `Sign_Request_ID` field.
+
+**Known limitation:** Only handles the first line item in the PDF template. Multi-line quotes need template redesign.
+
+---
+
+## CRM Status Auto-Mapping
+
+| Creator Status | CRM Stage |
+|---|---|
+| Draft | Proposal/Price Quote |
+| In Review | Proposal/Price Quote |
+| Send for Signature | Negotiation/Review |
+| Awaiting Signatures | Negotiation/Review |
+| Signed | Closed Won |
+| Cancelled | (no mapping — stays last stage) |
+
+---
+
+## Quote Numbering
+
+- Development environment: `TEST-QUOTE####`
+- Production environment: `QUOTE####`
+- Controlled by `Document_Number_Log` form + `fn_get_next_quote_number` (or similar) within the workflow
+
+---
+
+## What's Working (Verified End-to-End)
+
+- [x] Record created in Creator → auto-numbered
+- [x] Line items priced from Item_Master + FX_Rates_Cache
+- [x] Zoho Sheet: Quote_Request tab upserts correctly (1 row per quote)
+- [x] Zoho Sheet: Quote_Lines tab deletes + re-inserts on every save
+- [x] Zoho Sheet: Quote_Output tab upserts correctly (1 row per quote)
+- [x] CRM Deal created with correct Amount, Stage, Closing_Date, Account_Name
+- [x] CRM Contact created/linked by email
+- [x] CRM Stage updates automatically when Status changes
+- [x] Status = "Send for Signature" → Writer merges template with live quote data
+- [x] Zoho Sign request created with sequential signers (Blake → Customer)
+- [x] Sign_Request_ID written back to Creator record automatically
+- [x] Demo quote created via MCP (TEST-QUOTE0001, $1,469.42, live in CRM)
+- [x] CRM Note auto-created on Deal + Contact when Sign request is sent — verified 2026-07-01 (TEST-QUOTE0001: Note shows Quote Number, Date Sent, Sign Request ID 504457000000208147, Document Link, Signers)
+- [x] Zoho Flow writeback configured: Sign document_completed webhook → Fetch Creator record by Sign_Request_ID → Update Status = Signed → fn_sync_to_crm advances CRM to Closed Won (Flow built 2026-07-01, pending live signing test)
+
+---
+
+## What Still Needs to Be Built
+
+### High Priority
+
+**1. Intake Flow (Phase 4)**
+- Build Zoho Form for customer quote requests
+- Build Zoho Flow: Form submission → Creator `Quote_Request` record creation
+- Currently all quotes must be manually created in Creator
+
+**2. CRM Document Trail** ✅ DONE (2026-06-30)
+- `fn_generate_pdf` now creates a CRM Note on both the Deal and the Contact immediately after the Sign request is created
+- Note fields: Quote Number, Date Sent, Sign Request ID, Document Link, Signers list
+- Deal search uses same `cCompany + " — " + qNum` key as `fn_sync_to_crm`
+- Both searches are null-guarded; gracefully skips if CRM record not found yet
+
+**2b. Zoho Sign ↔ CRM Native Integration** (manual UI setup required)
+- This enables the "Zoho Sign" sub-panel inside CRM Deals/Contacts where you can send and track Sign requests from within CRM
+- Setup steps:
+  1. Go to **Zoho Sign → Settings (gear icon) → Integrations → Zoho CRM**
+  2. Click **Enable** — authenticate with CRM if prompted
+  3. Choose which CRM modules to show the Sign panel in (enable `Deals` and `Contacts`)
+  4. Save
+- **Limitation:** The native integration auto-links Sign requests only when sent *from* a CRM record. Requests we create from Creator won't appear in the CRM Sign panel automatically — the Note written in task 2 above is the reliable audit trail for our workflow. The native integration is still useful for any ad-hoc documents you send directly from CRM.
+
+**3. Signed Status Writeback** (Zoho Flow setup required — manual UI)
+- Goal: when customer completes signing in Zoho Sign, Creator `Status` → `"Signed"` → re-triggers `fn_sync_to_crm` → CRM Stage → `Closed Won`
+- **Recommended approach: Zoho Sign webhook → Zoho Flow → Creator update**
+
+  **Step A — Zoho Sign webhook:**
+  1. In Zoho Sign: **Settings → Notifications → Webhook**
+  2. Add webhook: Event = `document_completed`, URL = *(Zoho Flow webhook URL from Step B)*
+  3. Save
+
+  **Step B — Zoho Flow:**
+  1. Create a new Flow; trigger = **Webhook** (copy the webhook URL → use it in Step A)
+  2. Add action: **Zoho Creator → Update Record**
+     - App: `qts` | Workspace: `bevcollc`
+     - Report: `All_Quote_Requests` (or whatever the list report is named in Creator)
+     - Search criteria: `Sign_Request_ID` equals `{{webhook.payload.requests.request_id}}`
+     - Update field: `Status` = `Signed`
+  3. Save and enable the Flow
+
+  **Zoho Sign webhook payload shape** (key fields):
+  ```json
+  {
+    "requests": {
+      "request_id": "504457000000XXXXXX",
+      "request_status": "completed",
+      "request_name": "Kinetic_Bridge_Quote_TEST-QUOTE0001",
+      ...
+    }
+  }
+  ```
+
+  **Alternative (if Zoho Flow Creator connector is unavailable):** Use Flow HTTP connector to call the Creator API directly:
+  - `PATCH https://creator.zoho.com/api/v2.1/bevcollc/qts/report/All_Quote_Requests`
+  - Query: `Sign_Request_ID == "{{webhook.payload.requests.request_id}}"`
+  - Body: `{"Status": "Signed"}`
+  - Auth: OAuth 2.0 with `ZohoCreator.workspace.ALL` scope
+
+### Medium Priority
+
+**4. Multi-Line Item PDF Support**
+- Writer template currently only renders the first line item (`item_no`, `description`, `qty`, `unit_price`, `line_total`)
+- Multi-SKU quotes will be truncated in the PDF
+- Fix: Redesign Writer template to support a repeating row section for Quote_Lines
+
+**5. Creator UI Pages**
+- No Home page, list view, or detail/edit views built in Creator yet
+- All navigation is via the raw report view
+- Must be built in Creator's UI builder (cannot be done via MCP)
+
+**6. Customer_Phone in Merge** ✅ IMPLEMENTED LOCALLY (2026-07-02) — pending Creator redeploy + PDF verification
+- `Customer_Phone` came through as empty string in the Writer merge data
+- Root cause: Creator phone field stores value as a structured object with country code — doesn't serialize as plain string
+- Fix applied in local `fn_generate_pdf.deluge`: normalize via `toString()` + string parsing (extracts `phone_number=` / `number=` if present, otherwise uses the trimmed string) — never calls `.get()` on the field, so plain-string values are also safe
+- Remaining: redeploy `fn_generate_pdf` to Creator, then generate one test quote PDF to confirm the phone renders
+
+**7. Cancelled Status CRM Mapping**
+- No CRM Stage mapped for `Cancelled` status
+- Should probably map to "Closed Lost"
+
+### Low Priority / Nice to Have
+
+**8. KB_Email field**
+- Visible on the Creator form but unused anywhere in any function
+- Either wire it up to something or remove it from the form
+
+**9. FX_Rates_Cache freshness**
+- Cache should be refreshed daily
+- Currently manual — set up a scheduled function or Zoho Flow to refresh rates automatically
+
+**10. Contact Name Formatting**
+- CRM Contact is created with full `Customer_Name` as `Last_Name`, no `First_Name`
+- Should split first/last name properly
+
+**11. Production Environment Promotion**
+- App currently lives in development environment
+- Needs review and promotion to production before real customer use
+
+---
+
+## Known Deluge Bugs / Patterns (Critical)
+
+| Pattern | Behavior | Fix |
+|---|---|---|
+| `for each X in null` | Silently aborts the entire function — no error, no further code runs | Always guard: `list = resp.get("records"); if(list != null) { for each ... }` |
+| `Map.toString()` in `json_data` | Fails silently if any value contains a comma | Use `ifnull(field,"").toString()` on all fields; avoid commas in values |
+| `Close_Date` in CRM Deals | Field does not exist — use `Closing_Date` | Always use `Closing_Date` |
+| Phone field serialization | Creator phone field returns structured object, not plain string | Extract string explicitly before using in merge JSON |
+| `rec.get("FieldName")` | Only valid for Map objects (invokeurl responses) — NOT for Creator form records | Use `rec.FieldName` for Creator records, `.get()` for Maps |
+
+---
+
+## Data Cleanup Completed
+
+- Deleted 13 stale TEST-QUOTE CRM Deals (TEST-QUOTE0024 through TEST-QUOTE0033 + earlier test records)
+- Recalled open Zoho Sign request for TEST-QUOTE0033
+- Cleaned stale rows from all 3 Sheet tabs
+- CRM now has only 2 deals: QUOTE0001 (Negotiation/Review) + TEST-QUOTE0001 demo (Proposal/Price Quote)
+
+---
+
+## Files
+
+```
+~/bevco/apps/quote_app/
+├── functions/
+│   ├── fn_calc_quote_lines.deluge
+│   ├── fn_sync_to_sheet.deluge
+│   ├── fn_sync_to_crm.deluge
+│   └── fn_generate_pdf.deluge
+├── kinetic_quote_instructions.md
+├── kinetic_quote_schema.sql
+├── qts_workflow_diagram.txt
+├── QTS_PROJECT_STATUS.md          ← this file
+└── reference_docs/
+```
+
+---
+
+## Next Session Starting Points
+
+1. ~~Update `fn_generate_pdf` to write CRM Note with Sign link → Deal and Contact~~ ✅ DONE + VERIFIED
+2. Configure Zoho Sign ↔ CRM native integration — see "2b" section above for UI steps (5 min manual task)
+3. ~~Set up Signed status writeback~~ ✅ BUILT — pending live signing test to fully verify
+4. Redeploy `fn_generate_pdf` to Creator with `download_link` fix (Document Link in Note will be direct PDF download instead of Sign portal URL)
+4. Build Phase 4 intake flow (Zoho Form → Zoho Flow → Creator)
+5. ~~Fix Customer_Phone serialization in `fn_generate_pdf`~~ ✅ DONE LOCALLY (2026-07-02) — next: redeploy `fn_generate_pdf` to Creator, then generate/sign-test one quote to confirm the phone number appears in the Writer PDF
+6. Map Cancelled → Closed Lost in `fn_sync_to_crm`

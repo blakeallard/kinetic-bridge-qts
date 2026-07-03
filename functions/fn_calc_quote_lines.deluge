@@ -1,0 +1,81 @@
+void fn_calc_quote_lines(string p_quote_id)
+{
+	for each  quote in Quote_Request[ID == p_quote_id.toLong()]
+	{
+		markup = ifnull(quote.Markup_Rate_Pct,0) / 100;
+		customer_type = ifnull(quote.Customer_Type,"End Customer");
+		currency = ifnull(quote.Currency,"USD");
+		fx_mode = ifnull(quote.FX_Charge_Mode,"non_usd_only");
+		fx_rate = 1.0;
+		eur_usd = ifnull(quote.EUR_USD_Rate,1);
+		apply_fx = false;
+		// FX_Rates_Cache stores "<currency> per 1 USD" (open.er-api.com base=USD),
+		// e.g. EUR ~0.92. EUR_USD_Rate must mean "USD per 1 EUR" (~1.087) so that
+		// usd_cost = eur_price * eur_usd converts correctly below — invert here.
+		for each  rate_rec in FX_Rates_Cache[Currency == "EUR"]
+		{
+			raw_eur_per_usd = ifnull(rate_rec.Rate,1);
+			eur_usd = (raw_eur_per_usd == 0) ? 1 : (1 / raw_eur_per_usd);
+			break;
+		}
+		quote.EUR_USD_Rate = eur_usd;
+		if((fx_mode == "non_usd_only" && currency != "USD") || fx_mode == "always")
+		{
+			apply_fx = true;
+			for each  rate_rec in FX_Rates_Cache[Currency == currency]
+			{
+				fx_rate = ifnull(rate_rec.Rate,1);
+				break;
+			}
+		}
+		for each  line in quote.Quote_Lines
+		{
+			qty = line.Qty.toLong();
+			part = ifnull(line.Part_Number,"");
+			if(part == "" || part == "null")
+			{
+				// Part_Select is a Lookup field on Item_Master (sales picks by
+				// part name/description); pull the real Part_Number off the
+				// linked record rather than treating the selection as the number.
+				if(line.Part_Select != null)
+				{
+					part = ifnull(line.Part_Select.Part_Number,"").toString();
+					if(part != "" && part != "null")
+					{
+						line.Part_Number = part;
+					}
+				}
+			}
+			eur_price = thisapp.fn_get_tier_price(part,qty);
+			usd_cost = eur_price * eur_usd;
+			discount = 0.0;
+			for each  item in Item_Master[Part_Number == part]
+			{
+				is_discountable = ifnull(item.Discountable,"N") == "Y";
+				is_software = ifnull(item.Category,"") == "Software";
+				if(is_discountable)
+				{
+					discount = thisapp.fn_get_discount(customer_type,qty,is_software);
+				}
+				line.Description = ifnull(item.Description,"");
+				break;
+			}
+			unit_price_usd = usd_cost * (1 - discount) * (1 + markup);
+			line_total_usd = unit_price_usd * line.Qty;
+			fx_unit_price = unit_price_usd;
+			line_total_fx = line_total_usd;
+			if(apply_fx && fx_rate != 0)
+			{
+				// fx_rate is "<currency> per 1 USD" (raw cache value) — multiply
+				// a USD amount by it to get the customer-currency amount.
+				fx_unit_price = unit_price_usd * fx_rate;
+				line_total_fx = line_total_usd * fx_rate;
+			}
+			line.Unit_Price=unit_price_usd.round(2);
+			line.FX_Unit_Price=fx_unit_price.round(2);
+			line.Line_Total_USD=line_total_usd.round(2);
+			line.Line_Total_FX=line_total_fx.round(2);
+		}
+		break;
+	}
+}
