@@ -123,3 +123,32 @@ None of the above have been implemented — this document is the plan, not the c
 ## Safe next step
 
 Get Bill/Bryan's sign-off on the two decisions blocking step 1 above (`Tier_Scheme` approval and the 300300/300500 duplicate resolution) — both are pure business confirmations with evidence already assembled in `docs/AcmeBMS_REFERENCE_PRICE_QC.md` and this document, and both must be settled before either the Creator schema change or the `fn_get_tier_price.deluge` edit should be made. No code should be edited and no import should proceed until then.
+
+---
+
+## Implementation notes (added 2026-07-03 — local Deluge patch applied)
+
+The changes recommended above have now been implemented **locally only** (not deployed to Zoho Creator — see `docs/TIER_SCHEME_DEPLOYMENT_CHECKLIST.md` for what remains before that can happen). This section documents exactly what changed and why, so the patch can be reviewed against the audit above line by line.
+
+**`functions/fn_get_tier_price.deluge`** — rewritten to:
+- Read `item.Tier_Scheme` from the already-fetched `Item_Master` record (no new lookup added).
+- Normalize it (`trim().toLowerCase()`) and treat anything other than exactly `"hardware"` or `"license"` — including blank/null, which is every row today since the field doesn't exist yet in Creator — as `"hardware"`. This is the explicit backward-compatible default requested: missing/unknown `Tier_Scheme` is never silently treated as software/license.
+- Branch to one of two qty→tier_index tables: the original unchanged 9-band hardware table, or a new 6-band license table (`qty<=1→T1, <=2→T2, <=4→T3, <=9→T4, <=24→T5, else→T6`), matching the vendor's published Creator Tool/Service Tool bands exactly.
+- Reuse the existing "walk index down to nearest non-null tier" fallback unchanged — it was already correct for both schemes (see the audit's note on Accessories/obsolete-software being exact-prefix subsets of the hardware/license band tables).
+- Change the "no valid price" signal from silently returning `0` (initial value never distinguished from a real free item) to returning `-1`, a value no real price can ever equal. This applies whether the SKU has no matching `Item_Master` row at all, or a matching row exists but every tier at or below the requested qty index is blank.
+- The function signature (`float fn_get_tier_price(string p_part_number, int p_qty)`) is unchanged — calling convention fully preserved.
+
+**`functions/fn_calc_quote_lines.deluge`** — required update, since it is `fn_get_tier_price`'s only price-computing caller:
+- Added `price_found = (eur_price >= 0)` immediately after the call; if false, `eur_price` is reset to `0` before it enters `usd_cost` arithmetic, so a `-1` sentinel can never propagate into `Unit_Price`/`Line_Total_USD` as a negative number.
+- When `!price_found`, prepends `"[NO PRICE ON FILE - DO NOT QUOTE] "` to `line.Description` (an existing field, already written by this function) — this is the guard against silent zero-pricing. No new `Quote_Lines` field was invented; the audit's "document the needed field instead of inventing one" instruction applies here too — a dedicated boolean/status field would be cleaner long-term and is listed as a follow-up in the deployment checklist, but is not required to close this gap today.
+- Net effect: an unpriced line still computes to `Unit_Price = 0.00` (numeric behavior unchanged — no negative prices are ever written), but the line's description is now unmistakably flagged everywhere it's read downstream (Creator UI, `fn_sync_to_sheet`'s `Product_Description` column, and `fn_generate_pdf`'s merge output), instead of silently looking like a normal, correctly-priced $0 line.
+
+**`functions/fn_sync_to_sheet.deluge`** — required update, since it independently recomputes `usd_cost_unit`/`Line_Cost_USD`/`Gross_Margin_USD` from its own `fn_get_tier_price` call rather than reusing `fn_calc_quote_lines`'s result:
+- Same `price_found` guard added before `usd_cost_unit` arithmetic, for the same reason (never let `-1` flow into cost/margin math).
+- Does **not** re-add the Description marker — by the time this function runs, `fn_calc_quote_lines` has already run first in the same save workflow (per the documented architecture in `QTS_PROJECT_STATUS.md`) and already wrote the marker into `line.Description`, which this function reads as-is into `Product_Description`.
+
+**Active/status filtering (audit requirement 5)** — **not implemented in code**, by design. `Item_Master` has no `Active`/`Status` field deployed today, and no Deluge function in this repo reads one. Referencing a field that doesn't exist in Creator would be a hard error at deploy time, not a graceful no-op — so per the audit's own instruction ("document the needed field instead of inventing one"), this gap is documented as a prerequisite in `docs/TIER_SCHEME_DEPLOYMENT_CHECKLIST.md` rather than coded around. The duplicate-row nondeterminism risk (#3 in Risks, above) therefore still stands exactly as audited until either the 300300/300500 duplicate is resolved before import, or an `Active` field is added and wired into all three `Item_Master[Part_Number == ...]` lookup sites.
+
+**Local verification** — no Deluge interpreter exists locally, so a new fixture, `scripts/tier_price_logic_dryrun.py`, reimplements the patched algorithm line-for-line and runs it against the real `import_preview/item_master_import_preview.csv` data (no Zoho contact). It confirms: hardware-tier pricing is unchanged (SKU 100800 at several qtys, including the fallback-to-lower-tier path); license-tier pricing is now correct where it was previously wrong (SKU 200500 at qty=10 and qty=30, matching this audit's quantified 2.86x/3.0x overcharge examples exactly, reproduced against the old buggy logic side-by-side for proof); unpriced and unknown SKUs return the `-1` sentinel instead of `0`; and a blank `Tier_Scheme` correctly defaults to hardware rather than license. All 12 checks pass (`python3 scripts/tier_price_logic_dryrun.py`, exit code 0).
+
+**What is unchanged**: `fn_get_discount.deluge`, `fn_sync_to_crm.deluge`, `fn_generate_pdf.deluge`, `fn_refresh_fx_rates.deluge`, `fn_send_to_sign.deluge`, and `fn_get_next_number.deluge` were not touched — none of them call `fn_get_tier_price` or depend on its return contract.

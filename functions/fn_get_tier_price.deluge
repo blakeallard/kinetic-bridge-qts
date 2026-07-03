@@ -1,11 +1,34 @@
-// Volume breaks per July 2026 RSP_EUR pricelist: 1-19 / 20-99 / 100-259 / 260-499 /
-// 500-999 / 1000-2499 / 2500-4999 / 5000-9999 / 10000-24999 (Price_T1..Price_T9).
-// Most SKUs only have published pricing through Price_T5 (500-999) — Price_T6-T9
-// are blank for those, so falls back to the highest tier price the vendor has
-// actually published rather than returning 0 for large-qty quotes.
+// Volume breaks per July 2026 RSP_EUR pricelist. Two qty->tier_index mappings,
+// selected by Item_Master.Tier_Scheme (see docs/TIER_SCHEME_LINE_ITEM_FUNCTIONALITY_AUDIT.md):
+//   Tier_Scheme = "hardware" (BMS boards + Accessories): 1-19 / 20-99 / 100-259 /
+//     260-499 / 500-999 / 1000-2499 / 2500-4999 / 5000-9999 / 10000-24999 (T1..T9)
+//   Tier_Scheme = "license" (Creator Tool / Service Tool / obsolete software):
+//     1 / 2 / 3-4 / 5-9 / 10-24 / 25-249 (T1..T6)
+// Tier_Scheme does not exist on Item_Master yet (Creator schema change pending —
+// see docs/TIER_SCHEME_DEPLOYMENT_CHECKLIST.md). Until that field is added, every
+// record reads as blank and this function falls back to "hardware", matching
+// today's only deployed behavior exactly — this patch is backward-compatible
+// with the current (hardware-only) Item_Master.
+//
+// Return contract: returns -1 (never a real price) when no valid price can be
+// determined — either the SKU has no matching Item_Master row, or every tier at
+// or below the requested qty is blank. Callers MUST check `result < 0` before
+// using the return value in arithmetic; treating -1 as a price would silently
+// invert cost math. This replaces the old contract where "no price found" and
+// "line is free" were both indistinguishably 0. See fn_calc_quote_lines.deluge
+// and fn_sync_to_sheet.deluge for the required caller-side guard.
+//
+// Duplicate/stale Item_Master rows: this function takes the FIRST Item_Master
+// record matching Part_Number (Creator's own iteration order — not guaranteed
+// stable). If more than one row ever exists for the same Part_Number (e.g. the
+// 300300/300500 bundle-vs-unit duplicates — see docs/AcmeBMS_REFERENCE_PRICE_QC.md)
+// pricing becomes nondeterministic. No Active/Status field exists on Item_Master
+// today to filter on, so none is referenced here — see
+// docs/TIER_SCHEME_DEPLOYMENT_CHECKLIST.md for the field this needs before
+// duplicate SKUs can safely be imported.
 float fn_get_tier_price(string p_part_number, int p_qty)
 {
-	tier_price = 0;
+	tier_price = -1;
 	for each  item in Item_Master[Part_Number == p_part_number]
 	{
 		tiers = list();
@@ -19,18 +42,40 @@ float fn_get_tier_price(string p_part_number, int p_qty)
 		tiers.add(ifnull(item.Price_T8,null));
 		tiers.add(ifnull(item.Price_T9,null));
 
-		tier_index = 0;
-		if(p_qty <= 19) { tier_index = 0; }
-		else if(p_qty <= 99) { tier_index = 1; }
-		else if(p_qty <= 259) { tier_index = 2; }
-		else if(p_qty <= 499) { tier_index = 3; }
-		else if(p_qty <= 999) { tier_index = 4; }
-		else if(p_qty <= 2499) { tier_index = 5; }
-		else if(p_qty <= 4999) { tier_index = 6; }
-		else if(p_qty <= 9999) { tier_index = 7; }
-		else { tier_index = 8; }
+		// Missing/unknown/blank Tier_Scheme must NOT silently be treated as
+		// "license" — default to "hardware" (the current, only, backward-compatible
+		// behavior) unless the field explicitly says otherwise.
+		tier_scheme = ifnull(item.Tier_Scheme,"").toString().trim().toLowerCase();
+		if(tier_scheme != "hardware" && tier_scheme != "license")
+		{
+			tier_scheme = "hardware";
+		}
 
-		// Walk down to the highest published tier at or below the requested qty tier.
+		tier_index = 0;
+		if(tier_scheme == "license")
+		{
+			if(p_qty <= 1) { tier_index = 0; }
+			else if(p_qty <= 2) { tier_index = 1; }
+			else if(p_qty <= 4) { tier_index = 2; }
+			else if(p_qty <= 9) { tier_index = 3; }
+			else if(p_qty <= 24) { tier_index = 4; }
+			else { tier_index = 5; }
+		}
+		else
+		{
+			if(p_qty <= 19) { tier_index = 0; }
+			else if(p_qty <= 99) { tier_index = 1; }
+			else if(p_qty <= 259) { tier_index = 2; }
+			else if(p_qty <= 499) { tier_index = 3; }
+			else if(p_qty <= 999) { tier_index = 4; }
+			else if(p_qty <= 2499) { tier_index = 5; }
+			else if(p_qty <= 4999) { tier_index = 6; }
+			else if(p_qty <= 9999) { tier_index = 7; }
+			else { tier_index = 8; }
+		}
+
+		// Walk down to the highest published tier at or below the requested qty
+		// tier. Unchanged from prior behavior; works identically for both schemes.
 		i = tier_index;
 		while(i >= 0 && tiers.get(i) == null)
 		{
@@ -40,6 +85,7 @@ float fn_get_tier_price(string p_part_number, int p_qty)
 		{
 			tier_price = tiers.get(i);
 		}
+		// else: leave tier_price at the -1 "no valid price found" sentinel.
 		break;
 	}
 	return tier_price;

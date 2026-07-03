@@ -47,6 +47,14 @@ void fn_calc_quote_lines(string p_quote_id)
 				}
 			}
 			eur_price = thisapp.fn_get_tier_price(part,qty);
+			// fn_get_tier_price returns -1 (never a real price) when no valid price
+			// tier could be found for this SKU/qty — see fn_get_tier_price.deluge's
+			// return-contract comment. Never feed that sentinel into cost math.
+			price_found = (eur_price >= 0);
+			if(!price_found)
+			{
+				eur_price = 0;
+			}
 			usd_cost = eur_price * eur_usd;
 			discount = 0.0;
 			for each  item in Item_Master[Part_Number == part]
@@ -59,6 +67,16 @@ void fn_calc_quote_lines(string p_quote_id)
 				}
 				line.Description = ifnull(item.Description,"");
 				break;
+			}
+			if(!price_found)
+			{
+				// No Quote_Lines field exists today to carry a structured pricing-error
+				// flag (see docs/TIER_SCHEME_DEPLOYMENT_CHECKLIST.md for the field this
+				// needs) — surface the error the only way available without inventing
+				// unsupported schema: prepend a loud marker to the existing Description
+				// field, so it is visible in Creator, the Sheet sync, and the generated
+				// PDF rather than silently pricing the line at 0.
+				line.Description = "[NO PRICE ON FILE - DO NOT QUOTE] " + ifnull(line.Description,"");
 			}
 			unit_price_usd = usd_cost * (1 - discount) * (1 + markup);
 			line_total_usd = unit_price_usd * line.Qty;
