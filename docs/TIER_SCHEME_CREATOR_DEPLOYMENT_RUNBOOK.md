@@ -5,7 +5,7 @@
 Zoho Task ID: `2543412000001469015`
 Created: 2026-07-03
 Local patch commit: `a3ab89c` ("Implement local Tier Scheme pricing patch")
-Status: **Partially deployed.** `Tier_Scheme` field and `fn_get_tier_price.deluge` are live in the dev environment (done manually by a human). `fn_calc_quote_lines.deluge` and `fn_sync_to_sheet.deluge` are not yet deployed — see Section 4. No step in this runbook has been performed by an agent; all Zoho changes so far were done manually.
+Status: **Deployed.** `Tier_Scheme` field, `fn_get_tier_price.deluge` (simplified version, per `docs/CREATOR_DELUGE_PARSER_COMPATIBILITY_NOTES.md` Incident 1), `fn_calc_quote_lines.deluge` (unfiltered-loop-plus-if version, Incident 3), and `fn_sync_to_sheet.deluge` (deployed unchanged, still using filtered `Quote_Request[ID == ...]` criteria - see Incident 4, this pattern was *not* found to be unsafe for this function) are all live in the dev environment (done manually by a human). No step in this runbook has been performed by an agent; all Zoho changes so far were done manually.
 
 ---
 
@@ -56,12 +56,12 @@ Do not target production. Per `QTS_PROJECT_STATUS.md`, production promotion is a
 
 ## 4. Exact deployment order
 
-1. Add/confirm the `Tier_Scheme` field on `Item_Master` (Section 6).
+1. ~~Add/confirm the `Tier_Scheme` field on `Item_Master` (Section 6).~~ **Done.**
 2. ~~Deploy `fn_get_tier_price.deluge` (Section 7, step A).~~ **Done** — deployed and saved successfully in the dev environment using the simplified, ASCII-only version now committed in this repo (see the deployment history note at the top of this file).
-3. Deploy `fn_calc_quote_lines.deluge` (Section 7, step B) — **next**.
-4. Deploy `fn_sync_to_sheet.deluge` (Section 7, step C).
+3. ~~Deploy `fn_calc_quote_lines.deluge` (Section 7, step B).~~ **Done** — required the unfiltered-loop-plus-if rewrite (`docs/CREATOR_DELUGE_PARSER_COMPATIBILITY_NOTES.md` Incident 3) before it would save.
+4. ~~Deploy `fn_sync_to_sheet.deluge` (Section 7, step C).~~ **Done** — deployed unchanged; its filtered `Quote_Request[ID == ...]` criteria saved successfully, contradicting the assumption that this pattern is universally broken (see Incident 4).
 
-Do not deviate from this order.
+All three functions in this runbook's scope are now deployed. Remaining work is the business-decision blockers in Section 11, not further deployment steps.
 
 ---
 
@@ -170,6 +170,6 @@ None of these are resolved by this runbook or the local patch. All remain busine
 
 ## 12. Clear final answer
 
-- **Is Creator ready for field addition (Section 6)?** **Yes** — the `Tier_Scheme` field is purely additive, optional, and backward-compatible; it can be added to the dev `Item_Master` form at any time without waiting on any of the Section 11 business decisions. The value-string mismatch that previously blocked this (Section 3) is now resolved — the field's dropdown choices (`hardware`, `license`) already match the committed Deluge patch and the generated import preview CSV exactly.
-- **Is Creator ready for function deployment (Section 7)?** **Conditionally yes, but only after the field exists (Section 6) and only in the dev environment.** The local patch is committed, dry-run verified, and self-contained to 3 functions with no other dependencies. It is safe to deploy to dev once the field is added; it has not been deployed anywhere yet.
+- **Is Creator ready for field addition (Section 6)?** **Done.** `Tier_Scheme` is live on `Item_Master` in dev.
+- **Is Creator ready for function deployment (Section 7)?** **Done.** `fn_get_tier_price.deluge`, `fn_calc_quote_lines.deluge`, and `fn_sync_to_sheet.deluge` are all deployed and saved successfully in dev — see the deployment history note at the top of this file and `docs/CREATOR_DELUGE_PARSER_COMPATIBILITY_NOTES.md` for the parser-compatibility fixes two of the three needed along the way.
 - **Is Creator ready for `Item_Master` import?** **No.** All five items in Section 11 remain open business decisions, and the duplicate-SKU risk (Section 9, test 4) is not mitigated by the code patch itself — it must be enforced by whatever process performs the import. Import should not proceed until Section 11 is fully resolved, regardless of whether the field/function deployment above has happened.
