@@ -1,0 +1,119 @@
+// fn_calc_line_price_draft — draft-time (Creator "On User Input") line pricing helper.
+//
+// Mirrors fn_calc_quote_lines.deluge's per-line math exactly, but is designed to be
+// called from Creator "On User Input" workflow scripts against LIVE, UNSAVED form
+// values (Part_Select/Qty/Currency/etc. as the user is still editing) rather than a
+// saved Quote_Request record. This lets Quote_Lines autofill and recalculate before
+// Save, instead of only on the existing save-time "Quote Auto Number and Recalc"
+// workflow that calls fn_calc_quote_lines.deluge.
+//
+// Reuses the already-patched fn_get_tier_price.deluge (Tier_Scheme-aware, -1 "no
+// valid price" sentinel) and the existing fn_get_discount.deluge unchanged — no
+// pricing/discount logic is duplicated here beyond what fn_calc_quote_lines.deluge
+// itself already duplicates against fn_sync_to_sheet.deluge (a pre-existing pattern
+// in this codebase, not introduced by this function).
+//
+// EUR_USD_Rate is intentionally NOT read from the form here — it is Admin Only /
+// system-computed by fn_calc_quote_lines.deluge on save (see
+// docs/QUOTE_FORM_FIELD_DEPENDENCY_AUDIT.md), so a draft-time script must not trust
+// a possibly-stale or blank value. The EUR->USD base rate is always recomputed fresh
+// from FX_Rates_Cache here, exactly like fn_calc_quote_lines.deluge does.
+//
+// Returns a Map with keys:
+//   unit_price       (decimal, rounded to 2dp, USD)
+//   fx_unit_price    (decimal, rounded to 2dp, customer currency)
+//   line_total_usd   (decimal, rounded to 2dp)
+//   line_total_fx    (decimal, rounded to 2dp)
+//   description      (string — Item_Master description, or the caller-supplied
+//                     description with "[NO PRICE ON FILE - DO NOT QUOTE] " prepended
+//                     if no valid price tier was found)
+//   discount         (decimal fraction, e.g. 0.10 for 10% — 0 if not discountable)
+//   discountable     (string "Y"/"N", mirrored from Item_Master.Discountable)
+//   price_found      (boolean — false means unit_price/totals are 0 by convention,
+//                     NOT a real price; callers must not treat 0 as legitimate
+//                     without checking this flag, same contract as
+//                     fn_get_tier_price.deluge's -1 sentinel)
+Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_description, string p_customer_type, string p_currency, decimal p_markup_pct, string p_fx_mode)
+{
+	result = Map();
+	qty_long = ifnull(p_qty,0).round(0).toLong();
+
+	// EUR->USD base rate — recomputed fresh every call, same source/inversion logic
+	// as fn_calc_quote_lines.deluge (FX_Rates_Cache stores "<currency> per 1 USD";
+	// EUR_USD_Rate/eur_usd here means "USD per 1 EUR", so invert).
+	eur_usd = 1.0;
+	for each rate_rec in FX_Rates_Cache[Currency == "EUR"]
+	{
+		raw_eur_per_usd = ifnull(rate_rec.Rate,1);
+		eur_usd = (raw_eur_per_usd == 0) ? 1 : (1 / raw_eur_per_usd);
+		break;
+	}
+
+	currency = ifnull(p_currency,"USD");
+	fx_mode = ifnull(p_fx_mode,"non_usd_only");
+	apply_fx = false;
+	fx_rate = 1.0;
+	if((fx_mode == "non_usd_only" && currency != "USD") || fx_mode == "always")
+	{
+		apply_fx = true;
+		for each rate_rec in FX_Rates_Cache[Currency == currency]
+		{
+			fx_rate = ifnull(rate_rec.Rate,1);
+			break;
+		}
+	}
+
+	eur_price = thisapp.fn_get_tier_price(p_part_number, qty_long);
+	// -1 sentinel contract from fn_get_tier_price.deluge — never treat as a real price.
+	price_found = (eur_price >= 0);
+	if(!price_found)
+	{
+		eur_price = 0;
+	}
+
+	discount = 0.0;
+	discountable = "N";
+	item_description = ifnull(p_description,"");
+	for each item in Item_Master[Part_Number == p_part_number]
+	{
+		discountable = ifnull(item.Discountable,"N");
+		is_discountable = discountable == "Y";
+		is_software = ifnull(item.Category,"") == "Software";
+		if(is_discountable)
+		{
+			discount = thisapp.fn_get_discount(ifnull(p_customer_type,"End Customer"), qty_long, is_software);
+		}
+		// Prefer the live Item_Master description over whatever the caller passed in,
+		// mirroring fn_calc_quote_lines.deluge's own behavior on save.
+		item_description = ifnull(item.Description, item_description);
+		break;
+	}
+
+	markup = ifnull(p_markup_pct,0) / 100;
+	usd_cost = eur_price * eur_usd;
+	unit_price_usd = usd_cost * (1 - discount) * (1 + markup);
+	line_total_usd = unit_price_usd * ifnull(p_qty,0);
+	fx_unit_price = unit_price_usd;
+	line_total_fx = line_total_usd;
+	if(apply_fx && fx_rate != 0)
+	{
+		fx_unit_price = unit_price_usd * fx_rate;
+		line_total_fx = line_total_usd * fx_rate;
+	}
+
+	description = item_description;
+	if(!price_found)
+	{
+		description = "[NO PRICE ON FILE - DO NOT QUOTE] " + description;
+	}
+
+	result.put("unit_price", unit_price_usd.round(2));
+	result.put("fx_unit_price", fx_unit_price.round(2));
+	result.put("line_total_usd", line_total_usd.round(2));
+	result.put("line_total_fx", line_total_fx.round(2));
+	result.put("description", description);
+	result.put("discount", discount);
+	result.put("discountable", discountable);
+	result.put("price_found", price_found);
+	return result;
+}
