@@ -9,9 +9,7 @@ void fn_calc_quote_lines(string p_quote_id)
 		fx_rate = 1.0;
 		eur_usd = ifnull(quote.EUR_USD_Rate,1);
 		apply_fx = false;
-		// FX_Rates_Cache stores "<currency> per 1 USD" (open.er-api.com base=USD),
-		// e.g. EUR ~0.92. EUR_USD_Rate must mean "USD per 1 EUR" (~1.087) so that
-		// usd_cost = eur_price * eur_usd converts correctly below — invert here.
+		// FX_Rates_Cache stores currency-per-1-USD; invert to get USD-per-1-EUR.
 		for each  rate_rec in FX_Rates_Cache[Currency == "EUR"]
 		{
 			raw_eur_per_usd = ifnull(rate_rec.Rate,1);
@@ -34,9 +32,7 @@ void fn_calc_quote_lines(string p_quote_id)
 			part = ifnull(line.Part_Number,"");
 			if(part == "" || part == "null")
 			{
-				// Part_Select is a Lookup field on Item_Master (sales picks by
-				// part name/description); pull the real Part_Number off the
-				// linked record rather than treating the selection as the number.
+				// Part_Select is a Lookup to Item_Master; resolve real Part_Number.
 				if(line.Part_Select != null)
 				{
 					part = ifnull(line.Part_Select.Part_Number,"").toString();
@@ -47,9 +43,7 @@ void fn_calc_quote_lines(string p_quote_id)
 				}
 			}
 			eur_price = thisapp.fn_get_tier_price(part,qty);
-			// fn_get_tier_price returns -1 (never a real price) when no valid price
-			// tier could be found for this SKU/qty — see fn_get_tier_price.deluge's
-			// return-contract comment. Never feed that sentinel into cost math.
+			// -1 sentinel means no valid price was found; never use it as a price.
 			price_found = (eur_price >= 0);
 			if(!price_found)
 			{
@@ -70,12 +64,7 @@ void fn_calc_quote_lines(string p_quote_id)
 			}
 			if(!price_found)
 			{
-				// No Quote_Lines field exists today to carry a structured pricing-error
-				// flag (see docs/TIER_SCHEME_DEPLOYMENT_CHECKLIST.md for the field this
-				// needs) — surface the error the only way available without inventing
-				// unsupported schema: prepend a loud marker to the existing Description
-				// field, so it is visible in Creator, the Sheet sync, and the generated
-				// PDF rather than silently pricing the line at 0.
+				// No structured error flag field exists yet; mark it in Description.
 				line.Description = "[NO PRICE ON FILE - DO NOT QUOTE] " + ifnull(line.Description,"");
 			}
 			unit_price_usd = usd_cost * (1 - discount) * (1 + markup);
@@ -84,8 +73,7 @@ void fn_calc_quote_lines(string p_quote_id)
 			line_total_fx = line_total_usd;
 			if(apply_fx && fx_rate != 0)
 			{
-				// fx_rate is "<currency> per 1 USD" (raw cache value) — multiply
-				// a USD amount by it to get the customer-currency amount.
+				// fx_rate is currency-per-1-USD; multiply a USD amount to convert.
 				fx_unit_price = unit_price_usd * fx_rate;
 				line_total_fx = line_total_usd * fx_rate;
 			}

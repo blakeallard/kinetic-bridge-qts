@@ -85,13 +85,23 @@ Zoho Creator "On User Input" scripts are attached per-field, in the Form Builder
 
 ## Code snippets to paste into each workflow
 
+**Creator paste-safety note (added after `fn_get_tier_price` deployment):** the original draft of these files used large comment headers with non-ASCII punctuation (em-dashes), which caused an "Improper Statement" parser error when pasted into Creator's Deluge editor for `fn_get_tier_price.deluge`. All files below were rewritten to minimal, single-line, ASCII-only comments — the detailed rationale lives in this doc instead. Do not re-add long comment blocks or non-ASCII characters (em-dashes, smart quotes, arrows) to any pasted Deluge code; keep explanations here in `docs/`.
+
+The snippets below are kept in sync with the actual files in `functions/` and `workflows/` — treat the files as the source of truth and this doc as a paste-ready mirror; if they ever drift, copy from the files, not from here.
+
 **Helper function — deploy this first** (`functions/fn_calc_line_price_draft.deluge`):
 ```deluge
+// Draft-time (On User Input) line pricing helper. Mirrors fn_calc_quote_lines.deluge.
+// Full rationale/notes: docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md.
+// Returns a Map: unit_price, fx_unit_price, line_total_usd, line_total_fx,
+// description, discount, discountable, price_found (false = no valid price - the
+// numeric fields are 0 by convention, not a real price; check this flag first).
 Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_description, string p_customer_type, string p_currency, decimal p_markup_pct, string p_fx_mode)
 {
     result = Map();
     qty_long = ifnull(p_qty,0).round(0).toLong();
 
+    // EUR->USD base rate, recomputed fresh every call (not read from the form).
     eur_usd = 1.0;
     for each rate_rec in FX_Rates_Cache[Currency == "EUR"]
     {
@@ -115,8 +125,12 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
     }
 
     eur_price = thisapp.fn_get_tier_price(p_part_number, qty_long);
+    // -1 sentinel means no valid price was found; never treat it as a real price.
     price_found = (eur_price >= 0);
-    if(!price_found) { eur_price = 0; }
+    if(!price_found)
+    {
+        eur_price = 0;
+    }
 
     discount = 0.0;
     discountable = "N";
@@ -130,6 +144,7 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
         {
             discount = thisapp.fn_get_discount(ifnull(p_customer_type,"End Customer"), qty_long, is_software);
         }
+        // Prefer the live Item_Master description over the caller-supplied one.
         item_description = ifnull(item.Description, item_description);
         break;
     }
@@ -147,7 +162,10 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
     }
 
     description = item_description;
-    if(!price_found) { description = "[NO PRICE ON FILE - DO NOT QUOTE] " + description; }
+    if(!price_found)
+    {
+        description = "[NO PRICE ON FILE - DO NOT QUOTE] " + description;
+    }
 
     result.put("unit_price", unit_price_usd.round(2));
     result.put("fx_unit_price", fx_unit_price.round(2));
@@ -163,6 +181,10 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 
 **Event 1 — paste into `Part_Select` On User Input** (full file: `workflows/on_user_input_quote_lines_part_select.deluge`):
 ```deluge
+// On User Input: Quote_Request > Quote_Lines subform > Part_Select.
+// See docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for full notes and deploy order.
+// Discountable/Discount lines below stay commented until confirmed on live form.
+
 if(input.Part_Select != null)
 {
     part = ifnull(input.Part_Select.Part_Number,"").toString();
@@ -171,14 +193,19 @@ if(input.Part_Select != null)
     input.Part_Number = part;
     input.Description = desc;
 
-    // OPTIONAL — see "Confirm before deploying" above.
     // input.Discountable = ifnull(input.Part_Select.Discountable,"N");
 
     if(input.Qty != null && input.Qty > 0)
     {
-        calc = thisapp.fn_calc_line_price_draft(part, input.Qty, desc,
-            ifnull(input.Customer_Type,"End Customer"), ifnull(input.Currency,"USD"),
-            ifnull(input.Markup_Rate_Pct,0), ifnull(input.FX_Charge_Mode,"non_usd_only"));
+        calc = thisapp.fn_calc_line_price_draft(
+            part,
+            input.Qty,
+            desc,
+            ifnull(input.Customer_Type,"End Customer"),
+            ifnull(input.Currency,"USD"),
+            ifnull(input.Markup_Rate_Pct,0),
+            ifnull(input.FX_Charge_Mode,"non_usd_only")
+        );
         input.Unit_Price = calc.get("unit_price");
         input.FX_Unit_Price = calc.get("fx_unit_price");
         input.Line_Total_USD = calc.get("line_total_usd");
@@ -192,18 +219,33 @@ if(input.Part_Select != null)
 
 **Event 2 — paste into `Qty` On User Input** (full file: `workflows/on_user_input_quote_lines_qty.deluge`):
 ```deluge
+// On User Input: Quote_Request > Quote_Lines subform > Qty.
+// See docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for full notes and deploy order.
+
 if(input.Qty != null && input.Qty > 0)
 {
     part = "";
     desc = ifnull(input.Description,"");
-    if(input.Part_Select != null) { part = ifnull(input.Part_Select.Part_Number,"").toString(); }
-    if(part == "" || part == "null") { part = ifnull(input.Part_Number,"").toString(); }
+    if(input.Part_Select != null)
+    {
+        part = ifnull(input.Part_Select.Part_Number,"").toString();
+    }
+    if(part == "" || part == "null")
+    {
+        part = ifnull(input.Part_Number,"").toString();
+    }
 
     if(part != "" && part != "null")
     {
-        calc = thisapp.fn_calc_line_price_draft(part, input.Qty, desc,
-            ifnull(input.Customer_Type,"End Customer"), ifnull(input.Currency,"USD"),
-            ifnull(input.Markup_Rate_Pct,0), ifnull(input.FX_Charge_Mode,"non_usd_only"));
+        calc = thisapp.fn_calc_line_price_draft(
+            part,
+            input.Qty,
+            desc,
+            ifnull(input.Customer_Type,"End Customer"),
+            ifnull(input.Currency,"USD"),
+            ifnull(input.Markup_Rate_Pct,0),
+            ifnull(input.FX_Charge_Mode,"non_usd_only")
+        );
         input.Unit_Price = calc.get("unit_price");
         input.FX_Unit_Price = calc.get("fx_unit_price");
         input.Line_Total_USD = calc.get("line_total_usd");
@@ -217,6 +259,13 @@ if(input.Qty != null && input.Qty > 0)
 
 **Events 3/4 — paste into both `Currency` and `FX_Charge_Mode` On User Input** (full file: `workflows/on_user_input_quote_currency_fx.deluge`):
 ```deluge
+// On User Input: Quote_Request (parent) > Currency, and also FX_Charge_Mode
+// (attach this same script to both fields). See
+// docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for full notes and deploy order.
+// Only recalculates FX_Unit_Price/Line_Total_FX from the already-computed
+// Unit_Price/Line_Total_USD - does not touch Unit_Price, Line_Total_USD, or
+// Description.
+
 currency = ifnull(input.Currency,"USD");
 fx_mode = ifnull(input.FX_Charge_Mode,"non_usd_only");
 apply_fx = false;

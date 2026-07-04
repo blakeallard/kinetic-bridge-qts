@@ -1,31 +1,7 @@
-// Volume breaks per July 2026 RSP_EUR pricelist. Two qty->tier_index mappings,
-// selected by Item_Master.Tier_Scheme (see docs/TIER_SCHEME_LINE_ITEM_FUNCTIONALITY_AUDIT.md):
-//   Tier_Scheme = "hardware" (BMS boards + Accessories): 1-19 / 20-99 / 100-259 /
-//     260-499 / 500-999 / 1000-2499 / 2500-4999 / 5000-9999 / 10000-24999 (T1..T9)
-//   Tier_Scheme = "license" (Creator Tool / Service Tool / obsolete software):
-//     1 / 2 / 3-4 / 5-9 / 10-24 / 25-249 (T1..T6)
-// Tier_Scheme does not exist on Item_Master yet (Creator schema change pending —
-// see docs/TIER_SCHEME_DEPLOYMENT_CHECKLIST.md). Until that field is added, every
-// record reads as blank and this function falls back to "hardware", matching
-// today's only deployed behavior exactly — this patch is backward-compatible
-// with the current (hardware-only) Item_Master.
-//
-// Return contract: returns -1 (never a real price) when no valid price can be
-// determined — either the SKU has no matching Item_Master row, or every tier at
-// or below the requested qty is blank. Callers MUST check `result < 0` before
-// using the return value in arithmetic; treating -1 as a price would silently
-// invert cost math. This replaces the old contract where "no price found" and
-// "line is free" were both indistinguishably 0. See fn_calc_quote_lines.deluge
-// and fn_sync_to_sheet.deluge for the required caller-side guard.
-//
-// Duplicate/stale Item_Master rows: this function takes the FIRST Item_Master
-// record matching Part_Number (Creator's own iteration order — not guaranteed
-// stable). If more than one row ever exists for the same Part_Number (e.g. the
-// 300300/300500 bundle-vs-unit duplicates — see docs/LIBAL_REFERENCE_PRICE_QC.md)
-// pricing becomes nondeterministic. No Active/Status field exists on Item_Master
-// today to filter on, so none is referenced here — see
-// docs/TIER_SCHEME_DEPLOYMENT_CHECKLIST.md for the field this needs before
-// duplicate SKUs can safely be imported.
+// Tier_Scheme-aware line pricing. Full rationale/notes in
+// docs/TIER_SCHEME_LINE_ITEM_FUNCTIONALITY_AUDIT.md and
+// docs/TIER_SCHEME_CREATOR_DEPLOYMENT_RUNBOOK.md.
+// Returns -1 (never a real price) if no valid price tier is found.
 float fn_get_tier_price(string p_part_number, int p_qty)
 {
 	tier_price = -1;
@@ -42,9 +18,7 @@ float fn_get_tier_price(string p_part_number, int p_qty)
 		tiers.add(ifnull(item.Price_T8,null));
 		tiers.add(ifnull(item.Price_T9,null));
 
-		// Missing/unknown/blank Tier_Scheme must NOT silently be treated as
-		// "license" — default to "hardware" (the current, only, backward-compatible
-		// behavior) unless the field explicitly says otherwise.
+		// Blank/unknown Tier_Scheme defaults to hardware (not license).
 		tier_scheme = ifnull(item.Tier_Scheme,"").toString().trim().toLowerCase();
 		if(tier_scheme != "hardware" && tier_scheme != "license")
 		{

@@ -1,9 +1,11 @@
 # Tier_Scheme Creator Deployment Runbook — BI1-T71
 
+**Deployment history note (added after the first live deploy attempt):** the original `functions/fn_get_tier_price.deluge` in this repo had a large comment header (~28 lines) using non-ASCII punctuation (em-dashes). Pasting it into Creator's Deluge script editor for Step A (Section 7) failed with an "Improper Statement" parser error. A simplified, ASCII-only, minimal-comment version was pasted instead and saved successfully; that version is now what's committed in this repo. **Going forward: keep pasted Deluge function bodies to short, single-line, ASCII-only comments. Put full rationale in `docs/`, not in the function file itself** — this applies to every function in `functions/` and every script in `workflows/`, not just this one.
+
 Zoho Task ID: `2543412000001469015`
 Created: 2026-07-03
 Local patch commit: `a3ab89c` ("Implement local Tier Scheme pricing patch")
-Status: **Not deployed.** Nothing in this runbook has been executed in Zoho. This document is the exact, step-by-step plan for a human to execute manually in Creator — no step here has been performed by an agent.
+Status: **Partially deployed.** `Tier_Scheme` field and `fn_get_tier_price.deluge` are live in the dev environment (done manually by a human). `fn_calc_quote_lines.deluge` and `fn_sync_to_sheet.deluge` are not yet deployed — see Section 4. No step in this runbook has been performed by an agent; all Zoho changes so far were done manually.
 
 ---
 
@@ -55,8 +57,8 @@ Do not target production. Per `QTS_PROJECT_STATUS.md`, production promotion is a
 ## 4. Exact deployment order
 
 1. Add/confirm the `Tier_Scheme` field on `Item_Master` (Section 6).
-2. Deploy `fn_get_tier_price.deluge` (Section 7, step A).
-3. Deploy `fn_calc_quote_lines.deluge` (Section 7, step B).
+2. ~~Deploy `fn_get_tier_price.deluge` (Section 7, step A).~~ **Done** — deployed and saved successfully in the dev environment using the simplified, ASCII-only version now committed in this repo (see the deployment history note at the top of this file).
+3. Deploy `fn_calc_quote_lines.deluge` (Section 7, step B) — **next**.
 4. Deploy `fn_sync_to_sheet.deluge` (Section 7, step C).
 
 Do not deviate from this order.
