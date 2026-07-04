@@ -1,0 +1,52 @@
+// Creator workflow event: Form "Quote_Request" -> Quote_Lines subform ->
+// field "Part_Select" -> On User Input.
+//
+// Paste this into that field's "On User Input" script box in the Creator Form
+// Builder. Requires functions/fn_calc_line_price_draft.deluge and the already-
+// patched functions/fn_get_tier_price.deluge to be deployed first (see
+// docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for exact order).
+//
+// Behavior: when a sales rep picks an Item_Master record via the Part_Select
+// lookup, fills Part_Number and Description immediately. If Qty has already been
+// entered on this line (e.g. editing an existing draft row), also recalculates
+// Unit_Price/FX_Unit_Price/Line_Total_USD/Line_Total_FX right away instead of
+// waiting for Save.
+//
+// The Discountable/Discount block below is commented out on purpose — see
+// "Confirm before deploying" in docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md.
+// Referencing a Quote_Lines field that does not exist on the live form is a hard
+// Deluge error, not a silent no-op, so do not uncomment until confirmed.
+
+if(input.Part_Select != null)
+{
+	part = ifnull(input.Part_Select.Part_Number,"").toString();
+	desc = ifnull(input.Part_Select.Description,"");
+
+	input.Part_Number = part;
+	input.Description = desc;
+
+	// --- OPTIONAL: only uncomment once Quote_Lines.Discountable (and/or .Discount)
+	// are confirmed to exist on the live subform with these exact link names. ---
+	// input.Discountable = ifnull(input.Part_Select.Discountable,"N");
+
+	if(input.Qty != null && input.Qty > 0)
+	{
+		calc = thisapp.fn_calc_line_price_draft(
+			part,
+			input.Qty,
+			desc,
+			ifnull(input.Customer_Type,"End Customer"),
+			ifnull(input.Currency,"USD"),
+			ifnull(input.Markup_Rate_Pct,0),
+			ifnull(input.FX_Charge_Mode,"non_usd_only")
+		);
+		input.Unit_Price = calc.get("unit_price");
+		input.FX_Unit_Price = calc.get("fx_unit_price");
+		input.Line_Total_USD = calc.get("line_total_usd");
+		input.Line_Total_FX = calc.get("line_total_fx");
+		input.Description = calc.get("description");
+		// --- OPTIONAL, same condition as above: ---
+		// input.Discount = calc.get("discount");
+		// input.Discountable = calc.get("discountable");
+	}
+}
