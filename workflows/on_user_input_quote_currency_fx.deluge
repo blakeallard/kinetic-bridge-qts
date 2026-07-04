@@ -1,24 +1,9 @@
-// Creator workflow event: Form "Quote_Request" (parent form, not the subform) ->
-// field "Currency" -> On User Input.
-//
-// Attach this SAME script body to the parent form's "FX_Charge_Mode" field's
-// On User Input event too (both fields affect the same apply_fx/fx_rate decision
-// — see fn_calc_quote_lines.deluge's identical branching logic) — do not
-// duplicate the file, just wire both trigger fields to this one script.
-//
-// Behavior: when the customer currency (or FX charge mode) changes while the
-// quote is still being drafted, recalculates FX_Unit_Price/Line_Total_FX for
-// every existing Quote_Lines row from their ALREADY-COMPUTED Unit_Price/
-// Line_Total_USD — it deliberately does NOT re-derive Unit_Price/Line_Total_USD
-// or touch Description here. Those are driven by qty/tier/discount, which did
-// not change just because Currency changed; recomputing them here would risk
-// re-triggering the "[NO PRICE ON FILE]" Description marker logic a second time
-// on lines that already have it, or masking a line that's mid-edit. Keeping this
-// script narrowly scoped to the FX_* fields avoids that entirely.
-//
-// EUR_USD_Rate is not touched here either — it is Admin Only / system-computed by
-// fn_calc_quote_lines.deluge on save and is not affected by Currency at all (it's
-// always the EUR->USD base rate, independent of the customer-facing Currency).
+// On User Input: Quote_Request (parent) > Currency, and also FX_Charge_Mode
+// (attach this same script to both fields). See
+// docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for full notes and deploy order.
+// Only recalculates FX_Unit_Price/Line_Total_FX from the already-computed
+// Unit_Price/Line_Total_USD - does not touch Unit_Price, Line_Total_USD, or
+// Description.
 
 currency = ifnull(input.Currency,"USD");
 fx_mode = ifnull(input.FX_Charge_Mode,"non_usd_only");

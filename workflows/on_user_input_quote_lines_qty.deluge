@@ -1,18 +1,5 @@
-// Creator workflow event: Form "Quote_Request" -> Quote_Lines subform ->
-// field "Qty" -> On User Input.
-//
-// Paste this into that field's "On User Input" script box in the Creator Form
-// Builder. Requires functions/fn_calc_line_price_draft.deluge and the already-
-// patched functions/fn_get_tier_price.deluge to be deployed first (see
-// docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for exact order).
-//
-// Behavior: when a sales rep types/changes the quantity on a line, recalculates
-// tier price (respecting Tier_Scheme via fn_get_tier_price.deluge), discount,
-// markup, and FX conversion immediately, instead of waiting for Save.
-//
-// Falls back to a manually-typed Part_Number if Part_Select wasn't used for this
-// line, matching the same dual-path pattern already used in
-// functions/fn_calc_quote_lines.deluge.
+// On User Input: Quote_Request > Quote_Lines subform > Qty.
+// See docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for full notes and deploy order.
 
 if(input.Qty != null && input.Qty > 0)
 {
@@ -43,9 +30,6 @@ if(input.Qty != null && input.Qty > 0)
 		input.Line_Total_USD = calc.get("line_total_usd");
 		input.Line_Total_FX = calc.get("line_total_fx");
 		input.Description = calc.get("description");
-		// --- OPTIONAL: only uncomment once Quote_Lines.Discount/.Discountable are
-		// confirmed to exist on the live subform — see
-		// docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md "Confirm before deploying". ---
 		// input.Discount = calc.get("discount");
 		// input.Discountable = calc.get("discountable");
 	}
