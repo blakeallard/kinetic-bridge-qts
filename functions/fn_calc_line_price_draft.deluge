@@ -1,19 +1,22 @@
-// Draft-time (On User Input) line pricing helper. Mirrors fn_calc_quote_lines.deluge.
-// Full rationale/notes: docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md.
-// Returns a Map: unit_price, fx_unit_price, line_total_usd, line_total_fx,
-// description, discount, discountable, price_found (false = no valid price - the
-// numeric fields are 0 by convention, not a real price; check this flag first).
 Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_description, string p_customer_type, string p_currency, decimal p_markup_pct, string p_fx_mode)
 {
 	result = Map();
-	qty_long = ifnull(p_qty,0).round(0).toLong();
+	qty_raw = ifnull(p_qty,0);
+	qty_rounded = qty_raw.round(0);
+	qty_long = qty_rounded.toLong();
 
-	// EUR->USD base rate, recomputed fresh every call (not read from the form).
 	eur_usd = 1.0;
 	for each rate_rec in FX_Rates_Cache[Currency == "EUR"]
 	{
 		raw_eur_per_usd = ifnull(rate_rec.Rate,1);
-		eur_usd = (raw_eur_per_usd == 0) ? 1 : (1 / raw_eur_per_usd);
+		if(raw_eur_per_usd == 0)
+		{
+			eur_usd = 1;
+		}
+		else
+		{
+			eur_usd = 1 / raw_eur_per_usd;
+		}
 		break;
 	}
 
@@ -21,9 +24,39 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 	fx_mode = ifnull(p_fx_mode,"non_usd_only");
 	apply_fx = false;
 	fx_rate = 1.0;
-	if((fx_mode == "non_usd_only" && currency != "USD") || fx_mode == "always")
+
+	fx_mode_always = false;
+	if(fx_mode == "always")
+	{
+		fx_mode_always = true;
+	}
+
+	fx_mode_non_usd_only = false;
+	if(fx_mode == "non_usd_only")
+	{
+		fx_mode_non_usd_only = true;
+	}
+
+	currency_not_usd = false;
+	if(currency != "USD")
+	{
+		currency_not_usd = true;
+	}
+
+	if(fx_mode_always)
 	{
 		apply_fx = true;
+	}
+	if(fx_mode_non_usd_only)
+	{
+		if(currency_not_usd)
+		{
+			apply_fx = true;
+		}
+	}
+
+	if(apply_fx)
+	{
 		for each rate_rec in FX_Rates_Cache[Currency == currency]
 		{
 			fx_rate = ifnull(rate_rec.Rate,1);
@@ -32,9 +65,14 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 	}
 
 	eur_price = thisapp.fn_get_tier_price(p_part_number, qty_long);
-	// -1 sentinel means no valid price was found; never treat it as a real price.
-	price_found = (eur_price >= 0);
-	if(!price_found)
+
+	price_found = true;
+	if(eur_price < 0)
+	{
+		price_found = false;
+	}
+
+	if(price_found == false)
 	{
 		eur_price = 0;
 	}
@@ -42,34 +80,58 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 	discount = 0.0;
 	discountable = "N";
 	item_description = ifnull(p_description,"");
+	customer_type = ifnull(p_customer_type,"End Customer");
+
 	for each item in Item_Master[Part_Number == p_part_number]
 	{
 		discountable = ifnull(item.Discountable,"N");
-		is_discountable = discountable == "Y";
-		is_software = ifnull(item.Category,"") == "Software";
+		is_discountable = false;
+		if(discountable == "Y")
+		{
+			is_discountable = true;
+		}
+
+		category_val = ifnull(item.Category,"");
+		is_software = false;
+		if(category_val == "Software")
+		{
+			is_software = true;
+		}
+
 		if(is_discountable)
 		{
-			discount = thisapp.fn_get_discount(ifnull(p_customer_type,"End Customer"), qty_long, is_software);
+			discount = thisapp.fn_get_discount(customer_type, qty_long, is_software);
 		}
-		// Prefer the live Item_Master description over the caller-supplied one.
-		item_description = ifnull(item.Description, item_description);
+
+		item_description_from_master = ifnull(item.Description, item_description);
+		item_description = item_description_from_master;
 		break;
 	}
 
-	markup = ifnull(p_markup_pct,0) / 100;
+	markup_raw = ifnull(p_markup_pct,0);
+	markup = markup_raw / 100;
 	usd_cost = eur_price * eur_usd;
-	unit_price_usd = usd_cost * (1 - discount) * (1 + markup);
-	line_total_usd = unit_price_usd * ifnull(p_qty,0);
+	discount_factor = 1 - discount;
+	markup_factor = 1 + markup;
+	unit_price_step1 = usd_cost * discount_factor;
+	unit_price_usd = unit_price_step1 * markup_factor;
+
+	qty_for_total = ifnull(p_qty,0);
+	line_total_usd = unit_price_usd * qty_for_total;
 	fx_unit_price = unit_price_usd;
 	line_total_fx = line_total_usd;
-	if(apply_fx && fx_rate != 0)
+
+	if(apply_fx)
 	{
-		fx_unit_price = unit_price_usd * fx_rate;
-		line_total_fx = line_total_usd * fx_rate;
+		if(fx_rate != 0)
+		{
+			fx_unit_price = unit_price_usd * fx_rate;
+			line_total_fx = line_total_usd * fx_rate;
+		}
 	}
 
 	description = item_description;
-	if(!price_found)
+	if(price_found == false)
 	{
 		description = "[NO PRICE ON FILE - DO NOT QUOTE] " + description;
 	}

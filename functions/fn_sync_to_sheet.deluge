@@ -138,8 +138,18 @@ void fn_sync_to_sheet(string p_quote_id)
 			discount = 0.0;
 			for each  item in Item_Master[Part_Number == part]
 			{
-				is_discountable = ifnull(item.Discountable,"N") == "Y";
-				is_software = ifnull(item.Category,"") == "Software";
+				discountable_val = ifnull(item.Discountable,"N");
+				is_discountable = false;
+				if(discountable_val == "Y")
+				{
+					is_discountable = true;
+				}
+				category_val = ifnull(item.Category,"");
+				is_software = false;
+				if(category_val == "Software")
+				{
+					is_software = true;
+				}
 				if(is_discountable)
 				{
 					discount = thisapp.fn_get_discount(customer_type,qty.toLong(),is_software);

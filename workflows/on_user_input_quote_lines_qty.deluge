@@ -1,7 +1,13 @@
-// On User Input: Quote_Request > Quote_Lines subform > Qty.
-// See docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for full notes and deploy order.
+qty_set = false;
+if(input.Qty != null)
+{
+	if(input.Qty > 0)
+	{
+		qty_set = true;
+	}
+}
 
-if(input.Qty != null && input.Qty > 0)
+if(qty_set)
 {
 	part = "";
 	desc = ifnull(input.Description,"");
@@ -9,12 +15,33 @@ if(input.Qty != null && input.Qty > 0)
 	{
 		part = ifnull(input.Part_Select.Part_Number,"").toString();
 	}
-	if(part == "" || part == "null")
+
+	part_is_blank = false;
+	if(part == "")
+	{
+		part_is_blank = true;
+	}
+	if(part == "null")
+	{
+		part_is_blank = true;
+	}
+
+	if(part_is_blank)
 	{
 		part = ifnull(input.Part_Number,"").toString();
 	}
 
-	if(part != "" && part != "null")
+	part_is_usable = true;
+	if(part == "")
+	{
+		part_is_usable = false;
+	}
+	if(part == "null")
+	{
+		part_is_usable = false;
+	}
+
+	if(part_is_usable)
 	{
 		calc = thisapp.fn_calc_line_price_draft(
 			part,
