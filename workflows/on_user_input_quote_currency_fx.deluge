@@ -1,18 +1,40 @@
-// On User Input: Quote_Request (parent) > Currency, and also FX_Charge_Mode
-// (attach this same script to both fields). See
-// docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for full notes and deploy order.
-// Only recalculates FX_Unit_Price/Line_Total_FX from the already-computed
-// Unit_Price/Line_Total_USD - does not touch Unit_Price, Line_Total_USD, or
-// Description.
-
 currency = ifnull(input.Currency,"USD");
 fx_mode = ifnull(input.FX_Charge_Mode,"non_usd_only");
 apply_fx = false;
 fx_rate = 1.0;
 
-if((fx_mode == "non_usd_only" && currency != "USD") || fx_mode == "always")
+fx_mode_always = false;
+if(fx_mode == "always")
+{
+	fx_mode_always = true;
+}
+
+fx_mode_non_usd_only = false;
+if(fx_mode == "non_usd_only")
+{
+	fx_mode_non_usd_only = true;
+}
+
+currency_not_usd = false;
+if(currency != "USD")
+{
+	currency_not_usd = true;
+}
+
+if(fx_mode_always)
 {
 	apply_fx = true;
+}
+if(fx_mode_non_usd_only)
+{
+	if(currency_not_usd)
+	{
+		apply_fx = true;
+	}
+}
+
+if(apply_fx)
+{
 	for each rate_rec in FX_Rates_Cache[Currency == currency]
 	{
 		fx_rate = ifnull(rate_rec.Rate,1);
@@ -24,7 +46,17 @@ for each ln in input.Quote_Lines
 {
 	unit_price_usd = ifnull(ln.Unit_Price, 0);
 	line_total_usd = ifnull(ln.Line_Total_USD, 0);
-	if(apply_fx && fx_rate != 0)
+
+	fx_applies = false;
+	if(apply_fx)
+	{
+		if(fx_rate != 0)
+		{
+			fx_applies = true;
+		}
+	}
+
+	if(fx_applies)
 	{
 		ln.FX_Unit_Price = (unit_price_usd * fx_rate).round(2);
 		ln.Line_Total_FX = (line_total_usd * fx_rate).round(2);

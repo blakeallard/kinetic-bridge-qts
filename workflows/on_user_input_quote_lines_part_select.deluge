@@ -1,7 +1,3 @@
-// On User Input: Quote_Request > Quote_Lines subform > Part_Select.
-// See docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md for full notes and deploy order.
-// Discountable/Discount lines below stay commented until confirmed on live form.
-
 if(input.Part_Select != null)
 {
 	part = ifnull(input.Part_Select.Part_Number,"").toString();
@@ -12,7 +8,16 @@ if(input.Part_Select != null)
 
 	// input.Discountable = ifnull(input.Part_Select.Discountable,"N");
 
-	if(input.Qty != null && input.Qty > 0)
+	qty_set = false;
+	if(input.Qty != null)
+	{
+		if(input.Qty > 0)
+		{
+			qty_set = true;
+		}
+	}
+
+	if(qty_set)
 	{
 		calc = thisapp.fn_calc_line_price_draft(
 			part,
