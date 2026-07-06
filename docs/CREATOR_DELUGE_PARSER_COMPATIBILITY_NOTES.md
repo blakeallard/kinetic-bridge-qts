@@ -119,3 +119,29 @@ Verified via `python3 scripts/tier_price_logic_dryrun.py` (12/12) and `python3 s
 `fn_get_discount.deluge` still contains a ternary (`p_is_software ? "Software" : "Hardware"`) and some non-ASCII characters, but per `QTS_PROJECT_STATUS.md` this function predates the current session's changes and is presumably already deployed and working — it has not been touched or redeployed in this session, so its existing ternary has not (yet) caused a failure. If `fn_get_discount.deluge` is ever edited and redeployed, apply the same house rules above first rather than assuming its current form is safe simply because it hasn't failed yet.
 
 `fn_generate_pdf.deluge` and `fn_sync_to_crm.deluge` also still contain a handful of em-dashes and (per Incident 4) a still-unverified `Quote_Request[ID == p_quote_id.toLong()]` criteria form each; same reasoning — not touched this session, not redeployed, left as-is.
+
+## Incident 5 — subform On User Input scripts: `row.*` vs `input.*` (2026-07-06)
+
+`workflows/on_user_input_quote_lines_part_select.deluge` failed to save in a
+Quote_Request → Edited → "User Input Of A Field" → `Quote_Lines.Part_Select`
+workflow with **"Variable 'Part_Select' is not defined" (line 1)**. Not a
+parser-syntax issue: in a subform field's On User Input action, `input.` only
+resolves **parent-form** (`Quote_Request`) fields. The triggering subform row's
+fields must be accessed through the pre-defined `row` variable
+(<https://www.zoho.com/deluge/help/miscellaneous/access-subform-fields.html>).
+
+**House rule for subform field events (On User Input / on add row / on delete
+row):**
+
+- Subform row fields → `row.<field>` (e.g. `row.Part_Select`, `row.Qty`,
+  `row.Unit_Price`)
+- Parent form fields → `input.<field>` (e.g. `input.Customer_Type`,
+  `input.Currency`, `input.Markup_Rate_Pct`, `input.FX_Charge_Mode`)
+
+Both patched scripts saved and verified live with this split:
+`deploy_ready/on_user_input_quote_lines_part_select.creator.deluge` and
+`deploy_ready/on_user_input_quote_lines_qty.creator.deluge`. Parent-field reads
+from subform row context are confirmed working (the four `input.*` reads above
+resolved correctly at draft time). The `workflows/` originals keep the plain
+`input.*` form only as pre-patch history — paste from `deploy_ready/` for any
+redeploy.
