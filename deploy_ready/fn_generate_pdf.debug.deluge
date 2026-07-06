@@ -218,6 +218,11 @@ void fn_generate_pdf(string p_quote_id)
 		params.put("merge_data", mergeJSON);
 		params.put("signer_data", signerJSON);
 
+		// Debug logging: full payloads + param keys, before the call.
+		info "fn_generate_pdf merge_data: " + mergeJSON;
+		info "fn_generate_pdf signer_data: " + signerJSON;
+		info "fn_generate_pdf param keys: " + params.keys().toString();
+
 		response = invokeurl
 		[
 			url: "https://writer.zoho.com/writer/api/v1/documents/lg6haa9fe623ad500461ea6708547e49c8a4a/merge/sign"
