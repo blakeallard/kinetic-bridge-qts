@@ -1,0 +1,67 @@
+// Creator subform On User Input context: the triggering Quote_Lines row is
+// exposed as the pre-defined `row` variable; `input.` resolves parent
+// Quote_Request fields only. Same split proven by the deployed Part_Select
+// workflow (deploy_ready/on_user_input_quote_lines_part_select.creator.deluge).
+qty_set = false;
+if(row.Qty != null)
+{
+	if(row.Qty > 0)
+	{
+		qty_set = true;
+	}
+}
+
+if(qty_set)
+{
+	part = "";
+	desc = ifnull(row.Description,"");
+	if(row.Part_Select != null)
+	{
+		part = ifnull(row.Part_Select.Part_Number,"").toString();
+	}
+
+	part_is_blank = false;
+	if(part == "")
+	{
+		part_is_blank = true;
+	}
+	if(part == "null")
+	{
+		part_is_blank = true;
+	}
+
+	if(part_is_blank)
+	{
+		part = ifnull(row.Part_Number,"").toString();
+	}
+
+	part_is_usable = true;
+	if(part == "")
+	{
+		part_is_usable = false;
+	}
+	if(part == "null")
+	{
+		part_is_usable = false;
+	}
+
+	if(part_is_usable)
+	{
+		calc = thisapp.fn_calc_line_price_draft(
+			part,
+			row.Qty,
+			desc,
+			ifnull(input.Customer_Type,"End Customer"),
+			ifnull(input.Currency,"USD"),
+			ifnull(input.Markup_Rate_Pct,0),
+			ifnull(input.FX_Charge_Mode,"non_usd_only")
+		);
+		row.Unit_Price = calc.get("unit_price");
+		row.FX_Unit_Price = calc.get("fx_unit_price");
+		row.Line_Total_USD = calc.get("line_total_usd");
+		row.Line_Total_FX = calc.get("line_total_fx");
+		row.Description = calc.get("description");
+		// row.Discount = calc.get("discount");
+		// row.Discountable = calc.get("discountable");
+	}
+}

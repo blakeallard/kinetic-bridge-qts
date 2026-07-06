@@ -2,7 +2,7 @@
 
 Zoho Task ID: `2543412000001469015`
 Created: 2026-07-03
-Status: **Partially deployed.** Events 3/4 (Currency/FX draft recalc) are **deployed and verified — 100%** as of 2026-07-06; see "Deployment status update" section below. Events 1/2 (Part_Select/Qty pricing autofill) and `fn_calc_line_price_draft` remain local-only, pending the "Confirm before deploying" live checks. No Item_Master import was performed, no business decision was made.
+Status: **Fully deployed and verified — 100%** as of 2026-07-06. All four On User Input attachment points plus `fn_calc_line_price_draft` are live in Creator dev; see "Deployment status update" section below. No Item_Master import was performed, no business decision was made.
 
 ---
 
@@ -33,8 +33,32 @@ figures round-trip the cached EUR rate 0.88 (676.136364 × 0.88 = 595.00,
 14875.00 × 0.88 = 13090.00) — consistent with save-time `fn_calc_quote_lines`
 math. No Deluge code changes were needed.
 
-Events 1/2 (`fn_calc_line_price_draft` + Part_Select/Qty scripts): **still not
-deployed** — blockers unchanged, see "Confirm before deploying."
+**Events 1/2 deployed and verified in Creator dev (100%) — later on 2026-07-06.**
+`fn_calc_line_price_draft` was created as a Creator custom function (Map return
+type saved without parser issues) and execute-tested green
+(`("200300", 22, "", "End Customer", "USD", 0, "non_usd_only")` →
+`unit_price 676.14`, `line_total_usd 14875.00`). The two subform scripts then
+deployed after one context patch — Creator subform On User Input scripts
+address the triggering row via the pre-defined `row` variable, not `input.`
+(see `docs/CREATOR_DELUGE_PARSER_COMPATIBILITY_NOTES.md` Incident 5):
+
+| Creator workflow name | Trigger | Pasted file |
+|---|---|---|
+| `Quote Line Part Select Draft Pricing` | `Quote_Lines.Part_Select` On User Input | `deploy_ready/on_user_input_quote_lines_part_select.creator.deluge` |
+| `Quote Line Qty Draft Pricing` | `Quote_Lines.Qty` On User Input | `deploy_ready/on_user_input_quote_lines_qty.creator.deluge` |
+
+Verified live:
+
+- Part_Select fills `Part_Number`/`Description` immediately on item pick
+- Qty entry/change recalculates `Unit_Price` and totals immediately
+- Reference line 200300 qty 22 → `Unit_Price` 676.14, `Line_Total_USD` 14875.00
+- Save-time recalc (`fn_calc_quote_lines`) matched the draft-time values —
+  no disagreement between the two pricing paths (plan test case 6)
+
+The `Discountable`/`Discount` writes remain commented out in both deployed
+scripts (fields still unconfirmed on the live subform — unchanged from
+"Confirm before deploying"). The `workflows/` originals retain the pre-patch
+`input.*` form as history; **redeploy from `deploy_ready/` only.**
 
 ---
 
