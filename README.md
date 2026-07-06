@@ -35,7 +35,8 @@ Reference validation: SKU 200300 qty 22 → Unit_Price 676.14, Line_Total_USD 14
 - Writer template repeating-table rebuild (manual, in Writer editor)
 - `Quote_Lines.Discountable`/`Discount` fields unconfirmed; writes stay commented out in deployed scripts
 - Tier 3 cleanup (Bill): delete `Currency_old` field; recall duplicate sign request `504457000000209234`
-- Zoho Projects status comment for task `2543412000001469015` not yet posted
+
+Zoho Projects status comment posted 2026-07-06 on task `2543412000001469015` (comment `2543412000001533001`).
 
 Detailed status: `QTS_PROJECT_STATUS.md`. Creator paste sources: `deploy_ready/` (never the `workflows/` originals — see parser notes Incident 5).
 
