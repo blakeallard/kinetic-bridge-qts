@@ -173,3 +173,39 @@ None of these are resolved by this runbook or the local patch. All remain busine
 - **Is Creator ready for field addition (Section 6)?** **Done.** `Tier_Scheme` is live on `Item_Master` in dev.
 - **Is Creator ready for function deployment (Section 7)?** **Done.** `fn_get_tier_price.deluge`, `fn_calc_quote_lines.deluge`, and `fn_sync_to_sheet.deluge` are all deployed and saved successfully in dev — see the deployment history note at the top of this file and `docs/CREATOR_DELUGE_PARSER_COMPATIBILITY_NOTES.md` for the parser-compatibility fixes two of the three needed along the way.
 - **Is Creator ready for `Item_Master` import?** **No.** All five items in Section 11 remain open business decisions, and the duplicate-SKU risk (Section 9, test 4) is not mitigated by the code patch itself — it must be enforced by whatever process performs the import. Import should not proceed until Section 11 is fully resolved, regardless of whether the field/function deployment above has happened.
+
+---
+
+## 13. Post-deployment data fix — blank Tier_Scheme on existing dev records (2026-07-06)
+
+**Symptom.** After the Line_Number deployment, an all-items dev test quote priced SKU 200300
+(c-BMS24X Unified Creator License) at qty 23 with `Unit_Price` 1448.86 — exactly EUR 1275
+(`Price_T2`, the *hardware* 20–99 band) x 1.136364, instead of EUR 595 (`Price_T5`, the
+license 10–24 band). A 2.14x overcharge on that line.
+
+**Cause.** The `Tier_Scheme` field existed on `Item_Master`, but all 28 existing dev records
+had it **blank** (confirmed by read-only API enumeration on 2026-07-06 — no record carried a
+`Tier_Scheme` value). Blank `Tier_Scheme` intentionally defaults to hardware pricing in
+`fn_get_tier_price.deluge` (the backward-compatibility path, Section 6 of this runbook), so
+every license SKU silently priced off the hardware band table. **This was a data gap, not a
+code bug** — the deployed functions behaved exactly as specified.
+
+**Fix applied (Creator dev, manual, human-performed).** `Tier_Scheme = license` was set on
+the 5 confirmed license SKUs: **200100, 200200, 200300, 200500, 200600**. No code was
+changed, locally or in Creator. All hardware/accessory rows were deliberately left blank
+(the hardware default is correct for them).
+
+**Verification.** The all-items test quote was re-saved: 200300 at qty 22 now shows
+`Unit_Price` 676.14 and `Line_Total_USD` 14875.00 — matching the expected raw unit price
+595 x 1.136364 = 676.136364, with the line total computed from the raw (unrounded) unit
+price x qty and rounded once (676.136364 x 22 = 14875.00 exactly). Hardware lines
+(100684, 100925) were unaffected.
+
+**Still open.**
+- [ ] **200999** ("Reactivation fee - Creator License FULL") was intentionally left with
+  blank `Tier_Scheme` (currently pricing as hardware). Its part number appears in no
+  import-preview CSV row, and its price ladder (135/101.25/87.75/67.50/47.25/33.75) matches
+  neither CSV reactivation SKU (`200001` at 700/525/... nor `100699.99` at 135/101.25/87.75).
+  Pending Bill/Bryan confirmation of its identity, pricing, and scheme.
+- [ ] Any future `Item_Master` import must populate `Tier_Scheme` on every row (the
+  import-preview CSV already carries the column) so this gap does not recur at import time.
