@@ -1,8 +1,9 @@
 # Kinetic Bridge Quote App (QTS) — Project Status
-**Last updated:** 2026-07-02
+**Last updated:** 2026-07-06
 **App:** Zoho Creator `qts` | **Workspace:** `bevcollc` | **Environment:** development
 
 **Changelog:**
+- 2026-07-06: Currency/FX draft autofill **deployed and verified — 100%**. Two On User Input workflows live on `Quote_Request`: `Currency FX Draft Recalc` (trigger: `Currency`) and `FX Mode Draft Recalc` (trigger: `FX_Charge_Mode`), both running `workflows/on_user_input_quote_currency_fx.deluge` unmodified. Verified on 200300 qty 22 — USD: 676.14 / 676.14 / 14875.00 / 14875.00; EUR: 676.14 / 595 / 14875.00 / 13090 (Unit_Price / FX_Unit_Price / Line_Total_USD / Line_Total_FX). USD fields untouched on currency change, per design. Details: `docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md` "Deployment status update". Part_Select/Qty draft pricing autofill still local-only.
 - 2026-07-02: Implemented Customer_Phone normalization in `fn_generate_pdf.deluge`; avoids calling `.get()` on Creator phone field and parses the string form instead. Local only — pending Creator redeploy + PDF verification.
 
 ---

@@ -2,7 +2,39 @@
 
 Zoho Task ID: `2543412000001469015`
 Created: 2026-07-03
-Status: **Not deployed.** All code below is local-only. No Zoho record was read/modified, no Creator UI or workflow was touched, no Item_Master import was performed, no business decision was made.
+Status: **Partially deployed.** Events 3/4 (Currency/FX draft recalc) are **deployed and verified — 100%** as of 2026-07-06; see "Deployment status update" section below. Events 1/2 (Part_Select/Qty pricing autofill) and `fn_calc_line_price_draft` remain local-only, pending the "Confirm before deploying" live checks. No Item_Master import was performed, no business decision was made.
+
+---
+
+## Deployment status update — 2026-07-06
+
+**Events 3/4 deployed and verified in Creator dev (100%).**
+`workflows/on_user_input_quote_currency_fx.deluge` was pasted unmodified into
+two On User Input workflows on the `Quote_Request` form (against the **new**
+`Currency` dropdown created in the field-swap recovery, which now owns the
+`Currency` link name):
+
+| Creator workflow name | Trigger field |
+|---|---|
+| `Currency FX Draft Recalc` | `Currency` (On User Input) |
+| `FX Mode Draft Recalc` | `FX_Charge_Mode` (On User Input) |
+
+Verified live on the all-items test quote, reference line 200300 qty 22
+(`Unit_Price` / `FX_Unit_Price` / `Line_Total_USD` / `Line_Total_FX`):
+
+| Currency | Unit_Price | FX_Unit_Price | Line_Total_USD | Line_Total_FX |
+|---|---|---|---|---|
+| USD | 676.14 | 676.14 | 14875.00 | 14875.00 |
+| EUR | 676.14 | 595 | 14875.00 | 13090 |
+
+USD-denominated fields stayed untouched on currency change (the deliberate
+scoping this plan specifies); only the FX pair recalculated, and the EUR
+figures round-trip the cached EUR rate 0.88 (676.136364 × 0.88 = 595.00,
+14875.00 × 0.88 = 13090.00) — consistent with save-time `fn_calc_quote_lines`
+math. No Deluge code changes were needed.
+
+Events 1/2 (`fn_calc_line_price_draft` + Part_Select/Qty scripts): **still not
+deployed** — blockers unchanged, see "Confirm before deploying."
 
 ---
 
