@@ -33,7 +33,7 @@ Reference validation: SKU 200300 qty 22 → Unit_Price 676.14, Line_Total_USD 14
 - 200999 reactivation SKU identity/pricing/scheme — pending Bill/Bryan
 - LEM sensors 000833/000876/000637 price $0.00 at qty>19 (stored `0.00` vs blank tier cells)
 - Writer template repeating-table rebuild (manual, in Writer editor)
-- `Quote_Lines.Discountable`/`Discount` fields unconfirmed; writes stay commented out in deployed scripts
+- `Quote_Lines` Discount/Discountable schema blocker (verified via Creator metadata 2026-07-06): no field with link name `Discountable` exists; the field displayed as "Discountable" has link name `Discount`, is a choice field with placeholder options "Choice 1/2/3", and is admin-only — so the commented-out writes in `deploy_ready/on_user_input_quote_lines_part_select.creator.deluge` and `deploy_ready/on_user_input_quote_lines_qty.creator.deluge` must stay commented. Unblocking requires schema changes (Tier 3 — Bill): remove/rebuild the stub `Discount` field (Decimal) and add a real `Discountable` field; note the stub currently owns the `Discount` link name
 - Tier 3 cleanup (Bill): delete `Currency_old` field; recall duplicate sign request `504457000000209234`
 
 Zoho Projects status comment posted 2026-07-06 on task `2543412000001469015` (comment `2543412000001533001`).
