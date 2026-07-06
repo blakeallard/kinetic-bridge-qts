@@ -51,8 +51,12 @@ void fn_calc_quote_lines(string p_quote_id)
 				}
 			}
 
+			line_seq = 0;
 			for each line in quote.Quote_Lines
 			{
+				line_seq = line_seq + 1;
+				line.Line_Number = line_seq;
+
 				qty = line.Qty.toLong();
 				part = ifnull(line.Part_Number,"");
 
