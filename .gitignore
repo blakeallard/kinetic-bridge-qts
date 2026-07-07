@@ -16,3 +16,6 @@ reference_docs/private_examples/
 *.xlsx
 *.docx
 *.pdf
+
+# Temporary active handoff
+docs/CURRENT_HANDOFF.md
