@@ -37,6 +37,22 @@ RSP_EUR row-1 legend) live in cell fills, captured via `styles.xml`.
 
 `workbook_audit.sqlite` is a derived artifact and is gitignored.
 
+## Working assumption — duplicate SKUs 300300 / 300500 (PENDING confirmation)
+
+Hidden RSP_EUR rows **54/55** (bundle-style, `hidden="1"` verified in the
+sheet XML) are treated as **legacy rows excluded from live Item_Master
+import** (`EXCLUDE_CANDIDATE`); visible rows **58/60** (unit-price) are
+treated as the **current canonical rows** (`CANONICAL_CANDIDATE`). This is a
+working assumption **pending Bill/Bryan confirmation — it is NOT approved**.
+Dispositions are encoded in `import_preview/duplicate_sku_classification.json`
+and enforced by a fail-loud duplicate-SKU guard in
+`import_preview/generate_preview.py` and `scripts/tier_price_logic_dryrun.py`:
+any duplicated SKU without a complete, evidence-consistent
+canonical/exclude classification aborts the run. No Deluge function, Zoho
+record, or workbook row is modified by any of this. Known gap: the audit DB
+does not capture per-row visibility (Layer 1 predates this need); hidden
+state is re-verified from the workbook XML on every preview run instead.
+
 ## Guardrails
 
 - Never writes to the source workbook or to Zoho Creator.

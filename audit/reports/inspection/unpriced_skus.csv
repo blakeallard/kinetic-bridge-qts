@@ -1,6 +1,6 @@
-part_number,description,rsp_eur_row,status_mark
-101815,"n-BMS CMU18/4 Wire top mount isoSPI - 200mA balancing current DRAFT",17,"New Item added"
-102100,c-BMS18,26,Discontinued
-103005,"Harness kit for c-BMS18, for development purpose only",27,Discontinued
-200400,"c-BMS18 Unified Creator License FULL",47,Discontinued
-300400,"c-BMS18 Unified Service Tool",59,Discontinued
+part_number,description,status_evidence,recommended_handling,decision_owner
+101815,n-BMS CMU18/4 Wire top mount isoSPI - 200mA balancing current DRAFT,New Item added,Hold as not-yet-released/non-quotable (DRAFT); Bill/Bryan decision required,Bill/Bryan
+102100,c-BMS18,Discontinued,Excluded from live import/quoting by vendor discontinued status,Bill/Bryan visibility/override only
+103005,"Harness kit for c-BMS18, for development purpose only",Discontinued,Excluded from live import/quoting by vendor discontinued status,Bill/Bryan visibility/override only
+200400,c-BMS18 Unified Creator License FULL,Discontinued,Excluded from live import/quoting by vendor discontinued status,Bill/Bryan visibility/override only
+300400,c-BMS18 Unified Service Tool,Discontinued,Excluded from live import/quoting by vendor discontinued status,Bill/Bryan visibility/override only

@@ -13,6 +13,7 @@ Outputs (written next to this script):
     import_preview_report.md
 """
 import csv
+import json
 import os
 import re
 import sys
@@ -32,8 +33,9 @@ FALLBACK_XLSX = '/Users/blakeallard/.claude/jobs/d8eec8fc/tmp/july_rsp.xlsx'
 SHEET_NAME = 'RSP_EUR'
 
 CSV_HEADER = ['Part_Number', 'Description', 'Category', 'Tier_Scheme', 'Discountable',
-              'Active', 'Price_T1', 'Price_T2', 'Price_T3', 'Price_T4', 'Price_T5',
-              'Price_T6', 'Price_T7', 'Price_T8', 'Price_T9', 'Review_Flag', 'Review_Reason',
+              'Active', 'Source_Row', 'Source_Visibility', 'Duplicate_Classification',
+              'Price_T1', 'Price_T2', 'Price_T3', 'Price_T4', 'Price_T5', 'Price_T6',
+              'Price_T7', 'Price_T8', 'Price_T9', 'Review_Flag', 'Review_Reason',
               'Recommended_Action']
 
 # Section header text (column B) -> (tier_scheme, category, number of price bands, band labels)
@@ -48,6 +50,8 @@ SECTIONS = {
 }
 
 SKU_RE = re.compile(r'^\d+(\.\d+)?$')
+CLASSIFICATION_JSON = os.path.join(HERE, 'duplicate_sku_classification.json')
+VENDOR_DISCONTINUED_SKUS = {'102100', '103005', '200400', '300400'}
 
 
 def col_to_idx(ref):
@@ -101,6 +105,129 @@ def read_rsp_rows(xlsx_path):
     return rows
 
 
+def read_rsp_hidden_map(xlsx_path):
+    """Return {sheet_row_number: 'hidden'|'visible'} for RSP_EUR rows."""
+    z = zipfile.ZipFile(xlsx_path)
+    wb = ET.fromstring(z.read('xl/workbook.xml'))
+    rels = ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))
+    rel_map = {rel.get('Id'): rel.get('Target') for rel in rels}
+    target = None
+    for sh in wb.find(f'{{{M}}}sheets'):
+        if sh.get('name') == SHEET_NAME:
+            t = rel_map[sh.get(f'{{{R}}}id')]
+            target = t if t.startswith('xl/') else 'xl/' + t
+    if target is None:
+        raise SystemExit(f'Sheet {SHEET_NAME!r} not found')
+
+    visibility = {}
+    for row in ET.fromstring(z.read(target)).iter(f'{{{M}}}row'):
+        visibility[int(row.get('r'))] = 'hidden' if row.get('hidden') == '1' else 'visible'
+    return visibility
+
+
+def load_duplicate_classification(path):
+    with open(path) as f:
+        payload = json.load(f)
+    return payload.get('skus', {})
+
+
+def format_price_summary(prices):
+    parts = []
+    for idx, price in enumerate(prices, start=1):
+        if price:
+            parts.append(f'T{idx}={price}')
+    return ', '.join(parts) if parts else '(no prices)'
+
+
+def fail_duplicate_validation(issues):
+    lines = [
+        'Duplicate SKU classification guard failed.',
+        'Each duplicated SKU must have exactly one CANONICAL_CANDIDATE row and all other rows marked EXCLUDE_CANDIDATE.',
+        'Details:',
+    ]
+    for sku, problems, rows in issues:
+        lines.append(f'- SKU {sku}')
+        for problem in problems:
+            lines.append(f'  - {problem}')
+        for row in rows:
+            lines.append(
+                '  - row {row}: desc="{desc}", visibility={visibility}, '
+                'classification={classification}, prices={prices}'.format(**row)
+            )
+    raise SystemExit('\n'.join(lines))
+
+
+def validate_duplicate_classification(items, counts, duplicate_classification):
+    issues = []
+    row_roles = {}
+    duplicates = sorted(sku for sku, count in counts.items() if count > 1)
+    for sku in duplicates:
+        sku_items = [it for it in items if it['sku'] == sku]
+        payload = duplicate_classification.get(sku)
+        problems = []
+        if payload is None:
+            problems.append(f'missing {os.path.relpath(CLASSIFICATION_JSON, HERE)} entry')
+        else:
+            rows_payload = payload.get('rows', {})
+            expected_rows = sorted(int(row) for row in rows_payload)
+            actual_rows = sorted(it['row'] for it in sku_items)
+            if actual_rows != expected_rows:
+                problems.append(f'classification rows {expected_rows} do not match duplicate rows {actual_rows}')
+
+            canonical_rows = []
+            exclude_rows = []
+            for it in sku_items:
+                row_info = rows_payload.get(str(it['row']))
+                if row_info is None:
+                    problems.append(f'row {it["row"]} is missing from classification JSON')
+                    continue
+                role = row_info.get('role')
+                visibility = row_info.get('visibility')
+                if role == 'CANONICAL_CANDIDATE':
+                    canonical_rows.append(it['row'])
+                elif role == 'EXCLUDE_CANDIDATE':
+                    exclude_rows.append(it['row'])
+                else:
+                    problems.append(f'row {it["row"]} has invalid role {role!r}')
+                if visibility != it['visibility']:
+                    problems.append(
+                        f'row {it["row"]} visibility mismatch: JSON says {visibility}, workbook says {it["visibility"]}'
+                    )
+                row_roles[it['row']] = {
+                    'role': role or '',
+                    'visibility': visibility or it['visibility'],
+                }
+
+            if len(canonical_rows) != 1:
+                problems.append(f'expected exactly one CANONICAL_CANDIDATE, found {len(canonical_rows)}')
+            canonical_row = payload.get('canonical_row')
+            if canonical_row is not None and canonical_rows and canonical_rows[0] != canonical_row:
+                problems.append(
+                    f'canonical_row={canonical_row} does not match classified canonical row {canonical_rows[0]}'
+                )
+            if len(exclude_rows) != max(0, len(sku_items) - 1):
+                problems.append(
+                    f'expected {len(sku_items) - 1} EXCLUDE_CANDIDATE rows, found {len(exclude_rows)}'
+                )
+
+        if problems:
+            issues.append((
+                sku,
+                problems,
+                [{
+                    'row': it['row'],
+                    'desc': it['desc'],
+                    'visibility': it['visibility'],
+                    'classification': row_roles.get(it['row'], {}).get('role', 'UNCLASSIFIED'),
+                    'prices': format_price_summary(it['prices']),
+                } for it in sku_items],
+            ))
+
+    if issues:
+        fail_duplicate_validation(issues)
+    return row_roles
+
+
 def fmt_price(raw):
     """Raw cell text -> ('', None) for unpriced text, or 2-decimal string."""
     txt = raw.strip()
@@ -122,6 +249,8 @@ def main():
     else:
         xlsx = FALLBACK_XLSX
     rows = read_rsp_rows(xlsx)
+    visibility_map = read_rsp_hidden_map(xlsx)
+    duplicate_classification = load_duplicate_classification(CLASSIFICATION_JSON)
 
     items = []        # dicts with parse metadata
     skipped = []      # (sheet_row, reason, preview_text)
@@ -178,12 +307,14 @@ def main():
             'tier_scheme': tier_scheme, 'category': category,
             'prices': prices, 'discountable': discountable,
             'priced': any(p for p in prices),
+            'visibility': visibility_map.get(rownum, 'visible'),
         })
 
     # Duplicate SKU detection
     counts = {}
     for it in items:
         counts[it['sku']] = counts.get(it['sku'], 0) + 1
+    duplicate_roles = validate_duplicate_classification(items, counts, duplicate_classification)
 
     # QC doc citation used below — see docs/LIBAL_REFERENCE_PRICE_QC.md for the full
     # evidence trail (vendor Changes_Log excerpts, raw RSP_EUR cell dump).
@@ -193,40 +324,44 @@ def main():
         flag, reason, active, action = '', '', 'Y', ''
         if counts[it['sku']] > 1:
             flag, active = 'DUPLICATE_SKU', 'REVIEW'
-            is_bundle = not it['prices'][0]
-            style = ('bundle-style price row (prices only in upper bands)'
-                     if is_bundle else 'unit-price row')
+            classification = duplicate_roles[it['row']]['role']
+            style = ('hidden legacy row priced only in upper bands'
+                     if classification == 'EXCLUDE_CANDIDATE'
+                     else 'visible current row priced from band 1')
             reason = (f'SKU {it["sku"]} appears {counts[it["sku"]]}x in {it["section"]}; this is the {style}. '
                       'Bundle-vs-unit pricing ambiguity - confirm which row is the sellable item before import.')
             if it['section'] == 'Service Tool':
-                # Per docs/LIBAL_REFERENCE_PRICE_QC.md: the vendor's own Changes_Log
-                # (change batch dated 2026-06-01) states "Removed bundle prices for
-                # service", but this
-                # bundle-style row is still present in the delivered RSP_EUR sheet.
-                # The unit-price row matches Service Tool pricing already confirmed
-                # identical across BMS families (e.g. c-BMS24 SKU 300200) and is the
-                # likely-intended current price. Flag only — no row is excluded or
-                # auto-approved here; Bill/Bryan must confirm before import.
-                if is_bundle:
-                    action = 'EXCLUDE_CANDIDATE (stale bundle row per vendor Changes_Log - see ' + QC_DOC + ')'
-                    reason += (' Vendor Changes_Log (2026-06-01 batch) states bundle Service Tool prices '
-                               'were removed, but this bundle row is still present in the delivered sheet - '
-                               'see ' + QC_DOC + '.')
+                if classification == 'EXCLUDE_CANDIDATE':
+                    action = ('EXCLUDE_CANDIDATE (working assumption: hidden legacy row; pending Bill/Bryan '
+                              'approval - see duplicate_sku_classification.json and ' + QC_DOC + ')')
+                    reason += (' Working assumption: hidden rows are legacy bundle rows excluded from import. '
+                               'This is pending Bill/Bryan approval - see duplicate_sku_classification.json and '
+                               + QC_DOC + '.')
                 else:
-                    action = 'CANONICAL_CANDIDATE (pending Bill/Bryan approval - see ' + QC_DOC + ')'
-                    reason += (' This unit-price row matches other BMS families\' Service Tool pricing and is '
-                               'the likely-intended current price per ' + QC_DOC + '; pending Bill/Bryan approval.')
+                    action = ('CANONICAL_CANDIDATE (working assumption: visible current row; pending Bill/Bryan '
+                              'approval - see duplicate_sku_classification.json and ' + QC_DOC + ')')
+                    reason += (' Working assumption: visible rows are the current canonical rows. This row matches '
+                               'other BMS families\' Service Tool pricing and remains pending Bill/Bryan approval - '
+                               'see duplicate_sku_classification.json and ' + QC_DOC + '.')
             else:
                 action = 'PENDING_CONFIRMATION (bundle-vs-unit ambiguity)'
         elif not it['priced']:
             flag, active = 'UNPRICED', 'REVIEW'
-            reason = (f'No published price in July 2026 RSP (sheet row {it["row"]}); listed without price points. '
-                      'Confirmed genuinely unpriced in the raw source cells (not a parsing gap) - see ' + QC_DOC + '.')
-            action = 'BLOCKED_NO_PRICE (pending Bill/Bryan decision - import/exclude/manual price)'
+            if it['sku'] in VENDOR_DISCONTINUED_SKUS:
+                reason = (f'No published price in July 2026 RSP (sheet row {it["row"]}); vendor row is marked '
+                          'Discontinued, so this SKU is excluded from live import/quoting by vendor discontinued '
+                          'status. Bill/Bryan visibility or override only; approval is not required for exclusion - '
+                          'see ' + QC_DOC + '.')
+                action = 'EXCLUDE_VENDOR_DISCONTINUED (excluded from live import/quoting; Bill/Bryan visibility/override only)'
+            else:
+                reason = (f'No published price in July 2026 RSP (sheet row {it["row"]}); listed without price points. '
+                          'Confirmed genuinely unpriced in the raw source cells (not a parsing gap) - see ' + QC_DOC + '.')
+                action = 'BLOCKED_NO_PRICE (pending Bill/Bryan decision - import/exclude/manual price)'
         elif it['section'] == 'Service Tool':
             flag = 'CONFIRM_DISCOUNT_CLASS'
             reason = 'confirm flat software discount applies to service tools'
             action = 'PENDING_CONFIRMATION (discount class)'
+        it['dup_classification'] = duplicate_roles.get(it['row'], {}).get('role', '')
         it['flag'], it['reason'], it['active'], it['action'] = flag, reason, active, action
 
     # ---- CSV ----
@@ -237,7 +372,8 @@ def main():
         for it in items:
             p = it['prices'] + [''] * (9 - len(it['prices']))
             w.writerow([it['sku'], it['desc'], it['category'], it['tier_scheme'],
-                        it['discountable'], it['active']] + p + [it['flag'], it['reason'], it['action']])
+                        it['discountable'], it['active'], it['row'], it['visibility'],
+                        it['dup_classification']] + p + [it['flag'], it['reason'], it['action']])
 
     # ---- Report ----
     total = len(items)
@@ -251,7 +387,8 @@ def main():
     def md_row(it):
         p = it['prices'] + [''] * (9 - len(it['prices']))
         return ('| ' + ' | '.join([str(it['row']), it['sku'], it['desc'][:55], it['category'],
-                                   it['tier_scheme'], it['discountable'], it['active']]
+                                   it['tier_scheme'], it['discountable'], it['active'],
+                                   it['visibility'], it['dup_classification']]
                                   + p + [it['flag'], it['reason'], it['action']]) + ' |')
 
     lines = []
@@ -271,8 +408,9 @@ def main():
     lines.append('6. A standalone `X` in the row tail (beyond the band columns) sets `Discountable=Y`; absent = `N`. Other stray tail cells are ignored as junk (see notes).')
     lines.append('7. Category proposal: BMS boards -> Hardware; Accessories -> Accessory; Creator Tool / Service Tool / obsolete software -> Software.')
     lines.append('8. Review flag precedence per row: `DUPLICATE_SKU` > `UNPRICED` > `CONFIRM_DISCOUNT_CLASS`. `Active=REVIEW` for duplicate/unpriced rows; `Active=Y` otherwise (no `N` rows in this pass).')
-    lines.append('9. `Recommended_Action` is a non-destructive, additive column — it never changes `Active` or removes a row. It surfaces an evidence-backed recommendation (see docs/LIBAL_REFERENCE_PRICE_QC.md) for Bill/Bryan to approve or reject; no row is auto-decided or auto-excluded by this script.')
-    lines.append('10. Identical Creator License / Service Tool pricing across n-BMS, c-BMS24, c-BMS24X, and i-BMS (see rows for SKUs 200200/200500 and 300200/300500) is **not** flagged as an error here. It is vendor-documented: the source workbook\'s `Changes_Log` sheet records "Added Creator/Service Unified version" (change batch dated 2024-09-01). See docs/LIBAL_NBMS_CBMS24_PRICE_QC.md and docs/LIBAL_REFERENCE_PRICE_QC.md for the full evidence trail.')
+    lines.append('9. `import_preview/duplicate_sku_classification.json` is the single source of truth for duplicate-SKU working assumptions. Preview generation verifies the workbook row visibility against that file and fails loudly if any duplicate SKU lacks exactly one `CANONICAL_CANDIDATE` row with all others marked `EXCLUDE_CANDIDATE`.')
+    lines.append('10. `Recommended_Action` is a non-destructive, additive column — it never changes `Active` or removes a row. It surfaces an evidence-backed recommendation (see docs/LIBAL_REFERENCE_PRICE_QC.md) for Bill/Bryan to approve or reject; no row is auto-decided or auto-excluded by this script.')
+    lines.append('11. Identical Creator License / Service Tool pricing across n-BMS, c-BMS24, c-BMS24X, and i-BMS (see rows for SKUs 200200/200500 and 300200/300500) is **not** flagged as an error here. It is vendor-documented: the source workbook\'s `Changes_Log` sheet records "Added Creator/Service Unified version" (change batch dated 2024-09-01). See docs/LIBAL_NBMS_CBMS24_PRICE_QC.md and docs/LIBAL_REFERENCE_PRICE_QC.md for the full evidence trail.')
     lines.append('')
     lines.append('## Counts')
     lines.append('')
@@ -293,7 +431,7 @@ def main():
         lines.append(f'  - Sheet row {rownum} (SKU {sku}): {note}')
     if not junk_notes:
         lines.append('  - none')
-    lines.append('- **Duplicate SKU detail**: 300500 and 300300 each appear twice in Service Tool - once as a bundle-style row (prices 3500/5900/9800 only in the 5-9 / 10-24 / 25-249 bands) and once as a unit-price row (450/337.50/292.50/...). Both variants are included with `Active=REVIEW`. Per docs/LIBAL_REFERENCE_PRICE_QC.md, the vendor\'s own `Changes_Log` sheet (2026-06-01 change batch) states "Removed bundle prices for service", yet the bundle-style rows are still present in the delivered sheet - each bundle row is marked `Recommended_Action=EXCLUDE_CANDIDATE` (stale) and each unit-price row is marked `CANONICAL_CANDIDATE` (recommended), pending Bill/Bryan approval. Neither row is auto-excluded or auto-approved.')
+    lines.append('- **Duplicate SKU detail**: 300500 and 300300 each appear twice in Service Tool. `duplicate_sku_classification.json` classifies rows 54/55 as hidden `EXCLUDE_CANDIDATE` legacy rows and rows 58/60 as visible `CANONICAL_CANDIDATE` current rows. This is a working assumption pending Bill/Bryan approval; preview generation aborts if workbook visibility or duplicate classifications drift from that file.')
     lines.append('- **Vendor-documented unified Creator/Service pricing**: SKUs 200200/200500 (Creator License FULL) and 300200/300500 (Service Tool, unit-price rows) are priced identically across c-BMS24 and n-BMS (and i-BMS/c-BMS24X). This is confirmed intentional via the source workbook\'s `Changes_Log` ("Added Creator/Service Unified version", 2024-09-01 batch) - see docs/LIBAL_NBMS_CBMS24_PRICE_QC.md and docs/LIBAL_REFERENCE_PRICE_QC.md. Not flagged as a data-quality issue.')
     lines.append('')
     lines.append('## Skipped rows (not items)')
@@ -307,8 +445,8 @@ def main():
     lines.append('')
     lines.append('`Recommended_Action` is advisory only (see Methodology #9) - it does not change `Active` or exclude any row from this preview.')
     lines.append('')
-    lines.append('| Sheet row | Part_Number | Description | Category | Tier_Scheme | Disc | Active | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | Review_Flag | Review_Reason | Recommended_Action |')
-    lines.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+    lines.append('| Sheet row | Part_Number | Description | Category | Tier_Scheme | Disc | Active | Visibility | Duplicate_Class | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | Review_Flag | Review_Reason | Recommended_Action |')
+    lines.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
     for it in flagged:
         lines.append(md_row(it))
     lines.append('')

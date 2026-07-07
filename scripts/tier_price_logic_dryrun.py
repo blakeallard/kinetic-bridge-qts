@@ -13,25 +13,121 @@ Usage:
 Exits 0 if all assertions pass, 1 otherwise.
 """
 import csv
+import json
 import os
 import sys
+from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CSV_PATH = os.path.join(HERE, '..', 'import_preview', 'item_master_import_preview.csv')
+REPO = os.path.join(HERE, '..')
+CSV_PATH = os.path.join(REPO, 'import_preview', 'item_master_import_preview.csv')
+CLASSIFICATION_PATH = os.path.join(REPO, 'import_preview', 'duplicate_sku_classification.json')
+
+
+def format_price_summary(row):
+    prices = []
+    for i in range(1, 10):
+        raw = row.get(f'Price_T{i}', '').strip()
+        if raw:
+            prices.append(f'T{i}={raw}')
+    return ', '.join(prices) if prices else '(no prices)'
+
+
+def load_duplicate_classification(path):
+    with open(path) as f:
+        payload = json.load(f)
+    return payload.get('skus', {})
 
 
 def load_item_master(csv_path):
+    duplicate_classification = load_duplicate_classification(CLASSIFICATION_PATH)
+    raw_rows = []
     items = {}
     with open(csv_path, newline='') as f:
         for row in csv.DictReader(f):
+            raw_rows.append(row)
+
+    by_sku = defaultdict(list)
+    for row in raw_rows:
+        by_sku[row['Part_Number']].append(row)
+
+    failures = []
+    for sku, rows in sorted(by_sku.items()):
+        if len(rows) == 1:
+            row = rows[0]
             prices = []
             for i in range(1, 10):
                 raw = row.get(f'Price_T{i}', '').strip()
                 prices.append(float(raw) if raw else None)
-            items[row['Part_Number']] = {
+            items[sku] = {
                 'tier_scheme': row['Tier_Scheme'],
                 'prices': prices,
             }
+            continue
+
+        payload = duplicate_classification.get(sku)
+        canonical_rows = [
+            row for row in rows
+            if row.get('Duplicate_Classification', '').strip() == 'CANONICAL_CANDIDATE'
+        ]
+        exclude_rows = [
+            row for row in rows
+            if row.get('Duplicate_Classification', '').strip() == 'EXCLUDE_CANDIDATE'
+        ]
+        problems = []
+        if payload is None:
+            problems.append(f'missing {os.path.relpath(CLASSIFICATION_PATH, REPO)} entry')
+        else:
+            expected_canonical = str(payload.get('canonical_row', ''))
+            expected_rows = sorted(payload.get('rows', {}).keys(), key=int)
+            actual_rows = sorted(row.get('Source_Row', '').strip() for row in rows)
+            if actual_rows != expected_rows:
+                problems.append(f'classification rows {expected_rows} do not match preview rows {actual_rows}')
+            if len(canonical_rows) == 1 and canonical_rows[0].get('Source_Row', '').strip() != expected_canonical:
+                problems.append(
+                    f'canonical row mismatch: JSON says {expected_canonical}, preview marks {canonical_rows[0].get("Source_Row", "").strip()}'
+                )
+        if len(canonical_rows) != 1:
+            problems.append(f'expected exactly one CANONICAL_CANDIDATE row, found {len(canonical_rows)}')
+        if len(exclude_rows) != len(rows) - 1:
+            problems.append(f'expected {len(rows) - 1} EXCLUDE_CANDIDATE rows, found {len(exclude_rows)}')
+
+        if problems:
+            failures.append((sku, problems, rows))
+            continue
+
+        canonical = canonical_rows[0]
+        prices = []
+        for i in range(1, 10):
+            raw = canonical.get(f'Price_T{i}', '').strip()
+            prices.append(float(raw) if raw else None)
+        items[sku] = {
+            'tier_scheme': canonical['Tier_Scheme'],
+            'prices': prices,
+        }
+
+    if failures:
+        lines = [
+            'Duplicate SKU classification guard failed in tier_price_logic_dryrun.py.',
+            'Each duplicated SKU must have exactly one CANONICAL_CANDIDATE row and all other rows marked EXCLUDE_CANDIDATE.',
+            'Details:',
+        ]
+        for sku, problems, rows in failures:
+            lines.append(f'- SKU {sku}')
+            for problem in problems:
+                lines.append(f'  - {problem}')
+            for row in rows:
+                lines.append(
+                    '  - row {row}: desc="{desc}", visibility={visibility}, '
+                    'classification={classification}, prices={prices}'.format(
+                        row=row.get('Source_Row', '?'),
+                        desc=row.get('Description', ''),
+                        visibility=row.get('Source_Visibility', ''),
+                        classification=row.get('Duplicate_Classification', 'UNCLASSIFIED'),
+                        prices=format_price_summary(row),
+                    )
+                )
+        raise SystemExit('\n'.join(lines))
     return items
 
 

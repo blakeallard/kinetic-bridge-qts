@@ -1,5 +1,5 @@
-part_number,rsp_eur_row,description,band1_price_eur
-300300,55,"c-BMS24X Unified SERVICE Tool",
-300300,58,"c-BMS24X Unified Service Tool",450.0
-300500,54,"n-BMS Unified SERVICE Tool",
-300500,60,"n-BMS Unified Service Tool",450.0
+part_number,rsp_eur_row,visibility,classification,description,band1_price_eur
+300300,55,hidden,EXCLUDE_CANDIDATE,c-BMS24X Unified SERVICE Tool,
+300300,58,visible,CANONICAL_CANDIDATE,c-BMS24X Unified Service Tool,450.0
+300500,54,hidden,EXCLUDE_CANDIDATE,n-BMS Unified SERVICE Tool,
+300500,60,visible,CANONICAL_CANDIDATE,n-BMS Unified Service Tool,450.0
