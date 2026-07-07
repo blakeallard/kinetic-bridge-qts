@@ -1,2 +1,2 @@
-part_number,description,config_sheet,row_num,qty_raw,requirement,notes
-100683,"Compact shunt (300A/50mV)","n3-BMS w 100809",11,1,optional,Optional
+part_number,description,config_sheet,qty_raw,requirement,notes
+100683,Compact shunt (300A/50mV),n3-BMS w 100809,1,optional,Optional

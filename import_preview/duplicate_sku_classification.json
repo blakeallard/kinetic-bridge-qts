@@ -1,0 +1,24 @@
+{
+  "_status": "WORKING_ASSUMPTION - PENDING Bill/Bryan confirmation. NOT approved. Do not treat any row below as excluded or canonical in live Zoho data until confirmed.",
+  "_assumption": "Hidden RSP_EUR rows are legacy rows and should be excluded from live Item_Master import; visible rows are the current canonical rows.",
+  "_evidence": "Rows 54 and 55 have hidden=1 in the RSP_EUR sheet XML (verified 2026-07-06 against workbook sha256 75e02db5d1a3e2c8a7ef0e5ab8e6d26aead6921e04de5182f572dc1402d439f9); rows 58 and 60 are visible. Corroborated by the vendor Changes_Log 2026-06-01 batch ('Removed bundle prices for service') - see docs/LIBAL_REFERENCE_PRICE_QC.md.",
+  "_consumers": "import_preview/generate_preview.py (stamps Recommended_Action, verifies hidden state against the workbook), scripts/tier_price_logic_dryrun.py (duplicate-SKU guard + canonical row selection).",
+  "skus": {
+    "300300": {
+      "canonical_row": 58,
+      "exclude_rows": [55],
+      "rows": {
+        "55": {"role": "EXCLUDE_CANDIDATE", "visibility": "hidden", "description": "c-BMS24X Unified SERVICE Tool (bundle-style legacy row)"},
+        "58": {"role": "CANONICAL_CANDIDATE", "visibility": "visible", "description": "c-BMS24X Unified Service Tool (unit-price row)"}
+      }
+    },
+    "300500": {
+      "canonical_row": 60,
+      "exclude_rows": [54],
+      "rows": {
+        "54": {"role": "EXCLUDE_CANDIDATE", "visibility": "hidden", "description": "n-BMS Unified SERVICE Tool (bundle-style legacy row)"},
+        "60": {"role": "CANONICAL_CANDIDATE", "visibility": "visible", "description": "n-BMS Unified Service Tool (unit-price row)"}
+      }
+    }
+  }
+}
