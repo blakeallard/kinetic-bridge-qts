@@ -3,6 +3,7 @@
 Zoho Task ID: 2543412000001469015
 
 - Treat `TASK.md` as the source-task snapshot.
+- Read `docs/PROCESS.md` for the standard agent workflow and `CLAUDE.md` for session-level requirements before making changes.
 - Make bounded, reviewable changes and document assumptions.
 - Do not commit credentials, generated caches, logs, or local state.
 - Do not delete or rewrite existing work without explicit approval.
