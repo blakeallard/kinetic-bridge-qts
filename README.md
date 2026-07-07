@@ -31,7 +31,7 @@ Reference validation: SKU 200300 qty 22 → Unit_Price 676.14, Line_Total_USD 14
 
 - Item_Master production import — blocked on business decisions (300300/300500 duplicates, unpriced SKUs, Partner exposure, Inquiry_Type, DKK) — see `docs/TIER_SCHEME_CREATOR_DEPLOYMENT_RUNBOOK.md` §11
 - 200999 reactivation SKU identity/pricing/scheme — pending Bill/Bryan
-- LEM sensors 000833/000876/000637 price $0.00 at qty>19 (stored `0.00` vs blank tier cells)
+- LEM sensors 000833/000876/000637 price $0.00 at qty>19 — workbook evidence (`audit/reports/price_points.csv`, 2026-07-06): the higher tier cells are truly blank (no cell exists), not stored `0.00`, so any 0.00 originates downstream in import/defaulting logic; remaining decision is how blank tiers should behave
 - Writer template repeating-table rebuild (manual, in Writer editor)
 - `Quote_Lines` Discount/Discountable schema blocker (verified via Creator metadata 2026-07-06): no field with link name `Discountable` exists; the field displayed as "Discountable" has link name `Discount`, is a choice field with placeholder options "Choice 1/2/3", and is admin-only — so the commented-out writes in `deploy_ready/on_user_input_quote_lines_part_select.creator.deluge` and `deploy_ready/on_user_input_quote_lines_qty.creator.deluge` must stay commented. Unblocking requires schema changes (Tier 3 — Bill): remove/rebuild the stub `Discount` field (Decimal) and add a real `Discountable` field; note the stub currently owns the `Discount` link name
 - Tier 3 cleanup (Bill): delete `Currency_old` field; recall duplicate sign request `504457000000209234`
