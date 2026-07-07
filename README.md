@@ -29,7 +29,9 @@ Reference validation: SKU 200300 qty 22 → Unit_Price 676.14, Line_Total_USD 14
 
 **Open items:**
 
-- Item_Master production import — blocked on business decisions (300300/300500 duplicates, unpriced SKUs, Partner exposure, Inquiry_Type, DKK) — see `docs/TIER_SCHEME_CREATOR_DEPLOYMENT_RUNBOOK.md` §11
+- Item_Master production import — blocked on business decisions for 300300/300500 duplicate confirmation, SKU 101815 unpriced/DRAFT handling, Partner exposure, Inquiry_Type, and DKK — see `docs/TIER_SCHEME_CREATOR_DEPLOYMENT_RUNBOOK.md` §11
+  Working assumption for duplicate Service Tool rows: hidden RSP_EUR rows 54/55 are `EXCLUDE_CANDIDATE` legacy rows and visible rows 58/60 are `CANONICAL_CANDIDATE` current rows, pending Bill/Bryan confirmation and not approved.
+  Vendor-marked discontinued SKUs `102100`, `103005`, `200400`, and `300400` are documented as excluded from live import/quoting by vendor discontinued status; Bill/Bryan visibility/override only, not approval-required blockers.
 - 200999 reactivation SKU identity/pricing/scheme — pending Bill/Bryan
 - LEM sensors 000833/000876/000637 price $0.00 at qty>19 — workbook evidence (`audit/reports/price_points.csv`, 2026-07-06): the higher tier cells are truly blank (no cell exists), not stored `0.00`, so any 0.00 originates downstream in import/defaulting logic; remaining decision is how blank tiers should behave
 - Writer template repeating-table rebuild (manual, in Writer editor)
