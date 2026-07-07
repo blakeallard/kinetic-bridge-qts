@@ -83,8 +83,9 @@ CREATE TABLE IF NOT EXISTS config_row (
     row_num      INTEGER NOT NULL,
     part_number  TEXT,
     description  TEXT,
-    quantity     REAL,
-    requirement  TEXT,                   -- 'required' / 'optional' / raw marker text
+    quantity     REAL,                   -- only when qty cell is a plain number
+    qty_raw      TEXT,                   -- verbatim qty cell ('1', '1 - 30', 'x')
+    requirement  TEXT,                   -- 'optional' / 'main' when explicitly proven; else NULL
     notes        TEXT
 );
 
