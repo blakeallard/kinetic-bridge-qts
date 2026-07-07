@@ -1,0 +1,47 @@
+sheet,row,part_number,description,section,band_labels,priced
+RSP_EUR,11,100800,n-BMS Master Control Unit (MCU-PCBA) with CAN termination,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,12,100807,n-BMS Master Control Unit (MCU-PCBA) w/o CAN Term. Resist>500V,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,13,100809,n-BMS CMU12/2 top mount isoSPI - 200mA balancing current,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,14,100819,n-BMS CMU12/2 side mount isoSPI - 100mA balancing current,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,15,100816,n3-BMS Master Control Unit  (MCU-PCBA),BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,16,101814,n3-BMS CMU18/4 Flex top mount isoSPI - 200mA balancing current  (RELEASE Q3/2026),BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,17,101815,n-BMS CMU18/4 Wire top mount isoSPI - 200mA balancing current DRAFT,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,N
+RSP_EUR,18,100802,n-BMS Wire harness kit MCU (100800/100807),BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,19,100985.1,n-BMS CMU12/2 100809 Wire harness kit (1700mm) shielded com cable,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,20,100986,n-BMS MCU isoSPI Wire harness kit CMU 100809/101814,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,21,100987,n3-BMS MCU Wire harness kit MCU (100816),BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,22,103006,n-BMS CMU18/4 101814 Wire harness kit (1000mm) shielded com cable,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,23,100916,i-BMS15/6,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,24,100924,c-BMS24,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,25,100925,c-BMS24X,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,26,102100,c-BMS18,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,N
+RSP_EUR,27,103005,"Harness kit for c-BMS18, for development purpose only",BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,N
+RSP_EUR,28,100980,i-BMS15 Wire harness kit SINGLE PACK,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,29,100981,i-BMS15 Wire harness kit PARALLEL PACK,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,30,100930,c-BMS24 Wire harness kit I/O 16w,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,31,100931,c-BMS24 Wire harness kit bat temperature and shunt 20w,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,32,100932,c-BMS24 Wire harness kit cell voltage monitoring wire 32w,BMS boards incl. wire harness kits,1-19 / 20-99 / 100-259 / 260-499 / 500-999 / 1.000-2.499 / 2.500-4.999 / 5.000-9.999 / 10.000-24.999,Y
+RSP_EUR,36,100684,Compact shunt (500A/50mV),Accessories,1-19 / 20-199 / 100-259 / 260-499,Y
+RSP_EUR,37,000637,LEM Sensor DHAB- S/106 (20A/500A CH1/CH2 automotive),Accessories,1-19 / 20-199 / 100-259 / 260-499,Y
+RSP_EUR,38,000876,LEM Sensor DHAB S/118 (30A/350A CH1/CH2 automotive),Accessories,1-19 / 20-199 / 100-259 / 260-499,Y
+RSP_EUR,39,000833,LEM Sensor DHAB- S/133 (75A/750A CH1/CH2 automotive),Accessories,1-19 / 20-199 / 100-259 / 260-499,Y
+RSP_EUR,40,100545,Peak CAN adapter for n- and c-BMS,Accessories,1-19 / 20-199 / 100-259 / 260-499,Y
+RSP_EUR,44,200100,i-BMS Unified Creator License FULL,Creator Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,45,200200,c-BMS24 Unified Creator License FULL,Creator Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,46,200300,c-BMS24X Unified Creator License FULL,Creator Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,47,200400,c-BMS18 Unified Creator License FULL,Creator Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,N
+RSP_EUR,48,200500,n-BMS Unified Creator License FULL,Creator Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,49,200600,n3-BMS Unified Creator License FULL,Creator Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,50,200001,Reactivation process fee of Creator License Full,Creator Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,54,300500,n-BMS Unified SERVICE Tool,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,55,300300,c-BMS24X Unified SERVICE Tool,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,56,300100,i-BMS Unified Service,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,57,300200,c-BMS24 Unified Service Tool,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,58,300300,c-BMS24X Unified Service Tool,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,59,300400,c-BMS18 Unified Service Tool,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,N
+RSP_EUR,60,300500,n-BMS Unified Service Tool,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,61,300600,n3-BMS Unified Service Tool,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,62,300999,Reactivationprocess fee of Creator Service Tool,Service Tool,1 / 2 / 3-4 / 5-9 / 10-24 / 25-249,Y
+RSP_EUR,66,100640.99,AcmeBMS s-BMS PRO (SOFTKEY) WITH OUT any support,Software for obsolesenced BMS,1 / 2 / 3-4,Y
+RSP_EUR,67,100641.99,AcmeBMS s-BMS PC Service (SOFTKEY FULL) WITH OUT any support,Software for obsolesenced BMS,1 / 2 / 3-4,Y
+RSP_EUR,68,100699.99,Reactivation process fee of s-BMS Pro or PC Service Tool,Software for obsolesenced BMS,1 / 2 / 3-4,Y
