@@ -70,8 +70,9 @@ CREATE TABLE IF NOT EXISTS price_point (
     product_row_id INTEGER NOT NULL REFERENCES product_row(product_row_id),
     band_index   INTEGER NOT NULL,       -- 1..9 hardware, 1..6 license
     band_label   TEXT,                   -- '1-19', '10-24', ...
-    price_eur    REAL,                   -- NULL = blank cell; 0.0 = literal zero (LEM issue)
-    is_blank     INTEGER NOT NULL,       -- distinguishes blank vs stored 0.00
+    price_eur    REAL,                   -- NULL = blank/non-numeric; 0.0 = literal zero (LEM issue)
+    is_blank     INTEGER NOT NULL,       -- 1 = no cell at all; 0 = cell present (even 'Not priced')
+    raw_value    TEXT,                   -- verbatim cell text ('506.00000000000006', 'Not priced')
     PRIMARY KEY (product_row_id, band_index)
 );
 
