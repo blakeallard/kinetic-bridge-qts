@@ -68,6 +68,6 @@ Run: `python3 scripts/kit_bom_check.py`
 ## Open questions (people, not code)
 
 - **Q1** — c-BMS24 kit: vendor config assigns c-BMS24X licenses (200300/300300) although 200200/300200 exist at identical pricing. Confirm which SKU to quote (rows marked `pending_business`).
-- **Q2** — CMU18 kit harness: vendor config lists the CMU12 harness (100985.1) although 103006 (CMU18 harness) exists in the RSP — probable stale vendor config (row marked `pending_business`).
+- **Q2** — CMU18 kit harness: vendor config lists the CMU12 harness (100985.1) although 103006 (CMU18 harness) exists in the RSP — unresolved source mismatch pending vendor/business confirmation (row marked `pending_business`).
 - **Q3** — 100683 (300A shunt) unpriced/absent from RSP: price it, or substitute 100684.
 - CMU18 official datasheet (unblocks `pending_datasheet` on 101814); 30-vs-32 CMU cap clarification; `Series_Cell_Count` field placement (quote header vs kit line); IsoSpyWire SKU identity (meeting R5).
