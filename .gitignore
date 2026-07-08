@@ -19,3 +19,6 @@ reference_docs/private_examples/
 
 # Temporary active handoff
 docs/CURRENT_HANDOFF.md
+
+# Local editor settings
+.vscode/
