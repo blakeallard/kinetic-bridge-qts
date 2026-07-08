@@ -33,7 +33,8 @@ FALLBACK_XLSX = '/Users/blakeallard/.claude/jobs/d8eec8fc/tmp/july_rsp.xlsx'
 SHEET_NAME = 'RSP_EUR'
 
 CSV_HEADER = ['Part_Number', 'Description', 'Category', 'Tier_Scheme', 'Discountable',
-              'Active', 'Source_Row', 'Source_Visibility', 'Duplicate_Classification',
+              'Active', 'Item_Status', 'Quote_Warning',
+              'Source_Row', 'Source_Visibility', 'Duplicate_Classification',
               'Price_T1', 'Price_T2', 'Price_T3', 'Price_T4', 'Price_T5', 'Price_T6',
               'Price_T7', 'Price_T8', 'Price_T9', 'Review_Flag', 'Review_Reason',
               'Recommended_Action']
@@ -52,6 +53,31 @@ SECTIONS = {
 SKU_RE = re.compile(r'^\d+(\.\d+)?$')
 CLASSIFICATION_JSON = os.path.join(HERE, 'duplicate_sku_classification.json')
 VENDOR_DISCONTINUED_SKUS = {'102100', '103005', '200400', '300400'}
+
+# Item lifecycle status (meeting 2026-07-07: obsolete/discontinued items stay in
+# the system with a warn-and-double-check behavior, never a blanket exclusion —
+# see docs/MEETING_REQUIREMENTS_2026-07-07.md §R2).
+# Evidence per status: Discontinued = workbook red-fill legend rows 26/27/47/59
+# (audit/reports/status_marks.csv, matching VENDOR_DISCONTINUED_SKUS);
+# Obsolescent = vendor section "Software for obsolesenced BMS"; Not_Released =
+# vendor description marked DRAFT or (RELEASE Qn/yyyy). Delivery_Stop is a
+# legend value the current RSP_EUR data rows never carry — supported, unused.
+OBSOLETE_SECTION = 'Software for obsolesenced BMS'
+NOT_RELEASED_RE = re.compile(r'\bDRAFT\b|\(RELEASE Q[1-4]/\d{4}\)')
+
+
+def derive_item_status(it):
+    """Return (Item_Status, Quote_Warning) for one parsed item row."""
+    if it['sku'] in VENDOR_DISCONTINUED_SKUS:
+        return ('Discontinued',
+                'Y — vendor marked Discontinued in July 2026 RSP; warn and double-check before quoting')
+    if it['section'] == OBSOLETE_SECTION:
+        return ('Obsolescent',
+                'Y — vendor section "Software for obsolesenced BMS"; warn and double-check before quoting')
+    if NOT_RELEASED_RE.search(it['desc']):
+        return ('Not_Released',
+                'Y — vendor marks item DRAFT / future release; confirm availability before quoting')
+    return ('Active', '')
 
 
 def col_to_idx(ref):
@@ -349,10 +375,12 @@ def main():
             flag, active = 'UNPRICED', 'REVIEW'
             if it['sku'] in VENDOR_DISCONTINUED_SKUS:
                 reason = (f'No published price in July 2026 RSP (sheet row {it["row"]}); vendor row is marked '
-                          'Discontinued, so this SKU is excluded from live import/quoting by vendor discontinued '
-                          'status. Bill/Bryan visibility or override only; approval is not required for exclusion - '
-                          'see ' + QC_DOC + '.')
-                action = 'EXCLUDE_VENDOR_DISCONTINUED (excluded from live import/quoting; Bill/Bryan visibility/override only)'
+                          'Discontinued. Per meeting 2026-07-07 (docs/MEETING_REQUIREMENTS_2026-07-07.md §R2) '
+                          'discontinued items are imported with a quote-time warning, not excluded. UNPRICED '
+                          'precedence still applies: no published price means quoting stays blocked until a '
+                          'price or manual-price decision exists - see ' + QC_DOC + '.')
+                action = ('IMPORT_WITH_WARNING (vendor discontinued - warn and double-check before quoting; '
+                          'UNPRICED, so quoting remains blocked pending price/manual decision)')
             else:
                 reason = (f'No published price in July 2026 RSP (sheet row {it["row"]}); listed without price points. '
                           'Confirmed genuinely unpriced in the raw source cells (not a parsing gap) - see ' + QC_DOC + '.')
@@ -363,6 +391,7 @@ def main():
             action = 'PENDING_CONFIRMATION (discount class)'
         it['dup_classification'] = duplicate_roles.get(it['row'], {}).get('role', '')
         it['flag'], it['reason'], it['active'], it['action'] = flag, reason, active, action
+        it['status'], it['warning'] = derive_item_status(it)
 
     # ---- CSV ----
     csv_path = os.path.join(HERE, 'item_master_import_preview.csv')
@@ -372,7 +401,8 @@ def main():
         for it in items:
             p = it['prices'] + [''] * (9 - len(it['prices']))
             w.writerow([it['sku'], it['desc'], it['category'], it['tier_scheme'],
-                        it['discountable'], it['active'], it['row'], it['visibility'],
+                        it['discountable'], it['active'], it['status'], it['warning'],
+                        it['row'], it['visibility'],
                         it['dup_classification']] + p + [it['flag'], it['reason'], it['action']])
 
     # ---- Report ----
@@ -384,10 +414,13 @@ def main():
     review_active = sum(1 for it in items if it['active'] == 'REVIEW')
     flagged = [it for it in items if it['flag']]
 
+    warned = [it for it in items if it['warning']]
+
     def md_row(it):
         p = it['prices'] + [''] * (9 - len(it['prices']))
         return ('| ' + ' | '.join([str(it['row']), it['sku'], it['desc'][:55], it['category'],
                                    it['tier_scheme'], it['discountable'], it['active'],
+                                   it['status'], it['warning'],
                                    it['visibility'], it['dup_classification']]
                                   + p + [it['flag'], it['reason'], it['action']]) + ' |')
 
@@ -411,6 +444,7 @@ def main():
     lines.append('9. `import_preview/duplicate_sku_classification.json` is the single source of truth for duplicate-SKU working assumptions. Preview generation verifies the workbook row visibility against that file and fails loudly if any duplicate SKU lacks exactly one `CANONICAL_CANDIDATE` row with all others marked `EXCLUDE_CANDIDATE`.')
     lines.append('10. `Recommended_Action` is a non-destructive, additive column — it never changes `Active` or removes a row. It surfaces an evidence-backed recommendation (see docs/LIBAL_REFERENCE_PRICE_QC.md) for Bill/Bryan to approve or reject; no row is auto-decided or auto-excluded by this script.')
     lines.append('11. Identical Creator License / Service Tool pricing across n-BMS, c-BMS24, c-BMS24X, and i-BMS (see rows for SKUs 200200/200500 and 300200/300500) is **not** flagged as an error here. It is vendor-documented: the source workbook\'s `Changes_Log` sheet records "Added Creator/Service Unified version" (change batch dated 2024-09-01). See docs/LIBAL_NBMS_CBMS24_PRICE_QC.md and docs/LIBAL_REFERENCE_PRICE_QC.md for the full evidence trail.')
+    lines.append('12. `Item_Status` + `Quote_Warning` implement the 2026-07-07 meeting policy (docs/MEETING_REQUIREMENTS_2026-07-07.md §R2): obsolete/discontinued items are imported with a quote-time warn-and-double-check, never blanket-excluded. Statuses: `Discontinued` = workbook red-fill legend (audit/reports/status_marks.csv); `Obsolescent` = section "Software for obsolesenced BMS"; `Not_Released` = description marked DRAFT / (RELEASE Qn/yyyy); `Delivery_Stop` = supported legend value, carried by no current RSP_EUR item row; `Active` otherwise. Precedence unchanged: UNPRICED rows stay `Active=REVIEW` and unquotable until priced, regardless of status.')
     lines.append('')
     lines.append('## Counts')
     lines.append('')
@@ -422,6 +456,12 @@ def main():
     lines.append(f'| Duplicate SKUs | {len(dup_skus)} ({", ".join(dup_skus)}) - {dup_rows} rows |')
     lines.append(f'| Rows with Active=REVIEW | {review_active} |')
     lines.append(f'| Rows with any Review_Flag | {len(flagged)} |')
+    status_counts = {}
+    for it in items:
+        status_counts[it['status']] = status_counts.get(it['status'], 0) + 1
+    status_summary = ', '.join(f'{s}={c}' for s, c in sorted(status_counts.items()))
+    lines.append(f'| Item_Status breakdown | {status_summary} |')
+    lines.append(f'| Rows with Quote_Warning | {len(warned)} |')
     lines.append('')
     lines.append('## Known data-quality notes')
     lines.append('')
@@ -445,10 +485,20 @@ def main():
     lines.append('')
     lines.append('`Recommended_Action` is advisory only (see Methodology #9) - it does not change `Active` or exclude any row from this preview.')
     lines.append('')
-    lines.append('| Sheet row | Part_Number | Description | Category | Tier_Scheme | Disc | Active | Visibility | Duplicate_Class | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | Review_Flag | Review_Reason | Recommended_Action |')
-    lines.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+    lines.append('| Sheet row | Part_Number | Description | Category | Tier_Scheme | Disc | Active | Item_Status | Quote_Warning | Visibility | Duplicate_Class | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | Review_Flag | Review_Reason | Recommended_Action |')
+    lines.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
     for it in flagged:
         lines.append(md_row(it))
+    lines.append('')
+    lines.append('## Quote-warning rows (Item_Status != Active)')
+    lines.append('')
+    lines.append('Imported with a quote-time warn-and-double-check per meeting 2026-07-07 (docs/MEETING_REQUIREMENTS_2026-07-07.md §R2). Unpriced rows additionally stay blocked from quoting until priced.')
+    lines.append('')
+    lines.append('| Sheet row | Part_Number | Description | Item_Status | Priced | Quote_Warning |')
+    lines.append('|---|---|---|---|---|---|')
+    for it in warned:
+        lines.append('| ' + ' | '.join([str(it['row']), it['sku'], it['desc'][:55], it['status'],
+                                         'Y' if it['priced'] else 'N', it['warning']]) + ' |')
     lines.append('')
 
     report_path = os.path.join(HERE, 'import_preview_report.md')

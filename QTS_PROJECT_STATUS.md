@@ -1,8 +1,9 @@
 # Kinetic Bridge Quote App (QTS) — Project Status
-**Last updated:** 2026-07-06
+**Last updated:** 2026-07-07
 **App:** Zoho Creator `qts` | **Workspace:** `bevcollc` | **Environment:** development
 
 **Changelog:**
+- 2026-07-07: Meeting requirements reconciled — see `docs/MEETING_REQUIREMENTS_2026-07-07.md` (R1–R7 with Lithium Balance datasheet citations). Import preview now emits `Item_Status` + `Quote_Warning`; vendor-discontinued policy changed from exclude to **import-with-warning** (UNPRICED precedence kept — the four discontinued SKUs stay unquotable until priced). BMS **kit auto-population** accepted as a new workstream (spec/BOM files deferred pending review). Key datasheet corrections: CMU12 = 4–12 series cells, ≤32 CMUs/MCU (ceil(series/12) confirmed); CMU18 not publicly documented yet (rule stays pending); i-BMS15 "/6" = 6 **parallel** packs (Hot Swap), not daisy-chained series boards. Customer_Phone: redeploy **confirmed** — the fn_generate_pdf source deployed 2026-07-06 (R6000/R2011 fix, `docs/WRITER_MERGE_SIGN_R6000_R2011_FINDINGS.md`) contains the phone normalization; only the visual PDF phone-render check remains.
 - 2026-07-06 (later): Part_Select/Qty draft pricing autofill **deployed and verified — 100%**; all four draft-autofill attachment points now live (`Currency FX Draft Recalc`, `FX Mode Draft Recalc`, `Quote Line Part Select Draft Pricing`, `Quote Line Qty Draft Pricing`) plus the `fn_calc_line_price_draft` custom function. Part_Select fills `Part_Number`/`Description` instantly; Qty recalculates `Unit_Price`/totals instantly; 200300 qty 22 = 676.14 / 14875.00; save-time recalc matched draft-time values. Key finding: subform On User Input scripts must use `row.*` for subform fields, `input.*` for parent fields (parser notes Incident 5). Deploy sources: `deploy_ready/on_user_input_quote_lines_*.creator.deluge`.
 - 2026-07-06: Currency/FX draft autofill **deployed and verified — 100%**. Two On User Input workflows live on `Quote_Request`: `Currency FX Draft Recalc` (trigger: `Currency`) and `FX Mode Draft Recalc` (trigger: `FX_Charge_Mode`), both running `workflows/on_user_input_quote_currency_fx.deluge` unmodified. Verified on 200300 qty 22 — USD: 676.14 / 676.14 / 14875.00 / 14875.00; EUR: 676.14 / 595 / 14875.00 / 13090 (Unit_Price / FX_Unit_Price / Line_Total_USD / Line_Total_FX). USD fields untouched on currency change, per design. Details: `docs/QUOTE_LINES_AUTOFILL_WORKFLOW_PLAN.md` "Deployment status update". Part_Select/Qty draft pricing autofill still local-only.
 - 2026-07-02: Implemented Customer_Phone normalization in `fn_generate_pdf.deluge`; avoids calling `.get()` on Creator phone field and parses the string form instead. Local only — pending Creator redeploy + PDF verification.
@@ -244,11 +245,12 @@ On success: writes `sign_request_id` back to Creator `Sign_Request_ID` field.
 - All navigation is via the raw report view
 - Must be built in Creator's UI builder (cannot be done via MCP)
 
-**6. Customer_Phone in Merge** ✅ IMPLEMENTED LOCALLY (2026-07-02) — pending Creator redeploy + PDF verification
+**6. Customer_Phone in Merge** ✅ REDEPLOYED (2026-07-06) — pending PDF render verification only
 - `Customer_Phone` came through as empty string in the Writer merge data
 - Root cause: Creator phone field stores value as a structured object with country code — doesn't serialize as plain string
-- Fix applied in local `fn_generate_pdf.deluge`: normalize via `toString()` + string parsing (extracts `phone_number=` / `number=` if present, otherwise uses the trimmed string) — never calls `.get()` on the field, so plain-string values are also safe
-- Remaining: redeploy `fn_generate_pdf` to Creator, then generate one test quote PDF to confirm the phone renders
+- Fix applied in `fn_generate_pdf.deluge`: normalize via `toString()` + string parsing (extracts `phone_number=` / `number=` if present, otherwise uses the trimmed string) — never calls `.get()` on the field, so plain-string values are also safe
+- Redeploy confirmed 2026-07-07 by repo evidence: the source pasted to Creator on 2026-07-06 for the R6000/R2011 fix (`deploy_ready/fn_generate_pdf.debug.deluge` at commit `b7b8dbf`) contains the phone normalization, and `docs/WRITER_MERGE_SIGN_R6000_R2011_FINDINGS.md` records the live merge/sign verification (QUOTE0005, sign request `504457000000209234`)
+- Remaining: generate one test quote PDF and visually confirm the phone number renders in the Writer output
 
 **7. Cancelled Status CRM Mapping**
 - No CRM Stage mapped for `Cancelled` status
@@ -320,5 +322,7 @@ On success: writes `sign_request_id` back to Creator `Sign_Request_ID` field.
 3. ~~Set up Signed status writeback~~ ✅ BUILT — pending live signing test to fully verify
 4. Redeploy `fn_generate_pdf` to Creator with `download_link` fix (Document Link in Note will be direct PDF download instead of Sign portal URL)
 4. Build Phase 4 intake flow (Zoho Form → Zoho Flow → Creator)
-5. ~~Fix Customer_Phone serialization in `fn_generate_pdf`~~ ✅ DONE LOCALLY (2026-07-02) — next: redeploy `fn_generate_pdf` to Creator, then generate/sign-test one quote to confirm the phone number appears in the Writer PDF
+5. ~~Fix Customer_Phone serialization in `fn_generate_pdf`~~ ✅ DONE + REDEPLOYED (2026-07-06, see §6) — next: generate/sign-test one quote to confirm the phone number appears in the Writer PDF
 6. Map Cancelled → Closed Lost in `fn_sync_to_crm`
+7. Keep `deploy_ready/fn_generate_pdf.debug.deluge` in sync with the canonical `functions/fn_generate_pdf.deluge` so the next manual Creator paste does not reintroduce payload-dump debug logs.
+8. BMS kit auto-population (meeting 2026-07-07, `docs/MEETING_REQUIREMENTS_2026-07-07.md` §R3/§R4): next pass builds the kit component mapping + validation script (deferred by Blake pending review of this pass); Deluge autofill after that. Quote-time warning UX for `Item_Status`/`Quote_Warning` items (§R2) also pending Creator-side design.
