@@ -5,17 +5,15 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 	qty_rounded = qty_raw.round(0);
 	qty_long = qty_rounded.toLong();
 
-	eur_usd = 1.0;
+	eur_usd = 0.0;
+	eur_usd_found = false;
 	for each rate_rec in FX_Rates_Cache[Currency == "EUR"]
 	{
-		raw_eur_per_usd = ifnull(rate_rec.Rate,1);
-		if(raw_eur_per_usd == 0)
-		{
-			eur_usd = 1;
-		}
-		else
+		raw_eur_per_usd = ifnull(rate_rec.Rate,0);
+		if(raw_eur_per_usd != 0)
 		{
 			eur_usd = 1 / raw_eur_per_usd;
+			eur_usd_found = true;
 		}
 		break;
 	}
@@ -55,13 +53,43 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 		}
 	}
 
+	fx_rate_found = false;
 	if(apply_fx)
 	{
 		for each rate_rec in FX_Rates_Cache[Currency == currency]
 		{
-			fx_rate = ifnull(rate_rec.Rate,1);
+			fx_rate = ifnull(rate_rec.Rate,0);
 			break;
 		}
+		if(fx_rate != 0)
+		{
+			fx_rate_found = true;
+		}
+	}
+
+	fx_missing = false;
+	if(apply_fx)
+	{
+		if(fx_rate_found == false)
+		{
+			fx_missing = true;
+		}
+	}
+
+	rate_missing = false;
+	if(fx_missing)
+	{
+		rate_missing = true;
+	}
+	if(eur_usd_found == false)
+	{
+		rate_missing = true;
+	}
+
+	missing_label = currency;
+	if(eur_usd_found == false)
+	{
+		missing_label = "EUR";
 	}
 
 	eur_price = thisapp.fn_get_tier_price(p_part_number, qty_long);
@@ -123,17 +151,40 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 
 	if(apply_fx)
 	{
-		if(fx_rate != 0)
+		if(fx_rate_found)
 		{
 			fx_unit_price = unit_price_usd * fx_rate;
 			line_total_fx = line_total_usd * fx_rate;
 		}
 	}
 
+	if(fx_missing)
+	{
+		fx_unit_price = 0;
+		line_total_fx = 0;
+	}
+
+	if(eur_usd_found == false)
+	{
+		unit_price_usd = 0;
+		line_total_usd = 0;
+		fx_unit_price = 0;
+		line_total_fx = 0;
+	}
+
 	description = item_description;
 	if(price_found == false)
 	{
 		description = "[NO PRICE ON FILE - DO NOT QUOTE] " + description;
+	}
+
+	if(rate_missing)
+	{
+		has_fx_marker = description.contains("[FX RATE UNAVAILABLE");
+		if(has_fx_marker == false)
+		{
+			description = "[FX RATE UNAVAILABLE FOR " + missing_label + " - DO NOT QUOTE] " + description;
+		}
 	}
 
 	result.put("unit_price", unit_price_usd.round(2));

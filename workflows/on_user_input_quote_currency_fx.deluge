@@ -33,12 +33,26 @@ if(fx_mode_non_usd_only)
 	}
 }
 
+fx_rate_found = false;
 if(apply_fx)
 {
 	for each rate_rec in FX_Rates_Cache[Currency == currency]
 	{
-		fx_rate = ifnull(rate_rec.Rate,1);
+		fx_rate = ifnull(rate_rec.Rate,0);
 		break;
+	}
+	if(fx_rate != 0)
+	{
+		fx_rate_found = true;
+	}
+}
+
+fx_missing = false;
+if(apply_fx)
+{
+	if(fx_rate_found == false)
+	{
+		fx_missing = true;
 	}
 }
 
@@ -50,7 +64,7 @@ for each ln in input.Quote_Lines
 	fx_applies = false;
 	if(apply_fx)
 	{
-		if(fx_rate != 0)
+		if(fx_rate_found)
 		{
 			fx_applies = true;
 		}
@@ -63,7 +77,21 @@ for each ln in input.Quote_Lines
 	}
 	else
 	{
-		ln.FX_Unit_Price = unit_price_usd.round(2);
-		ln.Line_Total_FX = line_total_usd.round(2);
+		if(fx_missing)
+		{
+			ln.FX_Unit_Price = 0;
+			ln.Line_Total_FX = 0;
+			desc_now = ifnull(ln.Description,"");
+			has_fx_marker = desc_now.contains("[FX RATE UNAVAILABLE");
+			if(has_fx_marker == false)
+			{
+				ln.Description = "[FX RATE UNAVAILABLE FOR " + currency + " - DO NOT QUOTE] " + desc_now;
+			}
+		}
+		else
+		{
+			ln.FX_Unit_Price = unit_price_usd.round(2);
+			ln.Line_Total_FX = line_total_usd.round(2);
+		}
 	}
 }

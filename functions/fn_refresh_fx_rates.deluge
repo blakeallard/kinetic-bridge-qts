@@ -17,6 +17,7 @@ void fn_refresh_fx_rates()
 		currencies.add("JPY");
 		currencies.add("CNY");
 		currencies.add("KRW");
+		currencies.add("DKK");
 		for each  curr in currencies
 		{
 			rate = rates.get(curr).toDecimal();
