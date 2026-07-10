@@ -21,4 +21,7 @@ reference_docs/private_examples/
 docs/CURRENT_HANDOFF.md
 
 # Local editor settings
-.vscode/
+!.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
