@@ -1,0 +1,107 @@
+// fn_sync_to_crm -- UPDATED 2026-07-09 (CRM ID reuse)
+// DEPLOY ONLY AFTER Quote_Request has these Single Line fields (see
+// docs/CRM_CUSTOMER_LOOKUP_PACKET.md): CRM_Contact_ID, CRM_Account_ID, CRM_Deal_ID.
+// Behavior change vs live version:
+//   1. If CRM_Contact_ID is persisted on the quote, it is trusted -- no email search,
+//      no duplicate Contact creation.
+//   2. If a Contact is found/created by the legacy email path, its ID is written
+//      back to the quote so future syncs reuse it.
+//   3. Deal upsert prefers persisted CRM_Deal_ID over Deal_Name search; the Deal ID
+//      is written back after first create/find.
+//   4. Deal Account_Name uses persisted CRM_Account_ID when present (record link),
+//      falling back to the legacy company-name string.
+// Contact creation payload and Deal fields are otherwise unchanged.
+void fn_sync_to_crm(string p_quote_id)
+{
+	for each  quote in Quote_Request[ID == p_quote_id.toLong()]
+	{
+		deal_name = quote.Customer_Company + " — " + ifnull(quote.Quote_Number,"DRAFT");
+		status = ifnull(quote.Status,"Draft");
+		crm_stage = "Proposal/Price Quote";
+		if(status == "Send for Signature") { crm_stage = "Negotiation/Review"; }
+		if(status == "Signed") { crm_stage = "Closed Won"; }
+		total_revenue = 0.0;
+		for each  line in quote.Quote_Lines
+		{
+			total_revenue = total_revenue + ifnull(line.Line_Total_USD,0);
+		}
+		// Contact: trust the persisted CRM ID first; only fall back to email search.
+		contact_id = ifnull(quote.CRM_Contact_ID,"").trim();
+		if(contact_id == "")
+		{
+			contact_email = ifnull(quote.Customer_Email,"");
+			if(contact_email != "")
+			{
+				contact_search = zoho.crm.searchRecords("Contacts","Email:equals:" + contact_email);
+				if(contact_search != null)
+				{
+					if(contact_search.size() > 0)
+					{
+						contact_id = contact_search.get(0).get("id").toString();
+					}
+				}
+				if(contact_id == "")
+				{
+					contact_data = Map();
+					contact_data.put("Last_Name",ifnull(quote.Customer_Name,"Unknown"));
+					contact_data.put("Email",contact_email);
+					contact_data.put("Account_Name",ifnull(quote.Customer_Company,""));
+					new_contact = zoho.crm.createRecord("Contacts",contact_data);
+					if(new_contact != null)
+					{
+						contact_id = ifnull(new_contact.get("id"),"").toString();
+					}
+				}
+				if(contact_id != "")
+				{
+					quote.CRM_Contact_ID = contact_id;
+				}
+			}
+		}
+		deal_data = Map();
+		deal_data.put("Deal_Name",deal_name);
+		deal_data.put("Stage",crm_stage);
+		deal_data.put("Amount",total_revenue.round(2));
+		account_id = ifnull(quote.CRM_Account_ID,"").trim();
+		if(account_id != "")
+		{
+			deal_data.put("Account_Name",account_id);
+		}
+		else
+		{
+			deal_data.put("Account_Name",ifnull(quote.Customer_Company,""));
+		}
+		deal_data.put("Description",ifnull(quote.Notes,""));
+		deal_data.put("Closing_Date",zoho.currentdate.addDay(30).toString("yyyy-MM-dd"));
+		if(contact_id != "") { deal_data.put("Contact_Name",contact_id); }
+		deal_id_text = ifnull(quote.CRM_Deal_ID,"").trim();
+		if(deal_id_text == "")
+		{
+			existing = zoho.crm.searchRecords("Deals","Deal_Name:equals:" + deal_name);
+			if(existing != null)
+			{
+				if(existing.size() > 0)
+				{
+					deal_id_text = existing.get(0).get("id").toString();
+				}
+			}
+		}
+		if(deal_id_text == "")
+		{
+			new_deal = zoho.crm.createRecord("Deals",deal_data);
+			if(new_deal != null)
+			{
+				deal_id_text = ifnull(new_deal.get("id"),"").toString();
+			}
+		}
+		else
+		{
+			zoho.crm.updateRecord("Deals",deal_id_text.toLong(),deal_data);
+		}
+		if(deal_id_text != "")
+		{
+			quote.CRM_Deal_ID = deal_id_text;
+		}
+		break;
+	}
+}
