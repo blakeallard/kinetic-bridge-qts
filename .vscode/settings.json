@@ -1,0 +1,12 @@
+{
+  "editor.inlineSuggest.enabled": true,
+  "editor.formatOnSave": false,
+  "github.copilot.enable": {
+    "*": true,
+    "plaintext": false,
+    "markdown": false,
+    "scminput": false
+  },
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}
