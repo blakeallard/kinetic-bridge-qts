@@ -11,19 +11,17 @@ void fn_calc_quote_lines(string p_quote_id)
 			currency = ifnull(quote.Currency,"USD");
 			fx_mode = ifnull(quote.FX_Charge_Mode,"non_usd_only");
 			fx_rate = 1.0;
-			eur_usd = ifnull(quote.EUR_USD_Rate,1);
+			eur_usd = 0.0;
+			eur_usd_found = false;
 			apply_fx = false;
 
 			for each rate_rec in FX_Rates_Cache[Currency == "EUR"]
 			{
-				raw_eur_per_usd = ifnull(rate_rec.Rate,1);
-				if(raw_eur_per_usd == 0)
-				{
-					eur_usd = 1;
-				}
-				else
+				raw_eur_per_usd = ifnull(rate_rec.Rate,0);
+				if(raw_eur_per_usd != 0)
 				{
 					eur_usd = 1 / raw_eur_per_usd;
+					eur_usd_found = true;
 				}
 				break;
 			}
@@ -42,13 +40,43 @@ void fn_calc_quote_lines(string p_quote_id)
 				}
 			}
 
+			fx_rate_found = false;
 			if(apply_fx)
 			{
 				for each rate_rec in FX_Rates_Cache[Currency == currency]
 				{
-					fx_rate = ifnull(rate_rec.Rate,1);
+					fx_rate = ifnull(rate_rec.Rate,0);
 					break;
 				}
+				if(fx_rate != 0)
+				{
+					fx_rate_found = true;
+				}
+			}
+
+			fx_missing = false;
+			if(apply_fx)
+			{
+				if(fx_rate_found == false)
+				{
+					fx_missing = true;
+				}
+			}
+
+			rate_missing = false;
+			if(fx_missing)
+			{
+				rate_missing = true;
+			}
+			if(eur_usd_found == false)
+			{
+				rate_missing = true;
+			}
+
+			missing_label = currency;
+			if(eur_usd_found == false)
+			{
+				missing_label = "EUR";
 			}
 
 			line_seq = 0;
@@ -57,7 +85,8 @@ void fn_calc_quote_lines(string p_quote_id)
 				line_seq = line_seq + 1;
 				line.Line_Number = line_seq;
 
-				qty = line.Qty.toLong();
+				qty_raw = ifnull(line.Qty,0);
+				qty = qty_raw.toLong();
 				part = ifnull(line.Part_Number,"");
 
 				part_is_blank = false;
@@ -141,16 +170,40 @@ void fn_calc_quote_lines(string p_quote_id)
 				unit_price_step1 = usd_cost * discount_factor;
 				unit_price_usd = unit_price_step1 * markup_factor;
 
-				line_total_usd = unit_price_usd * line.Qty;
+				line_total_usd = unit_price_usd * qty;
 				fx_unit_price = unit_price_usd;
 				line_total_fx = line_total_usd;
 
 				if(apply_fx)
 				{
-					if(fx_rate != 0)
+					if(fx_rate_found)
 					{
 						fx_unit_price = unit_price_usd * fx_rate;
 						line_total_fx = line_total_usd * fx_rate;
+					}
+				}
+
+				if(fx_missing)
+				{
+					fx_unit_price = 0;
+					line_total_fx = 0;
+				}
+
+				if(eur_usd_found == false)
+				{
+					unit_price_usd = 0;
+					line_total_usd = 0;
+					fx_unit_price = 0;
+					line_total_fx = 0;
+				}
+
+				if(rate_missing)
+				{
+					desc_now = ifnull(line.Description,"");
+					has_fx_marker = desc_now.contains("[FX RATE UNAVAILABLE");
+					if(has_fx_marker == false)
+					{
+						line.Description = "[FX RATE UNAVAILABLE FOR " + missing_label + " - DO NOT QUOTE] " + desc_now;
 					}
 				}
 
