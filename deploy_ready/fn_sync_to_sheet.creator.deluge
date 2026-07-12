@@ -19,14 +19,37 @@ void fn_sync_to_sheet(string p_quote_id)
 			break;
 		}
 		quote_num = ifnull(quote.Quote_Number,"");
-		eur_usd = ifnull(quote.EUR_USD_Rate,1);
+		// Loud-fail FX policy (matches fn_calc_quote_lines): a missing/zero rate
+		// must never silently become 1 - carry 0 and mark the sheet row instead.
+		eur_usd = ifnull(quote.EUR_USD_Rate,0);
 		customer_type = ifnull(quote.Customer_Type,"End Customer");
 		currency = ifnull(quote.Currency,"USD");
 		fx_rate = 1.0;
+		fx_rate_found = false;
 		for each  rate_rec in FX_Rates_Cache[Currency == currency]
 		{
-			fx_rate = ifnull(rate_rec.Rate,1);
+			fx_rate = ifnull(rate_rec.Rate,0);
+			fx_rate_found = true;
 			break;
+		}
+		if(currency != "USD")
+		{
+			if(fx_rate_found == false)
+			{
+				fx_rate = 0.0;
+			}
+		}
+		fx_alert = "";
+		if(eur_usd == 0)
+		{
+			fx_alert = "[FX RATE UNAVAILABLE - EUR_USD 0 - DO NOT USE MARGINS]";
+		}
+		if(currency != "USD")
+		{
+			if(fx_rate == 0)
+			{
+				fx_alert = fx_alert + "[FX RATE UNAVAILABLE FOR " + currency + "]";
+			}
 		}
 		// Quote_Request tab: find + delete existing rows, then insert.
 		qr_fetch_params = Map();
@@ -78,7 +101,12 @@ void fn_sync_to_sheet(string p_quote_id)
 		qr_row.put("Markup_Rate_Pct",ifnull(quote.Markup_Rate_Pct,0));
 		qr_row.put("Wire_Charge_USD",25);
 		qr_row.put("Status",ifnull(quote.Status,"Draft"));
-		qr_row.put("Notes",ifnull(quote.Notes,""));
+		qr_notes = ifnull(quote.Notes,"");
+		if(fx_alert != "")
+		{
+			qr_notes = fx_alert + " " + qr_notes;
+		}
+		qr_row.put("Notes",qr_notes);
 		qr_row.put("Created_By","Blake Allard");
 		qr_row.put("Created_Date",zoho.currentdate.toString("M/d/yyyy"));
 		qr_add_params = Map();
