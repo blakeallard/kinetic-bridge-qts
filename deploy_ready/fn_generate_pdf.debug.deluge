@@ -254,12 +254,19 @@ void fn_generate_pdf(string p_quote_id)
 				noteContent = noteContent + "Document Link: " + signUrl + "\n";
 				noteContent = noteContent + "Signers: " + rName + " (internal) → " + cName + " (customer)";
 
-				// Add Note to CRM Deal
-				dealName = cCompany + " — " + qNum;
-				dealSearch = zoho.crm.searchRecords("Deals", "Deal_Name:equals:" + dealName);
-				if(!isnull(dealSearch) && dealSearch.size() > 0)
+				// Add Note to CRM Deal (persisted ID first; search fallback)
+				dealId = ifnull(quote.CRM_Deal_ID, "").trim();
+				if(dealId == "")
 				{
-					dealId = dealSearch.get(0).get("id").toString();
+					dealName = cCompany + " — " + qNum;
+					dealSearch = zoho.crm.searchRecords("Deals", "Deal_Name:equals:" + dealName);
+					if(!isnull(dealSearch) && dealSearch.size() > 0)
+					{
+						dealId = dealSearch.get(0).get("id").toString();
+					}
+				}
+				if(dealId != "")
+				{
 					dealNote = Map();
 					dealNote.put("Note_Title", noteTitle);
 					dealNote.put("Note_Content", noteContent);
@@ -268,20 +275,24 @@ void fn_generate_pdf(string p_quote_id)
 					zoho.crm.createRecord("Notes", dealNote);
 				}
 
-				// Add Note to CRM Contact
-				if(cEmail != "")
+				// Add Note to CRM Contact (persisted ID first; search fallback)
+				contactId = ifnull(quote.CRM_Contact_ID, "").trim();
+				if(contactId == "" && cEmail != "")
 				{
 					contactSearch = zoho.crm.searchRecords("Contacts", "Email:equals:" + cEmail);
 					if(!isnull(contactSearch) && contactSearch.size() > 0)
 					{
 						contactId = contactSearch.get(0).get("id").toString();
-						contactNote = Map();
-						contactNote.put("Note_Title", noteTitle);
-						contactNote.put("Note_Content", noteContent);
-						contactNote.put("Parent_Id", contactId);
-						contactNote.put("se_module", "Contacts");
-						zoho.crm.createRecord("Notes", contactNote);
 					}
+				}
+				if(contactId != "")
+				{
+					contactNote = Map();
+					contactNote.put("Note_Title", noteTitle);
+					contactNote.put("Note_Content", noteContent);
+					contactNote.put("Parent_Id", contactId);
+					contactNote.put("se_module", "Contacts");
+					zoho.crm.createRecord("Notes", contactNote);
 				}
 			}
 		}
