@@ -73,6 +73,29 @@ void fn_generate_pdf(string p_quote_id)
 		}
 		subtotalAmt = subtotalAmt.round(2);
 
+		// R64 dispatch guard: never merge/sign a quote whose lines carry
+		// loud-fail pricing markers (set by fn_calc_quote_lines) - a
+		// DO-NOT-QUOTE document must not reach a customer. Marker-based on
+		// purpose: a legitimate zero-value quote stays sendable.
+		blocked_marker = "";
+		for each ln in quote.Quote_Lines
+		{
+			ln_desc = ifnull(ln.Description, "");
+			if(ln_desc.contains("[FX RATE UNAVAILABLE"))
+			{
+				blocked_marker = "[FX RATE UNAVAILABLE";
+			}
+			if(ln_desc.contains("[NO PRICE ON FILE"))
+			{
+				blocked_marker = "[NO PRICE ON FILE";
+			}
+		}
+		if(blocked_marker != "")
+		{
+			info "fn_generate_pdf ABORT: loud-fail pricing marker " + blocked_marker + " present on quote '" + ifnull(quote.Quote_Number, "") + "' - Writer merge / Zoho Sign request NOT sent. Fix pricing/FX rates and resave.";
+			return;
+		}
+
 		wireAmt = 25.00;
 		shippingAmt = 25.00;
 		taxAmt = 0.00;
