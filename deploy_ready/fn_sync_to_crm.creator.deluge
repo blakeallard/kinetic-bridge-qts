@@ -1,16 +1,3 @@
-// fn_sync_to_crm -- UPDATED 2026-07-09 (CRM ID reuse)
-// DEPLOY ONLY AFTER Quote_Request has these Single Line fields (see
-// docs/CRM_CUSTOMER_LOOKUP_PACKET.md): CRM_Contact_ID, CRM_Account_ID, CRM_Deal_ID.
-// Behavior change vs live version:
-//   1. If CRM_Contact_ID is persisted on the quote, it is trusted -- no email search,
-//      no duplicate Contact creation.
-//   2. If a Contact is found/created by the legacy email path, its ID is written
-//      back to the quote so future syncs reuse it.
-//   3. Deal upsert prefers persisted CRM_Deal_ID over Deal_Name search; the Deal ID
-//      is written back after first create/find.
-//   4. Deal Account_Name uses persisted CRM_Account_ID when present (record link),
-//      falling back to the legacy company-name string.
-// Contact creation payload and Deal fields are otherwise unchanged.
 void fn_sync_to_crm(string p_quote_id)
 {
 	for each  quote in Quote_Request[ID == p_quote_id.toLong()]
@@ -25,7 +12,6 @@ void fn_sync_to_crm(string p_quote_id)
 		{
 			total_revenue = total_revenue + ifnull(line.Line_Total_USD,0);
 		}
-		// Contact: trust the persisted CRM ID first; only fall back to email search.
 		contact_id = ifnull(quote.CRM_Contact_ID,"").trim();
 		if(contact_id == "")
 		{
@@ -56,6 +42,95 @@ void fn_sync_to_crm(string p_quote_id)
 				{
 					quote.CRM_Contact_ID = contact_id;
 				}
+			}
+		}
+		if(contact_id != "")
+		{
+			lead_id_text = "";
+			persisted_lead_id = ifnull(quote.CRM_Lead_ID,"").trim();
+			if(persisted_lead_id != "")
+			{
+				lead_id_text = persisted_lead_id;
+			}
+			quote_email = ifnull(quote.Customer_Email,"").trim();
+			run_lookup = false;
+			if(lead_id_text == "")
+			{
+				if(quote_email != "")
+				{
+					run_lookup = true;
+				}
+			}
+			if(run_lookup)
+			{
+				lead_search_url = "https://www.zohoapis.com/crm/v2/Leads/search?converted=true&email=" + encodeUrl(quote_email);
+				lead_response = invokeurl
+				[
+					url :lead_search_url
+					type :GET
+					connection:"zoho_crm_connection"
+				];
+				lead_rows = List();
+				if(lead_response != null)
+				{
+					lead_result_map = lead_response.toMap();
+					if(lead_result_map != null)
+					{
+						lead_rows_raw = lead_result_map.getJSON("data");
+						if(lead_rows_raw != null)
+						{
+							lead_rows.addAll(lead_rows_raw);
+						}
+					}
+				}
+				for each  lead_row in lead_rows
+				{
+					if(lead_id_text == "")
+					{
+						row_text = lead_row.toString();
+						if(row_text.contains(contact_id))
+						{
+							lead_row_map = row_text.toMap();
+							if(lead_row_map != null)
+							{
+								lead_id_text = ifnull(lead_row_map.get("id"),"").toString();
+							}
+						}
+					}
+				}
+			}
+			if(lead_id_text != "")
+			{
+				quote.CRM_Lead_ID = lead_id_text;
+			}
+			already_stamped = ifnull(quote.Lifecycle_Stamped,false);
+			quote_number_text = ifnull(quote.Quote_Number,"").toString();
+			run_stamp = false;
+			if(already_stamped == false)
+			{
+				if(quote_number_text != "")
+				{
+					run_stamp = true;
+				}
+			}
+			if(run_stamp)
+			{
+				contact_rec = zoho.crm.getRecordById("Contacts",contact_id.toLong());
+				existing_first_quote = "";
+				if(contact_rec != null)
+				{
+					existing_first_quote = ifnull(contact_rec.get("First_Quote_Number"),"").toString();
+				}
+				if(existing_first_quote == "")
+				{
+					contact_stamp = Map();
+					contact_stamp.put("First_Quote_Number",quote_number_text);
+					first_quote_at = zoho.currenttime.toString("yyyy-MM-dd'T'HH:mm:ss");
+					contact_stamp.put("First_Quote_Created_At",first_quote_at + "-07:00");
+					contact_stamp.put("Lifecycle_Stage","Quoted");
+					zoho.crm.updateRecord("Contacts",contact_id.toLong(),contact_stamp);
+				}
+				quote.Lifecycle_Stamped = true;
 			}
 		}
 		deal_data = Map();
