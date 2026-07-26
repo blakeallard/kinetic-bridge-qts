@@ -28,7 +28,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Canonical local copy (see docs/LIBAL_REFERENCE_PRICE_QC.md) — stable path, not a
 # job-scoped temp file. Falls back to the original job tmp path if the canonical
 # copy isn't present on this machine.
-DEFAULT_XLSX = '/Users/blakeallard/bevco/data/references/lithium_balance/BMS Pricelist/Lithium Balance BMS_July 01_RSP_Distributor.xlsx'
+# SKUs Blake explicitly ruled NOT discountable despite a blank DISTRIB
+# DISCOUNT cell in the workbook (Round 80 authoritative list, 2026-07-12).
+NOT_DISCOUNTABLE_OVERRIDES = {'200001'}
+
+DEFAULT_XLSX ='/Users/blakeallard/bevco/data/references/lithium_balance/BMS Pricelist/Lithium Balance BMS_July 01_RSP_Distributor.xlsx'
 FALLBACK_XLSX = '/Users/blakeallard/.claude/jobs/d8eec8fc/tmp/july_rsp.xlsx'
 SHEET_NAME = 'RSP_EUR'
 
@@ -316,17 +320,24 @@ def main():
         band_cols = range(2, 2 + nbands)
         prices = [fmt_price(cells.get(i, '')) for i in band_cols]
 
-        # Tail scan beyond the band columns: a standalone "X" marks discountable;
-        # anything else out there is junk (e.g. stray "47" on the 200500 row).
-        discountable = 'N'
+        # Tail scan beyond the band columns: the DISTRIB DISCOUNT column carries
+        # a standalone "X" meaning NOT discountable; blank means discountable
+        # (authoritative rule, Blake 2026-07-12 — Round 80). Anything else out
+        # there is junk (e.g. stray "47" on the 200500 row).
+        discountable = 'Y'
         for i in sorted(cells):
             if i < 2 + nbands:
                 continue
             v = cells[i].strip()
             if v == 'X':
-                discountable = 'Y'
+                discountable = 'N'
             elif v:
                 junk_notes.append((rownum, col0, f'ignored stray cell at column index {i}: "{v}"'))
+        # Explicit Blake override (2026-07-12, Round 80 list, live-verified via
+        # the r80 import): 200001's DISTRIB DISCOUNT cell is blank in the
+        # workbook, but Blake ruled it NOT discountable.
+        if col0 in NOT_DISCOUNTABLE_OVERRIDES:
+            discountable = 'N'
 
         items.append({
             'row': rownum, 'sku': col0, 'desc': col1, 'section': sec_name,
@@ -438,7 +449,7 @@ def main():
     lines.append('3. Rows with an empty column A (titles, quantity-band headers, discount-multiplier rows like `0.75 / 0.65 / ...`) and pre-section metadata rows (delivery-time / MOQ rows with slash-joined part numbers) are skipped, not items.')
     lines.append('4. Price bands map to `Price_T1..Tn` per section: BMS boards = 9 hardware bands (1-19 ... 10000-24999); Accessories = 4 hardware bands; Creator/Service Tool = 6 license bands (1 / 2 / 3-4 / 5-9 / 10-24 / 25-249); obsolete software = 3 license bands. `Tier_Scheme` = `hardware` or `license` accordingly.')
     lines.append('5. Prices are rounded to exactly 2 decimals (source has float noise, e.g. `506.00000000000006` -> `506.00`). "Not priced" text = blank.')
-    lines.append('6. A standalone `X` in the row tail (beyond the band columns) sets `Discountable=Y`; absent = `N`. Other stray tail cells are ignored as junk (see notes).')
+    lines.append('6. A standalone `X` in the row tail (the DISTRIB DISCOUNT column, beyond the band columns) sets `Discountable=N` (NOT discountable); absent/blank = `Y` (discountable) — authoritative rule confirmed by Blake 2026-07-12 (Round 80; this corrects the original inverted mapping). Explicit exception: `200001` is `N` by Blake\'s override (blank in workbook, ruled NOT discountable). Other stray tail cells are ignored as junk (see notes).')
     lines.append('7. Category proposal: BMS boards -> Hardware; Accessories -> Accessory; Creator Tool / Service Tool / obsolete software -> Software.')
     lines.append('8. Review flag precedence per row: `DUPLICATE_SKU` > `UNPRICED` > `CONFIRM_DISCOUNT_CLASS`. `Active=REVIEW` for duplicate/unpriced rows; `Active=Y` otherwise (no `N` rows in this pass).')
     lines.append('9. `import_preview/duplicate_sku_classification.json` is the single source of truth for duplicate-SKU working assumptions. Preview generation verifies the workbook row visibility against that file and fails loudly if any duplicate SKU lacks exactly one `CANONICAL_CANDIDATE` row with all others marked `EXCLUDE_CANDIDATE`.')

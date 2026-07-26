@@ -1,0 +1,9 @@
+Part_Number,Description,Category,Discountable,Active,Item_Status,Quote_Warning,Price_T1,Price_T2,Price_T3,Price_T4,Price_T5,Price_T6,Price_T7
+103006,n-BMS CMU18/4 101814 Wire harness kit (1000mm) shielded com cable,Hardware,Y,Y,Active,,66,54,,,,,
+100980,i-BMS15 Wire harness kit SINGLE PACK,Hardware,Y,Y,Active,,150,100,,,,,
+100981,i-BMS15 Wire harness kit PARALLEL PACK,Hardware,Y,Y,Active,,150,100,,,,,
+200001,Reactivation process fee of Creator License Full,Software,N,Y,Active,,700,525,455,350,245,175,
+300100,i-BMS Unified Service,Software,N,Y,Active,,450,337.5,292.5,292.5,225,157.5,
+300200,c-BMS24 Unified Service Tool,Software,N,Y,Active,,450,337.5,292.5,292.5,225,157.5,
+300600,n3-BMS Unified Service Tool,Software,N,Y,Active,,625,468.75,406.25,403.13,303.13,215.62,
+300999,Reactivationprocess fee of Creator Service Tool,Software,N,Y,Active,,700,525,455,262.5,245,175,
