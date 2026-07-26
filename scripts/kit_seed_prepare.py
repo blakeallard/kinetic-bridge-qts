@@ -7,9 +7,11 @@ per docs/CREATOR_KIT_DEPLOYMENT_PACKET.md §3:
 
 - Is_Blocked  = "Y" only when Notes carries the not_in_rsp_unquotable marker
                 (expected: exactly n3bms_cmu12/100683), else "N".
-- Hold_Reason = "Q1" for cbms24 pending_business rows (200300/300300),
-                "Q2" for the n3bms_cmu18 pending_business harness (100985.1),
-                blank otherwise. Is_Blocked rows take precedence and stay blank.
+- Hold_Reason = "Q1" for cbms24 pending_business rows, "Q2" for n3bms_cmu18
+                pending_business rows, blank otherwise. Is_Blocked rows take
+                precedence and stay blank. Both holds were RESOLVED by the
+                2026-07-25 vendor config (see docs/KIT_CONFIG_UPDATE_2026-07-25.md),
+                so both sets are now expected to be empty.
 - Warning_Text = seeded only for Not_Released components (101814), else blank.
 
 Prints a verification summary and exits non-zero on any deviation from the
@@ -28,10 +30,10 @@ BLOCKED_MARKER = "not_in_rsp_unquotable"
 WARNING_TEXT = {"101814": "Not_Released — confirm availability before quoting"}
 
 EXPECTED = {
-    "rows": 49,
+    "rows": 42,
     "blocked": {("n3bms_cmu12", "100683")},
-    "q1": {("cbms24", "200300"), ("cbms24", "300300")},
-    "q2": {("n3bms_cmu18", "100985.1")},
+    "q1": set(),
+    "q2": set(),
     "warned": {("n3bms_cmu18", "101814")},
 }
 
