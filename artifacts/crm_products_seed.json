@@ -1,0 +1,314 @@
+[
+  {
+    "Product_Code": "100800",
+    "Product_Name": "n-BMS Master Control Unit (MCU-PCBA) with CAN termination",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 506.0
+  },
+  {
+    "Product_Code": "100807",
+    "Product_Name": "n-BMS Master Control Unit (MCU-PCBA) w/o CAN Term. Resist>500V",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 506.0
+  },
+  {
+    "Product_Code": "100809",
+    "Product_Name": "n-BMS CMU12/2 top mount isoSPI - 200mA balancing current",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 200.0
+  },
+  {
+    "Product_Code": "100819",
+    "Product_Name": "n-BMS CMU12/2 side mount isoSPI - 100mA balancing current",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 200.0
+  },
+  {
+    "Product_Code": "100816",
+    "Product_Name": "n3-BMS Master Control Unit  (MCU-PCBA)",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 756.0
+  },
+  {
+    "Product_Code": "101814",
+    "Product_Name": "n3-BMS CMU18/4 Flex top mount isoSPI - 200mA balancing current  (RELEASE Q3/2026)",
+    "Product_Active": false,
+    "Product_Category": "Hardware",
+    "Unit_Price": 210.0,
+    "Description": "Y — vendor marks item DRAFT / future release; confirm availability before quoting"
+  },
+  {
+    "Product_Code": "101815",
+    "Product_Name": "n-BMS CMU18/4 Wire top mount isoSPI - 200mA balancing current DRAFT",
+    "Product_Active": false,
+    "Product_Category": "Hardware",
+    "Description": "Y — vendor marks item DRAFT / future release; confirm availability before quoting"
+  },
+  {
+    "Product_Code": "100802",
+    "Product_Name": "n-BMS Wire harness kit MCU (100800/100807)",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 92.4
+  },
+  {
+    "Product_Code": "100985.1",
+    "Product_Name": "n-BMS CMU12/2 100809 Wire harness kit (1700mm) shielded com cable",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 66.0
+  },
+  {
+    "Product_Code": "100986",
+    "Product_Name": "n-BMS MCU isoSPI Wire harness kit CMU 100809/101814",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 30.0
+  },
+  {
+    "Product_Code": "100987",
+    "Product_Name": "n3-BMS MCU Wire harness kit MCU (100816)",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 92.4
+  },
+  {
+    "Product_Code": "103006",
+    "Product_Name": "n-BMS CMU18/4 101814 Wire harness kit (1000mm) shielded com cable",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 66.0
+  },
+  {
+    "Product_Code": "100916",
+    "Product_Name": "i-BMS15/6",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 330.0
+  },
+  {
+    "Product_Code": "100924",
+    "Product_Name": "c-BMS24",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 305.76
+  },
+  {
+    "Product_Code": "100925",
+    "Product_Name": "c-BMS24X",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 365.0
+  },
+  {
+    "Product_Code": "102100",
+    "Product_Name": "c-BMS18",
+    "Product_Active": false,
+    "Product_Category": "Hardware",
+    "Description": "Y — vendor marked Discontinued in July 2026 RSP; warn and double-check before quoting"
+  },
+  {
+    "Product_Code": "103005",
+    "Product_Name": "Harness kit for c-BMS18, for development purpose only",
+    "Product_Active": false,
+    "Product_Category": "Hardware",
+    "Description": "Y — vendor marked Discontinued in July 2026 RSP; warn and double-check before quoting"
+  },
+  {
+    "Product_Code": "100980",
+    "Product_Name": "i-BMS15 Wire harness kit SINGLE PACK",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 150.0
+  },
+  {
+    "Product_Code": "100981",
+    "Product_Name": "i-BMS15 Wire harness kit PARALLEL PACK",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 150.0
+  },
+  {
+    "Product_Code": "100930",
+    "Product_Name": "c-BMS24 Wire harness kit I/O 16w",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 16.17
+  },
+  {
+    "Product_Code": "100931",
+    "Product_Name": "c-BMS24 Wire harness kit bat temperature and shunt 20w",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 18.64
+  },
+  {
+    "Product_Code": "100932",
+    "Product_Name": "c-BMS24 Wire harness kit cell voltage monitoring wire 32w",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 52.8
+  },
+  {
+    "Product_Code": "100684",
+    "Product_Name": "Compact shunt (500A/50mV)",
+    "Product_Active": true,
+    "Product_Category": "Accessory",
+    "Unit_Price": 81.9
+  },
+  {
+    "Product_Code": "000637",
+    "Product_Name": "LEM Sensor DHAB- S/106 (20A/500A CH1/CH2 automotive)",
+    "Product_Active": true,
+    "Product_Category": "Accessory",
+    "Unit_Price": 89.65
+  },
+  {
+    "Product_Code": "000876",
+    "Product_Name": "LEM Sensor DHAB S/118 (30A/350A CH1/CH2 automotive)",
+    "Product_Active": true,
+    "Product_Category": "Accessory",
+    "Unit_Price": 89.65
+  },
+  {
+    "Product_Code": "000833",
+    "Product_Name": "LEM Sensor DHAB- S/133 (75A/750A CH1/CH2 automotive)",
+    "Product_Active": true,
+    "Product_Category": "Accessory",
+    "Unit_Price": 89.65
+  },
+  {
+    "Product_Code": "100545",
+    "Product_Name": "Peak CAN adapter for n- and c-BMS",
+    "Product_Active": true,
+    "Product_Category": "Accessory",
+    "Unit_Price": 280.0
+  },
+  {
+    "Product_Code": "200100",
+    "Product_Name": "i-BMS Unified Creator License FULL",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 1700.0
+  },
+  {
+    "Product_Code": "200200",
+    "Product_Name": "c-BMS24 Unified Creator License FULL",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 1700.0
+  },
+  {
+    "Product_Code": "200300",
+    "Product_Name": "c-BMS24X Unified Creator License FULL",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 1700.0
+  },
+  {
+    "Product_Code": "200400",
+    "Product_Name": "c-BMS18 Unified Creator License FULL",
+    "Product_Active": false,
+    "Product_Category": "Software",
+    "Description": "Y — vendor marked Discontinued in July 2026 RSP; warn and double-check before quoting"
+  },
+  {
+    "Product_Code": "200500",
+    "Product_Name": "n-BMS Unified Creator License FULL",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 1700.0
+  },
+  {
+    "Product_Code": "200600",
+    "Product_Name": "n3-BMS Unified Creator License FULL",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 2415.0
+  },
+  {
+    "Product_Code": "200001",
+    "Product_Name": "Reactivation process fee of Creator License Full",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 700.0
+  },
+  {
+    "Product_Code": "300100",
+    "Product_Name": "i-BMS Unified Service",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 450.0
+  },
+  {
+    "Product_Code": "300200",
+    "Product_Name": "c-BMS24 Unified Service Tool",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 450.0
+  },
+  {
+    "Product_Code": "300300",
+    "Product_Name": "c-BMS24X Unified Service Tool",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 450.0
+  },
+  {
+    "Product_Code": "300400",
+    "Product_Name": "c-BMS18 Unified Service Tool",
+    "Product_Active": false,
+    "Product_Category": "Software",
+    "Description": "Y — vendor marked Discontinued in July 2026 RSP; warn and double-check before quoting"
+  },
+  {
+    "Product_Code": "300500",
+    "Product_Name": "n-BMS Unified Service Tool",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 450.0
+  },
+  {
+    "Product_Code": "300600",
+    "Product_Name": "n3-BMS Unified Service Tool",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 625.0
+  },
+  {
+    "Product_Code": "300999",
+    "Product_Name": "Reactivationprocess fee of Creator Service Tool",
+    "Product_Active": true,
+    "Product_Category": "Software",
+    "Unit_Price": 700.0
+  },
+  {
+    "Product_Code": "100640.99",
+    "Product_Name": "LiBAL s-BMS PRO (SOFTKEY) WITH OUT any support",
+    "Product_Active": false,
+    "Product_Category": "Software",
+    "Unit_Price": 1700.0,
+    "Description": "Y — vendor section \"Software for obsolesenced BMS\"; warn and double-check before quoting"
+  },
+  {
+    "Product_Code": "100641.99",
+    "Product_Name": "LiBAL s-BMS PC Service (SOFTKEY FULL) WITH OUT any support",
+    "Product_Active": false,
+    "Product_Category": "Software",
+    "Unit_Price": 450.0,
+    "Description": "Y — vendor section \"Software for obsolesenced BMS\"; warn and double-check before quoting"
+  },
+  {
+    "Product_Code": "100699.99",
+    "Product_Name": "Reactivation process fee of s-BMS Pro or PC Service Tool",
+    "Product_Active": false,
+    "Product_Category": "Software",
+    "Unit_Price": 135.0,
+    "Description": "Y — vendor section \"Software for obsolesenced BMS\"; warn and double-check before quoting"
+  }
+]

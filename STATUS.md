@@ -24,10 +24,23 @@ Current status summary:
 - Item_Master import is not approved yet.
 - Creator deployment-readiness cleanup is planned but not implemented.
 
+Lead-to-quote + CRM connectivity slice BUILT 2026-07-26 (repo only, NOT deployed):
+Lead search/convert, Writer PDF -> Deal attachment, CRM Quotes record with Product-resolved
+lines, Products seed prepared (Tier 2, Bill). Deploy checklist + test script in
+`docs/LEAD_QUOTE_CRM_CONNECTIVITY_2026-07-26.md`. Widget tests 186/186; ZIP rebuilt (sha
+32e2b414), NOT uploaded.
+
 Next decision points:
 
+0. Vendor kit config 2026-07-25: applied in repo (42 rows, validators PASS) AND deployed to
+   Creator dev `Kit_Components` 2026-07-26 (7 deletes, 12 qty-0 edits, 4 rule/SKU swaps;
+   read-back verified 42/42 vs CSV). Live kit-expansion QA still pending. See
+   `docs/KIT_CONFIG_UPDATE_2026-07-25.md`.
+   Also 2026-07-26 (Blake approved): all 29 test Quote_Request records deleted from Creator dev
+   (report now empty; verified). CRM-side test records (test Deals/Contacts/Accounts from those
+   quotes) still exist — Round 91 cleanup list. Supabase mirror still holds the old snapshot.
 1. Review July RSP import preview.
-2. Resolve duplicate SKUs 300300 / 300500.
+2. Resolve duplicate SKUs 300300 / 300500 (kit-autofill half now moot — both leave the kit BOM).
 3. Decide unpriced SKU behavior.
 4. Decide whether license/service/software needs `Tier_Scheme`.
 5. Decide whether Partner is exposed as `Customer_Type`.

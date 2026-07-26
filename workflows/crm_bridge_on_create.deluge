@@ -1,24 +1,3 @@
-// CRM_Bridge on-create workflow -- widget <-> CRM bridge (development)
-// Attach as a form workflow on CRM_Bridge: "Created" / on add, run on success of validation.
-// The widget adds a CRM_Bridge record via the Creator JS SDK, this script runs
-// synchronously before the record is committed, and the widget reads the same
-// record back by ID to collect Result_jSON.
-//
-// Form fields (link names, see docs/CRM_CUSTOMER_LOOKUP_PACKET.md):
-//   Action_field   Single Line  -- search_customers | get_customer | create_customer
-//   Query_Text     Single Line  -- search text, or CRM Contact ID for get_customer
-//   Payload_JSON   Multi Line   -- JSON payload for create_customer
-//   Result_jSON    Multi Line   -- written by this script
-//   Request_Status Single Line  -- written by this script: done | error
-//
-// CRM field API names verified live 2026-07-09 via getFields:
-//   Contacts: First_Name, Last_Name, Full_Name, Email, Phone, Account_Name (lookup),
-//             Mailing_Street, Mailing_City, Mailing_State, Mailing_Zip, Mailing_Country
-//   Accounts: Account_Name, Phone, Billing_Street, Billing_City, Billing_State,
-//             Billing_Code, Billing_Country, Shipping_Street, Shipping_City,
-//             Shipping_State, Shipping_Code, Shipping_Country
-//
-// House rules: ASCII only, no ternary, assign-then-compare, null-guard every list.
 
 out = Map();
 action_name = ifnull(input.Action_field,"");
@@ -172,7 +151,6 @@ if(action_name == "create_customer")
 	}
 	else
 	{
-		// Duplicate guard: never create a second Contact for an existing email.
 		existing_contact_id = "";
 		if(email_text != "")
 		{
@@ -194,7 +172,6 @@ if(action_name == "create_customer")
 		}
 		else
 		{
-			// Find-or-create the Account first (billing address lives on Accounts).
 			account_id_text = "";
 			company_text = ifnull(payload.get("company"),"").trim();
 			if(company_text != "")
@@ -258,9 +235,6 @@ if(action_name == "create_customer")
 
 if(action_name == "get_quote_lines")
 {
-	// Returns the full Quote_Lines subform rows for a Quote_Request record ID.
-	// Needed because the widget SDK's report detail read returns subform rows
-	// without their field values; Deluge reads them authoritatively.
 	quote_id_text = ifnull(input.Query_Text,"").trim();
 	if(quote_id_text == "")
 	{
@@ -291,6 +265,14 @@ if(action_name == "get_quote_lines")
 		if(found_quote)
 		{
 			out.put("lines",lines);
+			for each  quote_hdr in Quote_Request[ID == quote_id_text.toLong()]
+			{
+				out.put("crm_deal_id",ifnull(quote_hdr.CRM_Deal_ID,""));
+				out.put("crm_contact_id",ifnull(quote_hdr.CRM_Contact_ID,""));
+				out.put("sign_request_id",ifnull(quote_hdr.Sign_Request_ID,""));
+				out.put("status",ifnull(quote_hdr.Status,""));
+				break;
+			}
 			input.Request_Status = "done";
 		}
 		else
@@ -302,12 +284,6 @@ if(action_name == "get_quote_lines")
 
 if(action_name == "books_diag")
 {
-	// TEMP read-only diagnostic (safe to keep -- reads only). Uses the Creator
-	// connection zoho_books_connection (authorized read-only actions:
-	// Get all Organizations / Get all Taxes / Get all Tax Authorities).
-	// Returns organization metadata + configured taxes + tax authorities.
-	// NOTE: invokeurl connection must be the string literal "zoho_books_connection"
-	// (variable-based connection references fail to compile in Creator).
 	org_resp = invokeurl
 	[
 		url :"https://www.zohoapis.com/books/v3/organizations"
@@ -362,20 +338,6 @@ if(action_name == "books_diag")
 
 if(action_name == "get_tax")
 {
-	// Authoritative tax lookup -- Zoho Books.
-	// Request (Payload_JSON): {basis, billing:{street,city,state,code,country},
-	//   shipping:{...}, mailing:{...}}   basis: "billing" | "shipping"
-	// The organization is resolved dynamically via GET /organizations using the
-	// read-only Creator connection, so no org ID is hardcoded.
-	// IMPORTANT: the currently granted read-only scopes (organizations, taxes,
-	// tax authorities) expose the CONFIGURED TAX LIST only. A tax list is NOT
-	// address-based Sales Tax Automation -- computing an address-specific rate
-	// requires transaction-level calculation (e.g. a draft estimate probe),
-	// which needs an additional permission. Until then this action returns the
-	// org + tax-config evidence with an explicit insufficient-permission error;
-	// it must NEVER return 0% or a guessed list entry as authoritative.
-	// NOTE: invokeurl connection must be the string literal "zoho_books_connection"
-	// (variable-based connection references fail to compile in Creator).
 	org_resp = invokeurl
 	[
 		url :"https://www.zohoapis.com/books/v3/organizations"
@@ -425,13 +387,6 @@ if(action_name == "get_tax")
 
 if(action_name == "expand_kit")
 {
-	// Authoritative dynamic kit expansion for the widget. Reuses the deployed,
-	// QA-passed resolver fn_get_kit_components (same one the Expand_Kit record
-	// button uses) so kit quantity/rule logic is NEVER duplicated in JS.
-	// Request (Payload_JSON): {"kit_key":"nbms_cmu12","series_cell_count":96}
-	// Response: {kit_key, lines:[{part_number,qty,kit_warning}], notices:[...]}
-	// On any resolver error the error text is returned and lines stay absent;
-	// the widget must add nothing.
 	payload = Map();
 	payload_text = ifnull(input.Payload_JSON,"");
 	if(payload_text != "")
@@ -495,6 +450,285 @@ if(action_name == "expand_kit")
 	}
 }
 
+if(action_name == "search_deals")
+{
+	payload = Map();
+	payload_text = ifnull(input.Payload_JSON,"");
+	if(payload_text != "")
+	{
+		payload = payload_text.toMap();
+	}
+	contact_id_text = ifnull(payload.get("contact_id"),"").toString().trim();
+	account_id_text = ifnull(payload.get("account_id"),"").toString().trim();
+	if(contact_id_text == "" && account_id_text == "")
+	{
+		out.put("error","search_deals requires contact_id and/or account_id in Payload_JSON");
+	}
+	else
+	{
+		closed_stages = List();
+		closed_stages.add("Closed Won");
+		closed_stages.add("Closed Lost");
+		closed_stages.add("Closed Lost to Competition");
+		deal_rows = List();
+		seen_deal_ids = List();
+		related_sets = List();
+		if(contact_id_text != "")
+		{
+			contact_deals = zoho.crm.getRelatedRecords("Deals","Contacts",contact_id_text.toLong());
+			if(contact_deals != null)
+			{
+				related_sets.add(contact_deals);
+			}
+		}
+		if(account_id_text != "")
+		{
+			account_deals = zoho.crm.getRelatedRecords("Deals","Accounts",account_id_text.toLong());
+			if(account_deals != null)
+			{
+				related_sets.add(account_deals);
+			}
+		}
+		for each  related_list in related_sets
+		{
+			for each  deal in related_list
+			{
+				deal_id_val = ifnull(deal.get("id"),"").toString();
+				if(deal_id_val != "")
+				{
+					if(!seen_deal_ids.contains(deal_id_val))
+					{
+						seen_deal_ids.add(deal_id_val);
+						stage_val = ifnull(deal.get("Stage"),"").toString();
+						row = Map();
+						row.put("deal_id",deal_id_val);
+						row.put("deal_name",ifnull(deal.get("Deal_Name"),""));
+						row.put("stage",stage_val);
+						row.put("amount",ifnull(deal.get("Amount"),""));
+						row.put("modified_time",ifnull(deal.get("Modified_Time"),"").toString());
+						account_ref = deal.get("Account_Name");
+						if(account_ref != null)
+						{
+							row.put("account_name",ifnull(account_ref.get("name"),""));
+						}
+						contact_ref = deal.get("Contact_Name");
+						if(contact_ref != null)
+						{
+							row.put("contact_name",ifnull(contact_ref.get("name"),""));
+						}
+						is_closed = false;
+						if(closed_stages.contains(stage_val))
+						{
+							is_closed = true;
+						}
+						row.put("is_closed",is_closed);
+						deal_rows.add(row);
+					}
+				}
+			}
+		}
+		out.put("deals",deal_rows);
+		input.Request_Status = "done";
+	}
+}
+
+if(action_name == "get_deal")
+{
+	deal_id_text = ifnull(input.Query_Text,"").trim();
+	if(deal_id_text == "")
+	{
+		out.put("error","get_deal requires a CRM Deal record ID in Query_Text");
+	}
+	else
+	{
+		deal = zoho.crm.getRecordById("Deals",deal_id_text.toLong());
+		if(deal == null)
+		{
+			out.put("error","Deal " + deal_id_text + " not found");
+		}
+		else
+		{
+			closed_stages = List();
+			closed_stages.add("Closed Won");
+			closed_stages.add("Closed Lost");
+			closed_stages.add("Closed Lost to Competition");
+			stage_val = ifnull(deal.get("Stage"),"").toString();
+			out.put("deal_id",deal_id_text);
+			out.put("deal_name",ifnull(deal.get("Deal_Name"),""));
+			out.put("stage",stage_val);
+			out.put("amount",ifnull(deal.get("Amount"),""));
+			out.put("modified_time",ifnull(deal.get("Modified_Time"),"").toString());
+			account_ref = deal.get("Account_Name");
+			if(account_ref != null)
+			{
+				out.put("account_name",ifnull(account_ref.get("name"),""));
+			}
+			contact_ref = deal.get("Contact_Name");
+			if(contact_ref != null)
+			{
+				out.put("contact_name",ifnull(contact_ref.get("name"),""));
+			}
+			is_closed = false;
+			if(closed_stages.contains(stage_val))
+			{
+				is_closed = true;
+			}
+			out.put("is_closed",is_closed);
+			input.Request_Status = "done";
+		}
+	}
+}
+
+if(action_name == "create_deal")
+{
+	payload = Map();
+	payload_text = ifnull(input.Payload_JSON,"");
+	if(payload_text != "")
+	{
+		payload = payload_text.toMap();
+	}
+	deal_name_text = ifnull(payload.get("deal_name"),"").toString().trim();
+	contact_id_text = ifnull(payload.get("contact_id"),"").toString().trim();
+	account_id_text = ifnull(payload.get("account_id"),"").toString().trim();
+	account_name_text = ifnull(payload.get("account_name"),"").toString().trim();
+	if(deal_name_text == "")
+	{
+		out.put("error","create_deal requires deal_name in Payload_JSON");
+	}
+	else
+	{
+		deal_data = Map();
+		deal_data.put("Deal_Name",deal_name_text);
+		deal_data.put("Stage","Proposal/Price Quote");
+		deal_data.put("Closing_Date",zoho.currentdate.addDay(30).toString("yyyy-MM-dd"));
+		if(account_id_text != "")
+		{
+			deal_data.put("Account_Name",account_id_text);
+		}
+		else if(account_name_text != "")
+		{
+			deal_data.put("Account_Name",account_name_text);
+		}
+		if(contact_id_text != "")
+		{
+			deal_data.put("Contact_Name",contact_id_text);
+		}
+		new_deal = zoho.crm.createRecord("Deals",deal_data);
+		created_id = "";
+		if(new_deal != null)
+		{
+			created_id = ifnull(new_deal.get("id"),"").toString();
+		}
+		if(created_id != "")
+		{
+			out.put("deal_id",created_id);
+			out.put("deal_name",deal_name_text);
+			out.put("stage","Proposal/Price Quote");
+			input.Request_Status = "done";
+		}
+		else
+		{
+			out.put("error","CRM Deal creation returned null");
+		}
+	}
+}
+
+if(action_name == "search_leads")
+{
+	query_text = ifnull(input.Query_Text,"").trim();
+	lead_matches = List();
+	seen_lead_ids = List();
+	if(query_text != "")
+	{
+		lead_criteria_list = List();
+		lead_criteria_list.add("(Email:starts_with:" + query_text + ")");
+		lead_criteria_list.add("(Last_Name:starts_with:" + query_text + ")");
+		lead_criteria_list.add("(First_Name:starts_with:" + query_text + ")");
+		lead_criteria_list.add("(Company:starts_with:" + query_text + ")");
+		has_space = query_text.contains(" ");
+		if(has_space)
+		{
+			name_tokens = query_text.toList(" ");
+			token_count = name_tokens.size();
+			first_token = name_tokens.get(0).trim();
+			last_index = token_count - 1;
+			last_token = name_tokens.get(last_index).trim();
+			if(first_token != "")
+			{
+				if(last_token != "")
+				{
+					lead_criteria_list.add("((First_Name:starts_with:" + first_token + ")and(Last_Name:starts_with:" + last_token + "))");
+					lead_criteria_list.add("((First_Name:starts_with:" + last_token + ")and(Last_Name:starts_with:" + first_token + "))");
+				}
+			}
+		}
+		for each  lead_criteria in lead_criteria_list
+		{
+			found_leads = zoho.crm.searchRecords("Leads",lead_criteria);
+			if(found_leads != null)
+			{
+				for each  lead in found_leads
+				{
+					lead_id_val = ifnull(lead.get("id"),"").toString();
+					if(lead_id_val != "")
+					{
+						if(!seen_lead_ids.contains(lead_id_val))
+						{
+							is_converted = ifnull(lead.get("$converted"),false);
+							if(is_converted == false)
+							{
+								seen_lead_ids.add(lead_id_val);
+								row = Map();
+								row.put("lead_id",lead_id_val);
+								row.put("name",ifnull(lead.get("Full_Name"),""));
+								row.put("email",ifnull(lead.get("Email"),""));
+								row.put("phone",ifnull(lead.get("Phone"),""));
+								row.put("company",ifnull(lead.get("Company"),""));
+								lead_matches.add(row);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	out.put("lead_matches",lead_matches);
+	input.Request_Status = "done";
+}
+
+if(action_name == "get_lead")
+{
+	lead_id_text = ifnull(input.Query_Text,"").trim();
+	if(lead_id_text == "")
+	{
+		out.put("error","get_lead requires a CRM Lead ID in Query_Text");
+	}
+	else
+	{
+		lead_rec = zoho.crm.getRecordById("Leads",lead_id_text.toLong());
+		if(lead_rec == null)
+		{
+			out.put("error","CRM Lead " + lead_id_text + " not found");
+		}
+		else
+		{
+			out.put("lead_id",lead_id_text);
+			out.put("name",ifnull(lead_rec.get("Full_Name"),""));
+			out.put("email",ifnull(lead_rec.get("Email"),""));
+			out.put("phone",ifnull(lead_rec.get("Phone"),""));
+			out.put("company",ifnull(lead_rec.get("Company"),""));
+			lead_addr = Map();
+			lead_addr.put("street",ifnull(lead_rec.get("Street"),""));
+			lead_addr.put("city",ifnull(lead_rec.get("City"),""));
+			lead_addr.put("state",ifnull(lead_rec.get("State"),""));
+			lead_addr.put("code",ifnull(lead_rec.get("Zip_Code"),""));
+			lead_addr.put("country",ifnull(lead_rec.get("Country"),""));
+			out.put("address",lead_addr);
+			input.Request_Status = "done";
+		}
+	}
+}
+
 known_actions = List();
 known_actions.add("search_customers");
 known_actions.add("get_customer");
@@ -503,6 +737,11 @@ known_actions.add("get_quote_lines");
 known_actions.add("expand_kit");
 known_actions.add("get_tax");
 known_actions.add("books_diag");
+known_actions.add("search_deals");
+known_actions.add("create_deal");
+known_actions.add("get_deal");
+known_actions.add("search_leads");
+known_actions.add("get_lead");
 if(!known_actions.contains(action_name))
 {
 	out.put("error","Unknown Action: " + action_name);

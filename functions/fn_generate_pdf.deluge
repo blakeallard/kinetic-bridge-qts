@@ -6,14 +6,6 @@ void fn_generate_pdf(string p_quote_id)
 		quoteDate = zoho.currentdate.toString("yyyy-MM-dd");
 		validUntil = zoho.currentdate.addDay(30).toString("yyyy-MM-dd");
 
-		// The Writer template ("lg6haa9fe623ad500461ea6708547e49c8a4a") only has
-		// flat single-instance merge fields (item_no/description/qty/unit_price/
-		// line_total) — confirmed via Get_All_Fields, no repeating table region.
-		// A real fix needs that template rebuilt with a repeating table bound to
-		// a line-items list, which isn't doable via the Writer API (no content-edit
-		// endpoint) and must be done by hand in Writer's editor. Until then, stack
-		// every line into these fields with newlines so multi-line quotes at least
-		// show complete, correct data instead of only line 1.
 		item_no = "1";
 		item_desc = "";
 		item_qty = "1";
@@ -40,11 +32,6 @@ void fn_generate_pdf(string p_quote_id)
 			lnLine = "$" + rawLine.round(2).toString();
 			if(lineCounter > 1)
 			{
-				// Actual newline byte (Deluge "\n"), NOT the old literal
-				// backslash+n ("\\n"): merge_data is now built as a Map and
-				// serialized by Deluge, which JSON-escapes real newlines
-				// correctly. The old literal was only needed for the
-				// hand-concatenated JSON string this file no longer uses.
 				item_no_joined = item_no_joined + "\n";
 				item_desc_joined = item_desc_joined + "\n";
 				item_qty_joined = item_qty_joined + "\n";
@@ -73,10 +60,6 @@ void fn_generate_pdf(string p_quote_id)
 		}
 		subtotalAmt = subtotalAmt.round(2);
 
-		// R64 dispatch guard: never merge/sign a quote whose lines carry
-		// loud-fail pricing markers (set by fn_calc_quote_lines) - a
-		// DO-NOT-QUOTE document must not reach a customer. Marker-based on
-		// purpose: a legitimate zero-value quote stays sendable.
 		blocked_marker = "";
 		for each ln in quote.Quote_Lines
 		{
@@ -124,10 +107,6 @@ void fn_generate_pdf(string p_quote_id)
 		cCompany = ifnull(quote.Customer_Company, "");
 		cName = ifnull(quote.Customer_Name, "");
 		cEmail = ifnull(quote.Customer_Email, "");
-		// Creator phone field may serialize as a structured value like
-		// {country_code=US, phone_number=+15550123} instead of a plain string.
-		// Never call .get() on it — it may already be a plain string. Parse
-		// the toString() form instead and pull out the number part.
 		cPhoneRaw = ifnull(quote.Customer_Phone, "");
 		cPhone = "";
 		if(cPhoneRaw != "")
@@ -161,18 +140,12 @@ void fn_generate_pdf(string p_quote_id)
 		rName = ifnull(quote.Recipient_Name, "Blake Allard");
 		rEmail = ifnull(quote.Recipient_Email, "blake@bevco-tech.com");
 
-		// --- R6000 guard 1: both signer emails are required by merge/sign.
-		// Bail out with a clear log instead of sending a doomed request.
 		if(rEmail.trim() == "" || cEmail.trim() == "")
 		{
 			info "fn_generate_pdf ABORT: missing signer email. recipient_email='" + rEmail + "' customer_email='" + cEmail + "' quote=" + qNum;
 			return;
 		}
 
-		// --- R6000 guard 2: build merge_data as a Map, not by string
-		// concatenation. Deluge serializes Map/List to JSON and escapes
-		// quotes/newlines/backslashes in values, so a '"' in a company name
-		// or description can no longer corrupt the payload.
 		mergeFields = Map();
 		mergeFields.put("quote_number", qNum);
 		mergeFields.put("quote_date", quoteDate);
@@ -211,11 +184,6 @@ void fn_generate_pdf(string p_quote_id)
 		mergeData.put("data", mergeDataList);
 		mergeJSON = mergeData.toString();
 
-		// signer_data per the official merge/sign docs
-		// (zoho.com/writer/help/api/v1/merge-and-sign.html): a JSON ARRAY of
-		// objects, each carrying the recipient email under the slot key
-		// recipient_1/recipient_2 — the original file's shape was correct.
-		// Built as List/Map (not string concat) so names/notes are escaped.
 		signer1 = Map();
 		signer1.put("recipient_1", rEmail);
 		signer1.put("recipient_name", rName);
@@ -226,9 +194,6 @@ void fn_generate_pdf(string p_quote_id)
 		signer2.put("recipient_name", cName);
 		signer2.put("action_type", "sign");
 		signer2.put("private_notes", "Please review and sign the attached Kinetic Bridge quotation. Contact blake@bevco-tech.com with any questions.");
-		// Deluge List.toString() drops the enclosing [ ] (confirmed in the
-		// R2011 execution log: output was `{...},{...}`), so wrap the array
-		// brackets explicitly. Map.toString() serializes each object safely.
 		signerJSON = "[" + signer1.toString() + "," + signer2.toString() + "]";
 
 		params = Map();
@@ -264,7 +229,6 @@ void fn_generate_pdf(string p_quote_id)
 					break;
 				}
 
-				// Build note content for CRM
 				signUrl = ifnull(docRecord.get("download_link"), "");
 				if(signUrl == "")
 				{
@@ -277,7 +241,6 @@ void fn_generate_pdf(string p_quote_id)
 				noteContent = noteContent + "Document Link: " + signUrl + "\n";
 				noteContent = noteContent + "Signers: " + rName + " (internal) → " + cName + " (customer)";
 
-				// Add Note to CRM Deal (persisted ID first; search fallback)
 				dealId = ifnull(quote.CRM_Deal_ID, "").trim();
 				if(dealId == "")
 				{
@@ -298,7 +261,6 @@ void fn_generate_pdf(string p_quote_id)
 					zoho.crm.createRecord("Notes", dealNote);
 				}
 
-				// Add Note to CRM Contact (persisted ID first; search fallback)
 				contactId = ifnull(quote.CRM_Contact_ID, "").trim();
 				if(contactId == "" && cEmail != "")
 				{
@@ -316,6 +278,39 @@ void fn_generate_pdf(string p_quote_id)
 					contactNote.put("Parent_Id", contactId);
 					contactNote.put("se_module", "Contacts");
 					zoho.crm.createRecord("Notes", contactNote);
+				}
+
+				if(dealId != "")
+				{
+					pdfUrl = ifnull(docRecord.get("download_link"), "");
+					if(pdfUrl == "")
+					{
+						info "fn_generate_pdf: no download_link in merge response for quote '" + qNum + "' - Deal PDF attachment SKIPPED.";
+					}
+					else
+					{
+						pdfFile = invokeurl
+						[
+							url :pdfUrl
+							type :GET
+							connection:"zoho_writter"
+						];
+						if(pdfFile == null)
+						{
+							info "fn_generate_pdf: PDF download failed from " + pdfUrl + " - Deal attachment SKIPPED for quote '" + qNum + "'.";
+						}
+						else
+						{
+							pdfFile.setParamName("file");
+							pdfFile.setFileName("Kinetic_Bridge_Quote_" + qNum + ".pdf");
+							attachResp = zoho.crm.attachFile("Deals", dealId.toLong(), pdfFile);
+							info "fn_generate_pdf: Deal " + dealId + " PDF attach response: " + ifnull(attachResp, "null").toString();
+						}
+					}
+				}
+				else
+				{
+					info "fn_generate_pdf: no CRM_Deal_ID on quote '" + qNum + "' - Deal PDF attachment SKIPPED.";
 				}
 			}
 		}
