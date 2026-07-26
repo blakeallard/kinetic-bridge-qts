@@ -4,6 +4,8 @@
 
 # BI1-T71 Status
 
+Last updated: 2026-07-26 (session summary: `docs/ACCOMPLISHMENTS_2026-07-26.md`)
+
 Canonical current-state file:
 
 - `QTS_PROJECT_STATUS.md`
@@ -11,40 +13,49 @@ Canonical current-state file:
 Current source of truth:
 
 - This GitHub repo is the source of truth for QTS source files, docs, import previews, and implementation plans.
-- Zoho Creator is the deployed runtime copy.
+- Zoho Creator is the deployed runtime copy (all repo Deluge + widget ZIP deployed as of 2026-07-26).
 - Do not edit `/Users/blakeallard/bevco/apps/quote_app`; it is legacy/reference only.
 
-Current status summary:
+Current status summary (all live-verified 2026-07-26 unless noted):
 
-- QTS Creator app exists in development.
-- `fn_generate_pdf` Customer_Phone fix is redeployed and runtime-verified.
-- Writer merge/sign succeeds.
-- Sign_Request_ID writes back from Zoho Sign.
-- July 2026 RSP import preview exists under `import_preview/`.
-- Item_Master import is not approved yet.
-- Creator deployment-readiness cleanup is planned but not implemented.
+- Vendor kit config 2026-07-25 DEPLOYED: repo BOM 49 -> 42 rows, Creator `Kit_Components`
+  reconciled and read-back verified 42/42; Q1 (200300) and Q2 (103006) resolved; kit expansion
+  live-QA'd on i-BMS15, c-BMS24, n3-CMU18@96. qty-0 optionals insert at qty 0 for the preparer
+  to raise (D-K1); widget tests 189/189. See `docs/KIT_CONFIG_UPDATE_2026-07-25.md`.
+- Lead-to-quote flow LIVE: widget searches CRM Leads alongside Contacts; saving a Lead-based
+  quote converts Lead -> Contact + Account + Deal in one native call and persists all IDs
+  (verified: TEST-QUOTE0001). See `docs/LEAD_QUOTE_CRM_CONNECTIVITY_2026-07-26.md`.
+- CRM Products module seeded 44/44 from Item_Master (`Product_Code` = `Part_Number`;
+  101814 flipped active because CRM Quotes reject inactive products).
+- Every Save Draft syncs the CRM Deal: Amount, forward-only Stage, Associated Products subform
+  (all lines incl. qty-0, replace-all so edits mirror), and an upserted CRM Quotes record with
+  Product-linked line items. Verified live on TEST-QUOTE0001 including an edit-resync.
+- Send leg (`fn_generate_pdf`): Writer merge/sign verified in Round 100; NEW Deal-PDF-attachment
+  code deployed but NOT yet exercised end-to-end; CRM Quote creation moved out of send into save.
+- Test data purged: 29 Quote_Request + 34 Document_Number_Log records deleted; QUOTE counter
+  reset to 0 (next real quote = QUOTE0001).
+- All work committed and pushed (`600c2a8`, `438e69a`, `21e7df9`, `32b8e38`); progress posted to
+  Zoho task 2543412000001469015.
 
-Lead-to-quote + CRM connectivity slice BUILT 2026-07-26 (repo only, NOT deployed):
-Lead search/convert, Writer PDF -> Deal attachment, CRM Quotes record with Product-resolved
-lines, Products seed prepared (Tier 2, Bill). Deploy checklist + test script in
-`docs/LEAD_QUOTE_CRM_CONNECTIVITY_2026-07-26.md`. Widget tests 186/186; ZIP rebuilt (sha
-32e2b414), NOT uploaded.
+Next actions:
 
-Next decision points:
+1. Retest Send for Signature end-to-end (Writer PDF -> Sign -> Sign_Request_ID -> Deal
+   attachment) with TEST signer identities.
+2. Verify the CRM Quote's Quoted Items picked up the shunt 0 -> 2 edit (screenshot ambiguity).
+3. CRM test-data cleanup (Round 91 list) + today's Northgate Fleet Systems test records.
+4. Refresh the Supabase `kinetic-quote` mirror (still pre-update: kit_components 49, no quotes).
+5. Datasheet spec DB (Supabase) build in flight via background agent.
+6. Flag to Bill: Products seed (Tier 2) and record deletes (Tier 3) executed on Blake's direct
+   instruction.
 
-0. Vendor kit config 2026-07-25: applied in repo (42 rows, validators PASS) AND deployed to
-   Creator dev `Kit_Components` 2026-07-26 (7 deletes, 12 qty-0 edits, 4 rule/SKU swaps;
-   read-back verified 42/42 vs CSV). Live kit-expansion QA still pending. See
-   `docs/KIT_CONFIG_UPDATE_2026-07-25.md`.
-   Also 2026-07-26 (Blake approved): all 29 test Quote_Request records deleted from Creator dev
-   (report now empty; verified). CRM-side test records (test Deals/Contacts/Accounts from those
-   quotes) still exist — Round 91 cleanup list. Supabase mirror still holds the old snapshot.
-1. Review July RSP import preview.
-2. Resolve duplicate SKUs 300300 / 300500 (kit-autofill half now moot — both leave the kit BOM).
-3. Decide unpriced SKU behavior.
-4. Decide whether license/service/software needs `Tier_Scheme`.
-5. Decide whether Partner is exposed as `Customer_Type`.
-6. Add or confirm `Inquiry_Type` / `Quote_Type` for Battery / BMS / Other.
+Open decision points (unchanged):
+
+1. Review July RSP import preview / approve Item_Master import.
+2. Unpriced SKU behavior (100683 still `not_in_rsp_unquotable`).
+3. Whether license/service/software needs `Tier_Scheme`.
+4. Whether Partner is exposed as `Customer_Type`.
+5. `Inquiry_Type` / `Quote_Type` for Battery / BMS / Other.
+6. CRM lifecycle D-decisions + Payment/Shipping Terms T-decisions (docs drafted 2026-07-13).
 
 Agent rule:
 
