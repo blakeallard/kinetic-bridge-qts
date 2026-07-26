@@ -2,17 +2,106 @@ void fn_sync_to_crm(string p_quote_id)
 {
 	for each  quote in Quote_Request[ID == p_quote_id.toLong()]
 	{
-		deal_name = quote.Customer_Company + " — " + ifnull(quote.Quote_Number,"DRAFT");
 		status = ifnull(quote.Status,"Draft");
-		crm_stage = "Proposal/Price Quote";
-		if(status == "Send for Signature") { crm_stage = "Negotiation/Review"; }
-		if(status == "Signed") { crm_stage = "Closed Won"; }
 		total_revenue = 0.0;
 		for each  line in quote.Quote_Lines
 		{
 			total_revenue = total_revenue + ifnull(line.Line_Total_USD,0);
 		}
 		contact_id = ifnull(quote.CRM_Contact_ID,"").trim();
+		pending_lead_id = ifnull(quote.CRM_Lead_ID,"").trim();
+		existing_deal_id = ifnull(quote.CRM_Deal_ID,"").trim();
+		if(contact_id == "" && pending_lead_id != "")
+		{
+			lead_probe = zoho.crm.getRecordById("Leads",pending_lead_id.toLong());
+			if(lead_probe == null)
+			{
+				info "fn_sync_to_crm: CRM_Lead_ID " + pending_lead_id + " not found (already converted or deleted) - falling through to email-based Contact resolution for quote '" + ifnull(quote.Quote_Number,"") + "'.";
+			}
+			else
+			{
+				convert_body = Map();
+				convert_entry = Map();
+				convert_entry.put("overwrite",false);
+				convert_entry.put("notify_lead_owner",false);
+				convert_entry.put("notify_new_entity_owner",false);
+				if(existing_deal_id == "")
+				{
+					deal_seed = Map();
+					deal_name_seed = ifnull(quote.Customer_Company,"").trim();
+					if(deal_name_seed == "")
+					{
+						deal_name_seed = ifnull(quote.Customer_Name,"Unknown").trim();
+					}
+					quote_no_seed = ifnull(quote.Quote_Number,"").toString().trim();
+					if(quote_no_seed != "")
+					{
+						deal_name_seed = deal_name_seed + " - " + quote_no_seed;
+					}
+					deal_seed.put("Deal_Name",deal_name_seed);
+					deal_seed.put("Stage","Proposal/Price Quote");
+					deal_seed.put("Amount",total_revenue.round(2));
+					deal_seed.put("Closing_Date",zoho.currentdate.addDay(30).toString("yyyy-MM-dd"));
+					convert_entry.put("Deals",deal_seed);
+				}
+				convert_list = List();
+				convert_list.add(convert_entry);
+				convert_body.put("data",convert_list);
+				convert_response = invokeurl
+				[
+					url :"https://www.zohoapis.com/crm/v2/Leads/" + pending_lead_id + "/actions/convert"
+					type :POST
+					parameters:convert_body.toString()
+					connection:"zoho_crm_connection"
+				];
+				converted_contact = "";
+				converted_account = "";
+				converted_deal = "";
+				if(convert_response != null)
+				{
+					convert_map = convert_response.toMap();
+					if(convert_map != null)
+					{
+						convert_rows = convert_map.getJSON("data");
+						if(convert_rows != null)
+						{
+							for each  convert_row in convert_rows
+							{
+								convert_row_map = convert_row.toMap();
+								if(convert_row_map != null)
+								{
+									converted_contact = ifnull(convert_row_map.get("Contacts"),"").toString();
+									converted_account = ifnull(convert_row_map.get("Accounts"),"").toString();
+									converted_deal = ifnull(convert_row_map.get("Deals"),"").toString();
+								}
+								break;
+							}
+						}
+					}
+				}
+				if(converted_contact == "" || converted_contact == "null")
+				{
+					info "fn_sync_to_crm: Lead convert FAILED for Lead " + pending_lead_id + " on quote '" + ifnull(quote.Quote_Number,"") + "' - response: " + ifnull(convert_response,"null").toString() + ". Quote left unlinked; fix in CRM and resave.";
+				}
+				else
+				{
+					contact_id = converted_contact;
+					quote.CRM_Contact_ID = converted_contact;
+					if(converted_account != "" && converted_account != "null")
+					{
+						quote.CRM_Account_ID = converted_account;
+					}
+					if(existing_deal_id == "")
+					{
+						if(converted_deal != "" && converted_deal != "null")
+						{
+							quote.CRM_Deal_ID = converted_deal;
+						}
+					}
+					info "fn_sync_to_crm: Lead " + pending_lead_id + " CONVERTED for quote '" + ifnull(quote.Quote_Number,"") + "' - Contact " + converted_contact + ", Account " + converted_account + ", Deal " + converted_deal + ".";
+				}
+			}
+		}
 		if(contact_id == "")
 		{
 			contact_email = ifnull(quote.Customer_Email,"");
@@ -133,49 +222,192 @@ void fn_sync_to_crm(string p_quote_id)
 				quote.Lifecycle_Stamped = true;
 			}
 		}
-		deal_data = Map();
-		deal_data.put("Deal_Name",deal_name);
-		deal_data.put("Stage",crm_stage);
-		deal_data.put("Amount",total_revenue.round(2));
-		account_id = ifnull(quote.CRM_Account_ID,"").trim();
-		if(account_id != "")
-		{
-			deal_data.put("Account_Name",account_id);
-		}
-		else
-		{
-			deal_data.put("Account_Name",ifnull(quote.Customer_Company,""));
-		}
-		deal_data.put("Description",ifnull(quote.Notes,""));
-		deal_data.put("Closing_Date",zoho.currentdate.addDay(30).toString("yyyy-MM-dd"));
-		if(contact_id != "") { deal_data.put("Contact_Name",contact_id); }
 		deal_id_text = ifnull(quote.CRM_Deal_ID,"").trim();
 		if(deal_id_text == "")
 		{
-			existing = zoho.crm.searchRecords("Deals","Deal_Name:equals:" + deal_name);
-			if(existing != null)
-			{
-				if(existing.size() > 0)
-				{
-					deal_id_text = existing.get(0).get("id").toString();
-				}
-			}
-		}
-		if(deal_id_text == "")
-		{
-			new_deal = zoho.crm.createRecord("Deals",deal_data);
-			if(new_deal != null)
-			{
-				deal_id_text = ifnull(new_deal.get("id"),"").toString();
-			}
+			info "fn_sync_to_crm: no CRM_Deal_ID on quote '" + ifnull(quote.Quote_Number,"") + "' - Deal sync SKIPPED. Select an existing Deal or use Create New Opportunity in the widget (no silent Deal creation).";
 		}
 		else
 		{
-			zoho.crm.updateRecord("Deals",deal_id_text.toLong(),deal_data);
-		}
-		if(deal_id_text != "")
-		{
-			quote.CRM_Deal_ID = deal_id_text;
+			deal_rec = zoho.crm.getRecordById("Deals",deal_id_text.toLong());
+			if(deal_rec == null)
+			{
+				info "fn_sync_to_crm: CRM Deal " + deal_id_text + " not found by ID - Deal sync SKIPPED for quote '" + ifnull(quote.Quote_Number,"") + "' (stale CRM_Deal_ID; reselect the Deal in the widget).";
+			}
+			else
+			{
+				stage_rank = Map();
+				stage_rank.put("Qualification",1);
+				stage_rank.put("Needs Analysis",2);
+				stage_rank.put("Value Proposition",3);
+				stage_rank.put("Id. Decision Makers",4);
+				stage_rank.put("Proposal/Price Quote",5);
+				stage_rank.put("Negotiation/Review",6);
+				stage_rank.put("Closed Won",7);
+				closed_stages = List();
+				closed_stages.add("Closed Won");
+				closed_stages.add("Closed Lost");
+				closed_stages.add("Closed Lost to Competition");
+				target_stage = "";
+				if(status == "Draft") { target_stage = "Proposal/Price Quote"; }
+				if(status == "In Review") { target_stage = "Proposal/Price Quote"; }
+				if(status == "Send for Signature") { target_stage = "Negotiation/Review"; }
+				if(status == "Awaiting Signatures") { target_stage = "Negotiation/Review"; }
+				if(status == "Signed") { target_stage = "Closed Won"; }
+				current_stage = ifnull(deal_rec.get("Stage"),"").toString();
+				deal_update = Map();
+				deal_update.put("Amount",total_revenue.round(2));
+				if(target_stage != "")
+				{
+					if(closed_stages.contains(current_stage))
+					{
+						info "fn_sync_to_crm: Deal " + deal_id_text + " is terminal ('" + current_stage + "') - stage untouched (never reopen automatically).";
+					}
+					else
+					{
+						current_rank = ifnull(stage_rank.get(current_stage),0);
+						target_rank = ifnull(stage_rank.get(target_stage),0);
+						if(target_rank > current_rank)
+						{
+							deal_update.put("Stage",target_stage);
+						}
+					}
+				}
+				current_quote_fields_ready = false;
+				if(current_quote_fields_ready)
+				{
+					if(status == "Cancelled")
+					{
+						deal_update.put("Current_Quote_Number","");
+						deal_update.put("Current_Quote_Link","");
+						deal_update.put("Current_Quote_Revision","");
+						deal_update.put("QTS_Quote_Record_ID","");
+					}
+					else
+					{
+						deal_update.put("Current_Quote_Number",ifnull(quote.Quote_Number,""));
+						deal_update.put("QTS_Quote_Record_ID",p_quote_id);
+					}
+				}
+				missing_products = "";
+				assoc_rows = List();
+				for each  line in quote.Quote_Lines
+				{
+					part_no = ifnull(line.Part_Number,"").toString().trim();
+					if(part_no != "")
+					{
+						product_id = "";
+						product_matches = zoho.crm.searchRecords("Products","Product_Code:equals:" + part_no);
+						if(product_matches != null)
+						{
+							if(product_matches.size() > 0)
+							{
+								product_id = ifnull(product_matches.get(0).get("id"),"").toString();
+							}
+						}
+						if(product_id == "")
+						{
+							if(missing_products != "")
+							{
+								missing_products = missing_products + ", ";
+							}
+							missing_products = missing_products + part_no;
+						}
+						else
+						{
+							assoc_row = Map();
+							product_ref = Map();
+							product_ref.put("id",product_id);
+							assoc_row.put("Product",product_ref);
+							assoc_row.put("Quantity",ifnull(line.Qty,0));
+							assoc_row.put("List_Price",ifnull(line.Unit_Price,0));
+							assoc_row.put("Total",ifnull(line.Line_Total_USD,0));
+							assoc_rows.add(assoc_row);
+						}
+					}
+				}
+				deal_update.put("Associated_Products",assoc_rows);
+				update_resp = zoho.crm.updateRecord("Deals",deal_id_text.toLong(),deal_update);
+				if(missing_products != "")
+				{
+					info "fn_sync_to_crm: CRM Products missing for part(s) " + missing_products + " - those lines are NOT on the Deal Associated Products list. Add them to CRM Products (Product_Code = Part_Number) and resave.";
+				}
+				info "fn_sync_to_crm: Deal " + deal_id_text + " updated with " + assoc_rows.size() + " Associated Product row(s) for quote '" + ifnull(quote.Quote_Number,"") + "': " + ifnull(update_resp,"null").toString();
+				quote_no_for_crm = ifnull(quote.Quote_Number,"").toString().trim();
+				if(quote_no_for_crm != "")
+				{
+					quoted_items = List();
+					for each  line in quote.Quote_Lines
+					{
+						part_no = ifnull(line.Part_Number,"").toString().trim();
+						if(part_no != "")
+						{
+							product_id = "";
+							product_matches = zoho.crm.searchRecords("Products","Product_Code:equals:" + part_no);
+							if(product_matches != null)
+							{
+								if(product_matches.size() > 0)
+								{
+									product_id = ifnull(product_matches.get(0).get("id"),"").toString();
+								}
+							}
+							if(product_id != "")
+							{
+								item_row = Map();
+								product_ref = Map();
+								product_ref.put("id",product_id);
+								item_row.put("Product_Name",product_ref);
+								item_row.put("Quantity",ifnull(line.Qty,0));
+								item_row.put("List_Price",ifnull(line.Unit_Price,0));
+								quoted_items.add(item_row);
+							}
+						}
+					}
+					if(quoted_items.size() > 0)
+					{
+						crm_quote = Map();
+						crm_quote.put("Subject","Kinetic Bridge Quote " + quote_no_for_crm);
+						deal_ref = Map();
+						deal_ref.put("id",deal_id_text);
+						crm_quote.put("Deal_Name",deal_ref);
+						if(contact_id != "")
+						{
+							contact_ref = Map();
+							contact_ref.put("id",contact_id);
+							crm_quote.put("Contact_Name",contact_ref);
+						}
+						valid_until_crm = ifnull(quote.Valid_Until,null);
+						if(valid_until_crm != null)
+						{
+							crm_quote.put("Valid_Till",valid_until_crm.toString("yyyy-MM-dd"));
+						}
+						crm_quote.put("Quoted_Items",quoted_items);
+						existing_quote_id = "";
+						quote_search = zoho.crm.searchRecords("Quotes","Subject:equals:Kinetic Bridge Quote " + quote_no_for_crm);
+						if(quote_search != null)
+						{
+							if(quote_search.size() > 0)
+							{
+								existing_quote_id = ifnull(quote_search.get(0).get("id"),"").toString();
+							}
+						}
+						if(existing_quote_id == "")
+						{
+							quote_create_resp = zoho.crm.createRecord("Quotes",crm_quote);
+							info "fn_sync_to_crm: CRM Quote CREATED for '" + quote_no_for_crm + "': " + ifnull(quote_create_resp,"null").toString();
+						}
+						else
+						{
+							quote_update_resp = zoho.crm.updateRecord("Quotes",existing_quote_id.toLong(),crm_quote);
+							info "fn_sync_to_crm: CRM Quote " + existing_quote_id + " UPDATED for '" + quote_no_for_crm + "': " + ifnull(quote_update_resp,"null").toString();
+						}
+					}
+					else
+					{
+						info "fn_sync_to_crm: zero lines resolved to CRM Products - CRM Quote record skipped for '" + quote_no_for_crm + "'.";
+					}
+				}
+			}
 		}
 		break;
 	}
