@@ -2,6 +2,19 @@
 
 Zoho Task ID: `2543412000001469015`
 
+> **STATUS NOTE (2026-07-13 — Round 92 reconciliation): HISTORICAL, not the grandmaster plan.**
+> This is the original pre-build design document. It has NOT tracked execution: Stages 1–5,
+> 7 (partially), and 8 were built and QA'd in Creator dev (see `docs/CURRENT_HANDOFF.md`
+> Rounds and `QTS_PROJECT_STATUS.md`); tax was DESCOPED 2026-07-10
+> (`docs/TAX_DESCOPE_2026-07-10.md`) although Section 5 still includes it; the approval
+> module (Stage 6) was never built; freight/shipping is now governed by the 2026-07-13
+> Shipping Terms requirement. The current authoritative sources are:
+> `docs/CURRENT_HANDOFF.md` (active state, newest Round first),
+> `QTS_PROJECT_STATUS.md` (architecture/status), and
+> `docs/MEETING_REQUIREMENTS_2026-07-07.md` + `docs/MEETING_REQUIREMENTS_2026-07-13.md`
+> (business requirements). The remaining-work master plan lives in the Round 92 entry of
+> `docs/CURRENT_HANDOFF.md`. This file is preserved unedited below for design history.
+
 ## 1. Current Objective
 
 Build a Zoho-based quote workflow for Kinetic Bridge / BEVCO that replaces the current manual, draft-template quoting process. The system must support:
