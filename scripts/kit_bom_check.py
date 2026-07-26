@@ -7,8 +7,11 @@ Proves (rather than asserts) the kit BOM seed data:
     marked blocked/unquotable (Confidence=pending_business AND Notes contains
     'not_in_rsp_unquotable') — those are reported, never silently accepted
   - an unknown SKU without that marker fails the run (nonzero exit)
-  - 300300 and 300500 resolve to canonical visible rows in the preview
-    (Duplicate_Classification=CANONICAL_CANDIDATE, Source_Visibility=visible)
+  - any BOM SKU with more than one import-preview row resolves to a single
+    canonical visible row (Duplicate_Classification=CANONICAL_CANDIDATE,
+    Source_Visibility=visible). The 2026-07-25 vendor config dropped the
+    Unified Service tools (300100/300300/300500) from every kit, so the set is
+    computed from the BOM rather than hardcoded.
   - column enums are valid (Requirement explicitly includes
     required_removable — a line that defaults onto the quote but is
     removable, e.g. the CAN adapter the customer may already own),
@@ -174,9 +177,12 @@ def main():
         print('  none')
     print()
 
-    # --- 300300 / 300500 canonical visible resolution ---
+    # --- canonical visible resolution for any duplicated BOM SKU ---
     print('Duplicate-SKU resolution:')
-    for sku in ('300300', '300500'):
+    duplicated = [sku for sku in sorted(checked_skus) if len(preview.get(sku, [])) > 1]
+    if not duplicated:
+        print('  none (no BOM SKU has multiple import-preview rows)')
+    for sku in duplicated:
         canon = [r for r in preview.get(sku, [])
                  if r['Duplicate_Classification'] == 'CANONICAL_CANDIDATE']
         if len(canon) == 1 and canon[0]['Source_Visibility'] == 'visible':
