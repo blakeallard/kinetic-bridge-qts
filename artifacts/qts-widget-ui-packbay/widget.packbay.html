@@ -3,10 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>QTS Quote-To-Signature</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <title>QTS Quote Builder — Pack Bay (UI copy)</title>
   <link rel="stylesheet" href="widget.packbay.css" />
   <!-- Official Zoho Creator widget JS SDK v1, bundled locally (same-origin) so it
        cannot be blocked by iframe CSP / external fetch. Source of this exact file:
@@ -15,6 +12,7 @@
 </head>
 <body>
   <div class="shell">
+    <!-- Signature: vertical cell stack (battery pack metaphor) -->
     <aside class="cell-rail" aria-hidden="true">
       <div class="cell lit"></div>
       <div class="cell"></div>
@@ -32,7 +30,7 @@
           <img src="assets/logo.packbay.svg" alt="QTS" />
           <div>
             <p class="eyebrow">Kinetic Bridge · Engineering Energy. Delivering Solutions.</p>
-            <h1>QTS <span class="accent">Quote-To-Signature</span></h1>
+            <h1>QTS Quotation</h1>
           </div>
         </div>
 
@@ -220,9 +218,12 @@
                   title="Sets this saved Draft to 'Send for Signature' — Creator then merges the Writer PDF and creates the REAL Zoho Sign request">Send for signature…</button>
                 <button class="btn secondary" id="btn-recalc" type="button">Recalculate</button>
                 <button class="btn ghost" id="btn-save" type="button">Save draft</button>
+                <span class="autosave-note" id="autosave-status">Auto-save on</span>
                 <button class="btn ghost danger" id="btn-discard" type="button" hidden
                   title="Permanently delete this saved draft from Creator">Discard draft</button>
               </div>
+              <!-- In-widget confirmation: browser-native confirm() is silently
+                   suppressed inside the sandboxed Creator widget iframe. -->
               <div class="discard-confirm" id="discard-confirm" hidden>
                 <div class="dc-title">Permanently discard this saved draft?</div>
                 <div class="dc-body" id="discard-confirm-text">This cannot be undone.</div>

@@ -6,6 +6,16 @@
 
 Zoho Task ID: 2543412000001469015
 
+## Read Order
+
+1. `README.md` - repository overview
+2. `TASK.md` - source-task snapshot
+3. `STATUS.md` - current state and progress
+4. `docs/PROCESS.md` - standard agent workflow
+5. `CLAUDE.md` - session-level requirements
+
+## Working Rules
+
 - Treat `TASK.md` as the source-task snapshot.
 - Read `docs/PROCESS.md` for the standard agent workflow and `CLAUDE.md` for session-level requirements before making changes.
 - Make bounded, reviewable changes and document assumptions.
