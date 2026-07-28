@@ -38,7 +38,7 @@ def main():
     print("-- sequential numbering, no pre-existing Line_Number --")
     lines = [{'Part_Number': '100800'}, {'Part_Number': '200500'}, {'Part_Number': '300100'}]
     assign_line_numbers(lines)
-    check('3 lines numbered 1,2,3', [l['Line_Number'] for l in lines], [1, 2, 3])
+    check('3 lines numbered 1,2,3', [row['Line_Number'] for row in lines], [1, 2, 3])
 
     print("\n-- stale/out-of-order pre-existing Line_Number values are overwritten --")
     lines = [
@@ -47,7 +47,7 @@ def main():
         {'Part_Number': '300100', 'Line_Number': None},
     ]
     assign_line_numbers(lines)
-    check('stale values replaced by fresh sequential numbering', [l['Line_Number'] for l in lines], [1, 2, 3])
+    check('stale values replaced by fresh sequential numbering', [row['Line_Number'] for row in lines], [1, 2, 3])
 
     print("\n-- single line --")
     lines = [{'Part_Number': '100800'}]
@@ -62,7 +62,7 @@ def main():
     print("\n-- blank/incomplete draft rows still get numbered --")
     lines = [{'Part_Number': ''}, {'Part_Number': '200500'}]
     assign_line_numbers(lines)
-    check('blank Part_Number row still numbered like any other row', [l['Line_Number'] for l in lines], [1, 2])
+    check('blank Part_Number row still numbered like any other row', [row['Line_Number'] for row in lines], [1, 2])
 
     print("\n-- reorder proof: numbering follows current row order, not old values --")
     # Simulates a line deleted from the middle of a 4-line quote (row that
@@ -74,7 +74,7 @@ def main():
         {'Part_Number': 'D', 'Line_Number': 4},
     ]
     assign_line_numbers(lines)
-    check('deleted middle row causes gap-free renumbering', [l['Line_Number'] for l in lines], [1, 2, 3])
+    check('deleted middle row causes gap-free renumbering', [row['Line_Number'] for row in lines], [1, 2, 3])
 
     print(f"\n{len(failures)} failure(s) out of assertions run.")
     if failures:

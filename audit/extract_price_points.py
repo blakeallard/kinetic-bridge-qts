@@ -169,7 +169,7 @@ def main():
                     'band_labels', 'priced'])
         for it in items:
             w.writerow([SHEET, it['row'], it['part'], it['desc'],
-                        it['section'], ' / '.join(l for _c, l in it['bands']),
+                        it['section'], ' / '.join(lbl for _c, lbl in it['bands']),
                         'Y' if priced(it) else 'N'])
     with open(os.path.join(REPORTS, 'price_points.csv'), 'w', newline='') as f:
         w = csv.writer(f)

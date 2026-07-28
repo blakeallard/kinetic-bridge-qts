@@ -143,22 +143,37 @@ def get_tier_price(items, part_number, qty):
         tier_scheme = 'hardware'  # missing/unknown/blank -> backward-compatible default
 
     if tier_scheme == 'license':
-        if qty <= 1: tier_index = 0
-        elif qty <= 2: tier_index = 1
-        elif qty <= 4: tier_index = 2
-        elif qty <= 9: tier_index = 3
-        elif qty <= 24: tier_index = 4
-        else: tier_index = 5
+        if qty <= 1:
+            tier_index = 0
+        elif qty <= 2:
+            tier_index = 1
+        elif qty <= 4:
+            tier_index = 2
+        elif qty <= 9:
+            tier_index = 3
+        elif qty <= 24:
+            tier_index = 4
+        else:
+            tier_index = 5
     else:
-        if qty <= 19: tier_index = 0
-        elif qty <= 99: tier_index = 1
-        elif qty <= 259: tier_index = 2
-        elif qty <= 499: tier_index = 3
-        elif qty <= 999: tier_index = 4
-        elif qty <= 2499: tier_index = 5
-        elif qty <= 4999: tier_index = 6
-        elif qty <= 9999: tier_index = 7
-        else: tier_index = 8
+        if qty <= 19:
+            tier_index = 0
+        elif qty <= 99:
+            tier_index = 1
+        elif qty <= 259:
+            tier_index = 2
+        elif qty <= 499:
+            tier_index = 3
+        elif qty <= 999:
+            tier_index = 4
+        elif qty <= 2499:
+            tier_index = 5
+        elif qty <= 4999:
+            tier_index = 6
+        elif qty <= 9999:
+            tier_index = 7
+        else:
+            tier_index = 8
 
     i = tier_index
     while i >= 0 and tiers[i] is None:
@@ -173,15 +188,24 @@ def get_tier_price_OLD_BUGGY(items, part_number, qty):
     if item is None:
         return 0
     tiers = item['prices']
-    if qty <= 19: tier_index = 0
-    elif qty <= 99: tier_index = 1
-    elif qty <= 259: tier_index = 2
-    elif qty <= 499: tier_index = 3
-    elif qty <= 999: tier_index = 4
-    elif qty <= 2499: tier_index = 5
-    elif qty <= 4999: tier_index = 6
-    elif qty <= 9999: tier_index = 7
-    else: tier_index = 8
+    if qty <= 19:
+        tier_index = 0
+    elif qty <= 99:
+        tier_index = 1
+    elif qty <= 259:
+        tier_index = 2
+    elif qty <= 499:
+        tier_index = 3
+    elif qty <= 999:
+        tier_index = 4
+    elif qty <= 2499:
+        tier_index = 5
+    elif qty <= 4999:
+        tier_index = 6
+    elif qty <= 9999:
+        tier_index = 7
+    else:
+        tier_index = 8
     i = tier_index
     while i >= 0 and tiers[i] is None:
         i -= 1
