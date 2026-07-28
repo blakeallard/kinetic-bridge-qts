@@ -16,7 +16,9 @@ Current source of truth:
 - Zoho Creator is the deployed runtime copy (all repo Deluge + widget ZIP deployed as of 2026-07-26).
 - Do not edit `/Users/blakeallard/bevco/apps/quote_app`; it is legacy/reference only.
 
-Current status summary (all live-verified 2026-07-26 unless noted):
+## Current State
+
+All items live-verified 2026-07-26 unless noted:
 
 - Vendor kit config 2026-07-25 DEPLOYED: repo BOM 49 -> 42 rows, Creator `Kit_Components`
   reconciled and read-back verified 42/42; Q1 (200300) and Q2 (103006) resolved; kit expansion
