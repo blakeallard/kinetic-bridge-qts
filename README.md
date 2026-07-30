@@ -26,7 +26,7 @@ Zoho Task ID: 2543412000001469015
 - Zoho task ID: `2543412000001469015`
 - Status: In Progress
 - Source system: Zoho Projects
-- Repository: https://github.com/blake-bevco-tech/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations
+- Repository: https://github.com/blakeallard/kinetic-bridge-qts
 
 ## Current status (as of 2026-07-06, commit `bef7bb7`)
 
