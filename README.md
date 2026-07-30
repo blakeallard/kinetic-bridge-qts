@@ -10,6 +10,14 @@ Zoho Task ID: 2543412000001469015
 
 1. REQUEST + DESIRED WORKFLOW Requested task: Build a Zoho-based quote form using Zoho Forms or Creator that integrates with item master and price books to auto-calculate quotes; create a prototype applet for distributor pricing with margin controls Business problem: Quote generation is currently manual using draft templates without automation, inventory integration, or dynamic pricing; need form-driven workflow to route inquiries by type (BMS vs battery products) and auto-calculate pricing with margin controls How should this work: Sales team submits Zoho form with inquiry details → form auto-pulls items from item master and applies price books → applet performs calculations for BMS and battery product flows → generates quote with margin controls → stores in WorkDrive ready for delivery S
 
+## Active work (2026-07-29)
+
+**QTS two-button CRM package** — Save Quote Package / Email Quote Package pipeline.
+
+- Plan: [`docs/QTS_TWO_BUTTON_CRM_PLAN.md`](docs/QTS_TWO_BUTTON_CRM_PLAN.md)
+- External anchors: [`docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md)
+- Status: [`STATUS.md`](STATUS.md)
+
 ## Task metadata
 
 - Task key: `BI1-T71`
