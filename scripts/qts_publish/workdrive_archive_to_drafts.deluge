@@ -1,5 +1,3 @@
-// Archive prior CURRENT (and optionally CONFIRMED) PDF into DRAFTS with
-// filename suffix r{n}_{yyyyMMdd_HHmmss}. Skip when no prior file exists.
 map workdrive_archive_to_drafts(string current_folder_id, string drafts_folder_id, string stable_filename, int revision, string confirmed_folder_id, bool archive_confirmed)
 {
 result = Map();
@@ -11,7 +9,13 @@ wd_connection = "zoho_crm_to_zoho_flow";
 safe_current = ifnull(current_folder_id,"").trim();
 safe_drafts = ifnull(drafts_folder_id,"").trim();
 safe_name = ifnull(stable_filename,"").trim();
-if(safe_current == "" || safe_drafts == "" || safe_name == "")
+safe_confirmed = ifnull(confirmed_folder_id,"").trim();
+if(safe_drafts == "" || safe_name == "")
+{
+	result.put("reason","folder_or_filename_missing");
+	return result;
+}
+if(safe_current == "" && !(archive_confirmed && safe_confirmed != ""))
 {
 	result.put("reason","folder_or_filename_missing");
 	return result;
@@ -26,84 +30,79 @@ if(base.endsWith(".pdf"))
 }
 draft_name = base + "_r" + rev_n.toString() + "_" + ts + ".pdf";
 result.put("draft_filename",draft_name);
-// Archive CURRENT → DRAFTS (rename/move if file present)
-try
+if(safe_current != "")
 {
-	listing = invokeurl
-	[
-		url :"https://workdrive.zoho.com/api/v1/files/" + safe_current + "/files?page%5Blimit%5D=50"
-		type :GET
-		connection:wd_connection
-	];
-	rows = ifnull(listing.get("data"),List());
-	file_id = "";
-	for each row in rows
+	try
 	{
-		attrs = ifnull(row.get("attributes"),Map());
-		fname = ifnull(attrs.get("name"),"").toString();
-		if(fname == safe_name || fname.contains(base))
+		listing = invokeurl
+		[
+			url :"https://workdrive.zoho.com/api/v1/files/" + safe_current + "/files?page%5Blimit%5D=50"
+			type :GET
+			connection:wd_connection
+		];
+		rows = ifnull(listing.get("data"),List());
+		moved_any = false;
+		for each row in rows
 		{
+			attrs = ifnull(row.get("attributes"),Map());
+			fname = ifnull(attrs.get("name"),"").toString();
 			file_id = ifnull(row.get("id"),"").toString();
+			if(file_id != "" && (fname == safe_name || fname.contains(base)))
+			{
+				move_body = Map();
+				dmap = Map();
+				dmap.put("type","files");
+				mattrs = Map();
+				mattrs.put("parent_id",safe_drafts);
+				mattrs.put("name",draft_name);
+				dmap.put("attributes",mattrs);
+				move_body.put("data",dmap);
+				invokeurl
+				[
+					url :"https://workdrive.zoho.com/api/v1/files/" + file_id
+					type :PATCH
+					parameters:move_body.toString()
+					connection:wd_connection
+					content-type:"application/json"
+				];
+				moved_any = true;
+			}
+		}
+		if(moved_any)
+		{
+			result.put("archived_current","yes");
+			result.put("status","ok");
+		}
+		else
+		{
+			result.put("status","ok");
+			result.put("reason","no_prior_current");
 		}
 	}
-	if(file_id != "")
+	catch (archive_current_error)
 	{
-		move_body = Map();
-		dmap = Map();
-		dmap.put("type","files");
-		mattrs = Map();
-		mattrs.put("parent_id",safe_drafts);
-		mattrs.put("name",draft_name);
-		dmap.put("attributes",mattrs);
-		move_body.put("data",dmap);
-		invokeurl
+		result.put("status","failed");
+		result.put("reason","archive_current_failed");
+		return result;
+	}
+}
+if(archive_confirmed && safe_confirmed != "")
+{
+	try
+	{
+		c_listing = invokeurl
 		[
-			url :"https://workdrive.zoho.com/api/v1/files/" + file_id
-			type :PATCH
-			parameters:move_body.toString()
+			url :"https://workdrive.zoho.com/api/v1/files/" + safe_confirmed + "/files?page%5Blimit%5D=50"
+			type :GET
 			connection:wd_connection
-			content-type:"application/json"
 		];
-		result.put("archived_current","yes");
-		result.put("status","ok");
-	}
-	else
-	{
-		result.put("status","ok");
-		result.put("reason","no_prior_current");
-	}
-}
-catch (archive_current_error)
-{
-	result.put("status","failed");
-	result.put("reason","archive_current_failed");
-	return result;
-}
-if(archive_confirmed)
-{
-	safe_confirmed = ifnull(confirmed_folder_id,"").trim();
-	if(safe_confirmed != "")
-	{
-		try
+		c_rows = ifnull(c_listing.get("data"),List());
+		for each crow in c_rows
 		{
-			c_listing = invokeurl
-			[
-				url :"https://workdrive.zoho.com/api/v1/files/" + safe_confirmed + "/files?page%5Blimit%5D=50"
-				type :GET
-				connection:wd_connection
-			];
-			c_rows = ifnull(c_listing.get("data"),List());
-			c_file_id = "";
-			for each crow in c_rows
-			{
-				cattrs = ifnull(crow.get("attributes"),Map());
-				cfname = ifnull(cattrs.get("name"),"").toString();
-				if(cfname == safe_name || cfname.contains(base))
-				{
-					c_file_id = ifnull(crow.get("id"),"").toString();
-				}
-			}
-			if(c_file_id != "")
+			cattrs = ifnull(crow.get("attributes"),Map());
+			cfname = ifnull(cattrs.get("name"),"").toString();
+			c_file_id = ifnull(crow.get("id"),"").toString();
+			if(c_file_id != "" && (cfname == safe_name || cfname.contains(base) || cfname.contains("_CONFIRMED_")))
 			{
 				c_draft = base + "_CONFIRMED_r" + rev_n.toString() + "_" + ts + ".pdf";
 				c_move = Map();
@@ -125,11 +124,10 @@ if(archive_confirmed)
 				result.put("archived_confirmed","yes");
 			}
 		}
-		catch (archive_confirmed_error)
-		{
-			// Best-effort; do not fail the publish path on confirmed archive miss
-			result.put("archived_confirmed","no");
-		}
+	}
+	catch (archive_confirmed_error)
+	{
+		result.put("archived_confirmed","no");
 	}
 }
 if(result.get("status") == "skipped")

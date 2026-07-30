@@ -1,5 +1,4 @@
-// Loud fail if Deal Associated Products empty after sync — abort before Writer merge.
-map assert_deal_has_products(string deal_id)
+map assert_deal_has_products(string deal_id, map deal_record)
 {
 result = Map();
 result.put("status","skipped");
@@ -14,10 +13,14 @@ if(safe_deal_id == "")
 quoted_count = 0;
 try
 {
-	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
-	if(deal_record != null)
+	deal = deal_record;
+	if(deal == null || deal.isEmpty())
 	{
-		products = ifnull(deal_record.get("Associated_Products"),List());
+		deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	}
+	if(deal != null)
+	{
+		products = ifnull(deal.get("Associated_Products"),List());
 		for each item in products
 		{
 			quantity = ifnull(item.get("Quantity"),0).toDecimal();

@@ -1,7 +1,4 @@
-// EMAIL-ONLY: upsert CRM Quotes from Deal Associated Products + attach PDF.
-// Subject key: "Kinetic Bridge Quote {quote_number}"
-// Save Quote Package must never invoke this step.
-map upsert_crm_quote(string deal_id, string contact_id, string quote_number, string quote_request_id, map merge_data, file merged_file)
+map upsert_crm_quote(string deal_id, string contact_id, string quote_number, string quote_request_id, map merge_data, file merged_file, map deal_record)
 {
 result = Map();
 result.put("status","skipped");
@@ -19,10 +16,14 @@ if(safe_deal_id == "" || safe_qno == "")
 quoted_items = List();
 try
 {
-	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
-	if(deal_record != null)
+	deal = deal_record;
+	if(deal == null || deal.isEmpty())
 	{
-		products = ifnull(deal_record.get("Associated_Products"),List());
+		deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	}
+	if(deal != null)
+	{
+		products = ifnull(deal.get("Associated_Products"),List());
 		for each item in products
 		{
 			quantity = ifnull(item.get("Quantity"),0).toDecimal();
@@ -99,7 +100,9 @@ try
 }
 catch (quote_search_error)
 {
-	existing_quote_id = "";
+	result.put("status","failed");
+	result.put("reason","quote_search_failed");
+	return result;
 }
 if(existing_quote_id != "")
 {

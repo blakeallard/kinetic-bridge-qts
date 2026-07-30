@@ -1,6 +1,3 @@
-// Ensure QTS Quotes/{quote_number}/{CURRENT,CONFIRMED,DRAFTS}/ exist.
-// QTS_QUOTES_ROOT_FOLDER_ID: paste WorkDrive folder resource_id when known.
-// Until then, look up a child named "QTS Quotes" under the Flow parent folder.
 map workdrive_ensure_quote_folders(string quote_number, string parent_folder_id)
 {
 result = Map();
@@ -11,8 +8,7 @@ result.put("quote_folder_id","");
 result.put("current_id","");
 result.put("confirmed_id","");
 result.put("drafts_id","");
-// PLACEHOLDER — name-based lookup when blank
-qts_quotes_root_folder_id = "";
+qts_quotes_root_folder_id = "wctzef9e0b057e781406896d8866994e93156";
 qts_quotes_root_folder_name = "QTS Quotes";
 wd_connection = "zoho_crm_to_zoho_flow";
 safe_qno = ifnull(quote_number,"").trim();
@@ -57,26 +53,43 @@ if(root_id == "")
 	return result;
 }
 result.put("root_id",root_id);
-// Helper: find or create a named child folder under parent_id
 quote_folder_id = "";
 current_id = "";
 confirmed_id = "";
 drafts_id = "";
 try
 {
-	q_listing = invokeurl
-	[
-		url :"https://workdrive.zoho.com/api/v1/files/" + root_id + "/files?filter[type]=folder&page%5Blimit%5D=100"
-		type :GET
-		connection:wd_connection
-	];
-	q_rows = ifnull(q_listing.get("data"),List());
-	for each qrow in q_rows
+	page_offset = 0;
+	page_limit = 100;
+	more_pages = true;
+	while(more_pages && quote_folder_id == "")
 	{
-		qattrs = ifnull(qrow.get("attributes"),Map());
-		if(ifnull(qattrs.get("name"),"").toString() == safe_qno)
+		q_listing = invokeurl
+		[
+			url :"https://workdrive.zoho.com/api/v1/files/" + root_id + "/files?filter[type]=folder&page%5Blimit%5D=" + page_limit.toString() + "&page%5Boffset%5D=" + page_offset.toString()
+			type :GET
+			connection:wd_connection
+		];
+		q_rows = ifnull(q_listing.get("data"),List());
+		for each qrow in q_rows
 		{
-			quote_folder_id = ifnull(qrow.get("id"),"").toString();
+			qattrs = ifnull(qrow.get("attributes"),Map());
+			if(ifnull(qattrs.get("name"),"").toString() == safe_qno)
+			{
+				quote_folder_id = ifnull(qrow.get("id"),"").toString();
+			}
+		}
+		if(q_rows == null || q_rows.size() < page_limit)
+		{
+			more_pages = false;
+		}
+		else
+		{
+			page_offset = page_offset + page_limit;
+			if(page_offset > 2000)
+			{
+				more_pages = false;
+			}
 		}
 	}
 	if(quote_folder_id == "")

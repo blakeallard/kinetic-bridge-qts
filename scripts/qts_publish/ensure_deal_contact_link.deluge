@@ -1,5 +1,4 @@
-// Ensure Deal ↔ Contact link. Skip CRM update when Contact already matches.
-map ensure_deal_contact_link(string deal_id, string contact_id)
+map ensure_deal_contact_link(string deal_id, string contact_id, map deal_record)
 {
 result = Map();
 result.put("status","skipped");
@@ -13,14 +12,18 @@ if(safe_deal_id == "" || safe_contact_id == "")
 }
 try
 {
-	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
-	if(deal_record == null)
+	deal = deal_record;
+	if(deal == null || deal.isEmpty())
+	{
+		deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	}
+	if(deal == null)
 	{
 		result.put("status","failed");
 		result.put("reason","deal_not_found");
 		return result;
 	}
-	contact_ref = deal_record.get("Contact_Name");
+	contact_ref = deal.get("Contact_Name");
 	existing_id = "";
 	if(contact_ref != null)
 	{

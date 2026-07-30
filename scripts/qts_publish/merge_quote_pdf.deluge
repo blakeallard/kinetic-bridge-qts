@@ -1,5 +1,3 @@
-// Writer merge → PDF file. Shared by Save + Email.
-// Connection: writer_to_flow (existing). No new OAuth scopes.
 map merge_quote_pdf(map merge_data, string quote_number)
 {
 result = Map();
@@ -38,6 +36,22 @@ if(merged_file == null)
 	result.put("status","failed");
 	result.put("reason","merge_failed");
 	return result;
+}
+// Writer error payloads arrive as maps with error/code — reject before filing/emailing.
+try
+{
+	err_msg = ifnull(merged_file.get("error"),"").toString().trim();
+	err_code = ifnull(merged_file.get("code"),"").toString().trim();
+	err_message = ifnull(merged_file.get("message"),"").toString().trim();
+	if(err_msg != "" || err_code != "" || err_message != "")
+	{
+		result.put("status","failed");
+		result.put("reason","merge_error_payload");
+		return result;
+	}
+}
+catch (not_error_map)
+{
 }
 result.put("status","ok");
 result.put("merged_file",merged_file);

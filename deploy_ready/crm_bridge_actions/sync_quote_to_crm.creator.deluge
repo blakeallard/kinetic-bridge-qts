@@ -1,0 +1,42 @@
+// Paste into the matching split CRM_Bridge workflow Deluge action.
+// Do NOT paste into the Disabled "CRM Bridge" monolith unless consolidating.
+out = Map();
+action_name = ifnull(input.Action_field,"");
+input.Request_Status = "error";
+
+if(action_name == "sync_quote_to_crm")
+{
+	quote_id_text = ifnull(input.Query_Text,"").trim();
+	if(quote_id_text == "")
+	{
+		out.put("error","sync_quote_to_crm requires a Quote_Request record ID in Query_Text");
+	}
+	else
+	{
+		try
+		{
+			thisapp.fn_calc_quote_lines(quote_id_text);
+			thisapp.fn_sync_to_crm(quote_id_text);
+			deal_id_out = "";
+			for each  quote_hdr in Quote_Request[ID == quote_id_text.toLong()]
+			{
+				deal_id_out = ifnull(quote_hdr.CRM_Deal_ID,"").toString();
+				break;
+			}
+			out.put("status","synced");
+			out.put("quote_id",quote_id_text);
+			out.put("crm_deal_id",deal_id_out);
+			input.Request_Status = "done";
+		}
+		catch (sync_err)
+		{
+			out.put("error","sync_quote_to_crm failed: " + sync_err.toString());
+		}
+	}
+}
+
+if(action_name != "sync_quote_to_crm")
+{
+	out.put("error","This workflow only handles sync_quote_to_crm");
+}
+input.Result_jSON = out.toString();

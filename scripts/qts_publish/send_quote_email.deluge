@@ -1,6 +1,4 @@
-// EMAIL-ONLY: Kinetic Bridge quote sendmail + optional CRM email association.
-// Save Quote Package must never invoke this step.
-map send_quote_email(string deal_id, string contact_id, string contact_email, string quote_number, string quote_action, file merged_file, string cc_email)
+map send_quote_email(string deal_id, string contact_id, string contact_email, string quote_number, string quote_action, file merged_file, string cc_email, map deal_record)
 {
 result = Map();
 result.put("status","skipped");
@@ -22,15 +20,19 @@ if(safe_deal_id != "")
 {
 	try
 	{
-		deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
-		if(deal_record != null)
+		deal = deal_record;
+		if(deal == null || deal.isEmpty())
 		{
-			owner_ref = deal_record.get("Owner");
+			deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+		}
+		if(deal != null)
+		{
+			owner_ref = deal.get("Owner");
 			if(owner_ref != null)
 			{
 				deal_owner_email = ifnull(owner_ref.get("email"),"").toString().trim();
 			}
-			account_ref = deal_record.get("Account_Name");
+			account_ref = deal.get("Account_Name");
 			if(account_ref != null)
 			{
 				account_id_text = ifnull(account_ref.get("id"),"").toString().trim();
@@ -79,18 +81,27 @@ try
 }
 catch (owner_send_error)
 {
-	sendmail
-	[
-		from : zoho.adminuserid
-		to : safe_contact_email
-		cc : quote_cc
-		subject : email_subject
-		message : email_body
-		Attachments : file:merged_file
-	]
-	result.put("email_sent","yes");
-	result.put("email_from","admin_fallback");
-	mail_from = zoho.adminuserid;
+	try
+	{
+		sendmail
+		[
+			from : zoho.adminuserid
+			to : safe_contact_email
+			cc : quote_cc
+			subject : email_subject
+			message : email_body
+			Attachments : file:merged_file
+		]
+		result.put("email_sent","yes");
+		result.put("email_from","admin_fallback");
+		mail_from = zoho.adminuserid;
+	}
+	catch (admin_send_error)
+	{
+		result.put("status","failed");
+		result.put("reason","email_send_failed");
+		return result;
+	}
 }
 if(result.get("email_sent") == "yes")
 {

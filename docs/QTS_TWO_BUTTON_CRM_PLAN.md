@@ -10,11 +10,82 @@ External path pointers: [`QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](./QTS_TWO_BUT
 | Stage | Status |
 | ----- | ------ |
 | Stage 0 — Spec lock | **complete** |
-| Stage 1 — Widget UX consolidation | **complete** |
-| Stage 2 — Flow pipeline hardening | **complete** |
-| Stage 3 — WorkDrive revision organization | **complete** |
-| Stage 4 — Creator revision history | **complete** |
-| Stage 5 — Verify | **complete** (local) — live Zoho: see `QTS_TWO_BUTTON_CRM_VERIFY.md` |
+| Stage 1 — Widget UX consolidation | **complete** (widget ZIP uploaded) |
+| Stage 2 — Flow pipeline hardening | **repo complete** — live paste/verify pending |
+| Stage 3 — WorkDrive revision organization | **root folder created** (`QTS Quotes` ID locked); module wire pending |
+| Stage 4 — Creator revision history | **helper drafted** |
+| Stage 5 — Verify | **BLOCKED 2026-07-29 evening** — Creator external-call daily quota exhausted; resume after reset (~00:00 Super Admin TZ). See below. |
+
+---
+
+## Creator API / external-call limits (LOCKED RISK — 2026-07-29)
+
+Canonical Zoho doc: [API limits](https://www.zoho.com/creator/help/api/v2.1/api-limits.html)  
+Usage UI: [Access usage details](https://www.zoho.com/creator/newhelp/account-setup/access-usage-details.html)
+
+### Two different budgets (do not conflate)
+
+| Bucket | What counts | What does **not** |
+| ------ | ----------- | ----------------- |
+| **Developer API** / **Custom API** (table on the API-limits page) | Creator REST APIs; Deluge `zoho.creator.*` integration tasks; `invokeurl` **to Creator/Custom APIs** | Integration tasks to **other Zoho services** (e.g. `zoho.crm.*`) — Zoho states these **do not** count toward Developer API |
+| **External Calls** (plan “External calls” / Usage Details) | Webhooks, many non-Creator integrations, `invokeurl` outbound; **this is the pool QTS CRM Deluge hits** via `zoho.crm.*` | — |
+
+Daily reset for API usage on that page: **00:00–23:59 Super Admin timezone**. Same idea for plan External Calls in Usage Details.
+
+Developer / Custom API plan table (from Zoho):
+
+| Plan | Developer API | Custom API |
+| ---- | ------------- | ---------- |
+| Free | 250 / day | 100 / day |
+| Standard | 250 / user / day | 100 / user / day |
+| Professional | 500 / user / day | 250 / user / day |
+| Enterprise / Zoho One | 1000 / user / day | 500 / user / day |
+
+Also on that page: **50 API calls / user / minute** throttle; **6 concurrent** API calls / account (HTTP 429).
+
+Zoho tip (same page): **optimize loops** — tasks inside loops multiply usage.
+
+### Will this be a problem when the app is deployed?
+
+**Yes, limits still apply in production** (dev/stage are not a free pass).
+
+For QTS specifically:
+
+- Widget → `CRM_Bridge` → `zoho.crm.*` spends the **External Calls** budget (not the Developer API column on that HTML table).
+- Error text we hit: `Total number of External Call Statements exceeded` → treat as **External Calls / integration-task budget exhausted or per-script cap**, not “fix the Developer API calculator alone.”
+- Inefficient loops (one CRM search per quote line, 3–5 Contact searches per lookup) burn the day in QA **and** can fail real users after publish.
+- Split bridge workflows help isolate actions; they **do not** remove the daily External Calls pool.
+- Flow Writer/CRM/WorkDrive is a **separate** Flow quota.
+
+**Mitigation before relying on prod:**
+
+1. Batch CRM lookups (Products OR-criteria; Contact/Lead single OR search) — keep **few** `zoho.crm.*` executions per action.
+2. Never re-introduce per-line CRM loops.
+3. After reset: check **Usage Details → External Calls** (and Developer API if relevant) before retesting.
+4. If External Calls tier is tight for sales volume, upgrade plan or buy more capacity from Billing.
+
+### How to see usage
+
+Not inside the QTS page:
+
+1. Creator → **Billing** / **Setup** → **Usage Details**.
+2. Read **External Calls** (CRM bridge/sync) and **Developer API** / **Custom API** (Creator REST / `zoho.creator.*`).
+3. Optional usage alerts for Super Admin near cap.
+
+### Tonight’s operating rule
+
+- **No more Creator CRM testing until after daily reset.**
+- Next session: check Usage Details first → paste efficient `fn_sync_to_crm` + **CRM Bridge - search_customers** (and `search_leads` if still multi-call) → one search + one Save only.
+- Live CRM_Bridge is **split per action** (monolith “CRM Bridge” Disabled). Do **not** paste the whole monolith into the disabled workflow.
+
+### Deploy paste map (split workflows)
+
+| Repo file / block | Live Creator target |
+| ----------------- | ------------------- |
+| `deploy_ready/fn_sync_to_crm.creator.deluge` | Function `fn_sync_to_crm` (used by workflow **sync_quote_to_crm**) |
+| `search_customers` block in `crm_bridge_on_create.creator.deluge` | Workflow **CRM Bridge - search_customers** |
+| `search_leads` block (batch OR — still TODO if live has a loop) | Workflow **search_leads** |
+| Disabled **CRM Bridge** (09-Jul) | Leave disabled unless deliberately consolidating |
 
 ---
 
@@ -30,7 +101,7 @@ These defaults are locked for implementation. Override only with an explicit Bla
 | Email → Creator Status | `Package Requested` |
 | Deal stage on Email only | **Negotiation/Review** |
 | WorkDrive root folder **name** | `QTS Quotes` |
-| WorkDrive root folder **ID** | **UNKNOWN** — use config placeholder `QTS_QUOTES_ROOT_FOLDER_ID` (empty string) and resolve by name under the Team Folder / parent used by Flow (`workdrive_ensure_quote_folders`) |
+| WorkDrive root folder **ID** | `wctzef9e0b057e781406896d8866994e93156` (My Folders → `QTS Quotes`) |
 | WorkDrive layout | `QTS Quotes/{quote_number}/{CURRENT,CONFIRMED,DRAFTS}/` |
 | Stable PDF filename | `Kinetic_Bridge_Quote_{quote_number}.pdf` |
 | DRAFTS filename suffix | `r{n}_{yyyyMMdd_HHmmss}` (e.g. `Kinetic_Bridge_Quote_QUOTE0001_r2_20260729_173045.pdf`) |
@@ -43,7 +114,7 @@ Config comment pattern (Deluge):
 ```deluge
 // QTS_QUOTES_ROOT_FOLDER_ID: paste WorkDrive folder resource_id when known.
 // Until then, look up a child named "QTS Quotes" under the Flow connection parent.
-qts_quotes_root_folder_id = ""; // PLACEHOLDER — name-based lookup when blank
+qts_quotes_root_folder_id = "wctzef9e0b057e781406896d8866994e93156";
 qts_quotes_root_folder_name = "QTS Quotes";
 ```
 

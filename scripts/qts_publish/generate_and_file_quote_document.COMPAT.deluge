@@ -1,8 +1,3 @@
-// CANONICAL OWNERSHIP: BI1-T71 scripts/qts_publish/ (modular two-button pipeline).
-// This T110 copy stays for the live Flow custom function until Blake rewires Flow
-// to T71 modules. Keep send_email gating in sync with T71:
-//   send_email=false (PDF Filed / Save) → NO CRM Quotes, NO sendmail, NO stage
-//   send_email=true  (Package Requested / Email) → Quotes + sendmail (+ stage in Flow)
 map generate_and_file_quote_document(string deal_id, string contact_id, string contact_email, map merge_data, bool send_email, string quote_request_id, string cc_email)
 {
 result = Map();
@@ -18,8 +13,6 @@ result.put("email_associated","no");
 result.put("email_associated_account","no");
 result.put("deal_renamed","no");
 result.put("branch",if(send_email,"email","save"));
-// Original table layout (DESCRIPTION|QTY|UNIT PRICE|TOTAL). Requires Writer
-// subform bind on line_items — flat line_items.* fills 1 row; array needs type=subform.
 template_document_id = "h5zhu2051759ecefd4148816cf61ad65a9cbc";
 safe_deal_id = ifnull(deal_id,"").trim();
 if(safe_deal_id == "")
@@ -53,6 +46,21 @@ if(merged_file == null)
 	result.put("status","failed");
 	result.put("reason","merge_failed");
 	return result;
+}
+try
+{
+	err_msg = ifnull(merged_file.get("error"),"").toString().trim();
+	err_code = ifnull(merged_file.get("code"),"").toString().trim();
+	err_message = ifnull(merged_file.get("message"),"").toString().trim();
+	if(err_msg != "" || err_code != "" || err_message != "")
+	{
+		result.put("status","failed");
+		result.put("reason","merge_error_payload");
+		return result;
+	}
+}
+catch (not_error_map)
+{
 }
 safe_contact_id = ifnull(contact_id,"").trim();
 quote_record_id = "";
@@ -108,14 +116,12 @@ catch (deal_refetch_error)
 {
 	quoted_items = List();
 }
-// Loud fail before Quotes/email when Deal has no products after widget sync
 if(quoted_items.size() == 0)
 {
 	result.put("status","failed");
 	result.put("reason","associated_products_empty_after_sync");
 	return result;
 }
-// CRM Quotes upsert is EMAIL-ONLY (Save / PDF Filed must skip Quotes APIs entirely)
 if(send_email && quoted_items.size() > 0)
 {
 	quote_subject = "Kinetic Bridge Quote " + quote_number;
@@ -158,7 +164,9 @@ if(send_email && quoted_items.size() > 0)
 	}
 	catch (quote_search_error)
 	{
-		existing_quote_id = "";
+		result.put("status","failed");
+		result.put("reason","quote_search_failed");
+		return result;
 	}
 	if(existing_quote_id != "")
 	{
@@ -212,16 +220,57 @@ if(quote_record_id != "")
 		result.put("attached_to_quote","no");
 	}
 }
-// Deal attachment always mirrors CURRENT (both Save and Email)
-deal_attach = zoho.crm.attachFile("Deals",safe_deal_id.toLong(),merged_file,"zoho_crm_to_zoho_flow");
-if(deal_attach != null && ifnull(deal_attach.get("status"),"") != "error")
+try
 {
-	result.put("attached_to_deal","yes");
+	att_resp = invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Attachments"
+		type :GET
+		connection:"zoho_crm_to_zoho_flow"
+	];
+	atts = ifnull(att_resp.get("data"),List());
+	delete_ids = "";
+	for each att in atts
+	{
+		fname = ifnull(att.get("File_Name"),"").toString();
+		aid = ifnull(att.get("id"),"").toString().trim();
+		if(aid != "" && fname.contains("Kinetic_Bridge_Quote_"))
+		{
+			if(delete_ids != "") { delete_ids = delete_ids + ","; }
+			delete_ids = delete_ids + aid;
+		}
+	}
+	if(delete_ids != "")
+	{
+		invokeurl
+		[
+			url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Attachments?ids=" + delete_ids
+			type :DELETE
+			connection:"zoho_crm_to_zoho_flow"
+		];
+	}
 }
-else
+catch (prior_attach_error)
+{
+}
+try
+{
+	deal_attach = zoho.crm.attachFile("Deals",safe_deal_id.toLong(),merged_file,"zoho_crm_to_zoho_flow");
+	if(deal_attach != null && ifnull(deal_attach.get("status"),"") != "error")
+	{
+		result.put("attached_to_deal","yes");
+	}
+	else
+	{
+		result.put("status","failed");
+		result.put("reason","deal_attach_failed");
+		return result;
+	}
+}
+catch (deal_attach_error)
 {
 	result.put("status","failed");
-	result.put("reason","deal_attach_failed");
+	result.put("reason","deal_attach_exception");
 	return result;
 }
 if(safe_contact_id != "" && quote_number != "")
@@ -241,7 +290,6 @@ if(safe_contact_id != "" && quote_number != "")
 		}
 	}
 }
-// Keep Deal_Name aligned with the CURRENT quote number (fixes …-0005 chip on a 0006 package).
 if(quote_number != "" && safe_deal_id != "")
 {
 	deal_label_company = company_name_text;
@@ -270,6 +318,47 @@ if(quote_number != "" && safe_deal_id != "")
 		result.put("deal_renamed","no");
 	}
 }
+if(send_email && safe_deal_id != "")
+{
+	try
+	{
+		stage_deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+		if(stage_deal != null)
+		{
+			cur_stage = ifnull(stage_deal.get("Stage"),"").toString().trim();
+			closed_stages = List();
+			closed_stages.add("Closed Won");
+			closed_stages.add("Closed Lost");
+			closed_stages.add("Closed Lost to Competition");
+			stage_rank = Map();
+			stage_rank.put("Qualification",1);
+			stage_rank.put("Needs Analysis",2);
+			stage_rank.put("Value Proposition",3);
+			stage_rank.put("Identify Decision Makers",4);
+			stage_rank.put("Id. Decision Makers",4);
+			stage_rank.put("Proposal/Price Quote",5);
+			stage_rank.put("Negotiation/Review",6);
+			if(!closed_stages.contains(cur_stage))
+			{
+				cur_rank = ifnull(stage_rank.get(cur_stage),0);
+				if(cur_rank < 6)
+				{
+					stage_upd = Map();
+					stage_upd.put("Stage","Negotiation/Review");
+					stage_resp = zoho.crm.updateRecord("Deals",safe_deal_id.toLong(),stage_upd);
+					if(stage_resp != null && ifnull(stage_resp.get("status"),"") != "error")
+					{
+						result.put("deal_stage_advanced","yes");
+					}
+				}
+			}
+		}
+	}
+	catch (stage_advance_error)
+	{
+		result.put("deal_stage_advanced","no");
+	}
+}
 safe_contact_email = ifnull(contact_email,"").trim();
 if(send_email && safe_contact_email != "")
 {
@@ -281,7 +370,6 @@ if(send_email && safe_contact_email != "")
 		email_subject = "Your updated Kinetic Bridge quote " + quote_number;
 		intro_line = "Please find the updated version of your quote " + quote_number + " attached. This replaces the previous version.";
 	}
-	// HTML body: Flow sendmail collapses plain \\n; <br> survives Proton/Gmail rendering.
 	email_body = "Hello,<br><br>";
 	email_body = email_body + intro_line + "<br><br>";
 	email_body = email_body + "The quote is valid until the date shown on the document. Reply to this email with any questions and we will be glad to help.<br><br>";
@@ -325,7 +413,6 @@ if(send_email && safe_contact_email != "")
 		result.put("email_from","admin_fallback");
 		mail_from = zoho.adminuserid;
 	}
-	// Append outbound quote mail to CRM Emails activity (Contact + Account). Best-effort.
 	if(result.get("email_sent") == "yes")
 	{
 		assoc_message_id = "qts-quote-" + quote_number + "-" + zoho.currenttime.toString("yyyyMMddHHmmss");

@@ -1,12 +1,3 @@
-// Thin orchestrator for Save Quote Package / Email Quote Package.
-// Prefer wiring these steps as separate Zoho Flow actions (thisapp.* only works
-// if functions are hosted in Creator). Until then, deploy
-// generate_and_file_quote_document.deluge (gated monolith) as the Flow CF.
-//
-// send_email=false → shared only (NO Quotes / sendmail / stage / CONFIRMED).
-// send_email=true  → shared + email-only extras.
-//
-// Prerequisite: widget already ran sync_quote_to_crm (Deal Associated Products).
 map publish_quote_package(string deal_id, string contact_id, string contact_email, map merge_data, bool send_email, string quote_request_id, string cc_email, string workdrive_parent_folder_id)
 {
 result = Map();
@@ -32,6 +23,12 @@ if(merge_data == null || merge_data.isEmpty())
 	return result;
 }
 quote_number = ifnull(merge_data.get("quote_number"),"").toString().trim();
+if(quote_number == "")
+{
+	result.put("status","failed");
+	result.put("reason","quote_number_missing");
+	return result;
+}
 stable_filename = "Kinetic_Bridge_Quote_" + quote_number + ".pdf";
 revision = 1;
 try
@@ -46,9 +43,21 @@ if(revision < 1)
 {
 	revision = 1;
 }
-// ---- SHARED (Save + Email) ----
-// Flow step: assert_deal_has_products(deal_id)
-products_check = assert_deal_has_products(safe_deal_id);
+// Single Deal fetch for the whole publish run — pass into helpers to avoid External Calls amplification.
+deal_record = Map();
+try
+{
+	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	if(deal_record == null)
+	{
+		deal_record = Map();
+	}
+}
+catch (deal_fetch_error)
+{
+	deal_record = Map();
+}
+products_check = assert_deal_has_products(safe_deal_id,deal_record);
 result.put("assert_products",products_check);
 if(ifnull(products_check.get("status"),"") != "ok")
 {
@@ -56,10 +65,8 @@ if(ifnull(products_check.get("status"),"") != "ok")
 	result.put("reason",ifnull(products_check.get("reason"),"associated_products_empty_after_sync"));
 	return result;
 }
-// Flow step: ensure_deal_contact_link(deal_id, contact_id)
-link_check = ensure_deal_contact_link(safe_deal_id,ifnull(contact_id,"").trim());
+link_check = ensure_deal_contact_link(safe_deal_id,ifnull(contact_id,"").trim(),deal_record);
 result.put("deal_contact_link",link_check);
-// Flow step: merge_quote_pdf(merge_data, quote_number)
 merge_res = merge_quote_pdf(merge_data,quote_number);
 result.put("merge",merge_res);
 if(ifnull(merge_res.get("status"),"") != "ok")
@@ -69,20 +76,19 @@ if(ifnull(merge_res.get("status"),"") != "ok")
 	return result;
 }
 merged_file = merge_res.get("merged_file");
-// Flow steps: workdrive_ensure → archive → store CURRENT (+ CONFIRMED if email)
 folders = workdrive_ensure_quote_folders(quote_number,ifnull(workdrive_parent_folder_id,"").trim());
 result.put("workdrive_folders",folders);
 if(ifnull(folders.get("status"),"") == "ok")
 {
 	archive_res = workdrive_archive_to_drafts(ifnull(folders.get("current_id"),"").toString(),ifnull(folders.get("drafts_id"),"").toString(),stable_filename,revision,"",false);
 	result.put("workdrive_archive",archive_res);
-	store_cur = workdrive_store_current(ifnull(folders.get("current_id"),"").toString(),merged_file,quote_number);
+	store_cur = workdrive_store_current(ifnull(folders.get("current_id"),"").toString(),merged_file,stable_filename);
 	result.put("workdrive_current",store_cur);
 	if(send_email)
 	{
-		archive_conf = workdrive_archive_to_drafts(ifnull(folders.get("confirmed_id"),"").toString(),ifnull(folders.get("drafts_id"),"").toString(),stable_filename,revision,ifnull(folders.get("confirmed_id"),"").toString(),true);
+		archive_conf = workdrive_archive_to_drafts("",ifnull(folders.get("drafts_id"),"").toString(),stable_filename,revision,ifnull(folders.get("confirmed_id"),"").toString(),true);
 		result.put("workdrive_archive_confirmed",archive_conf);
-		store_conf = workdrive_store_confirmed(ifnull(folders.get("confirmed_id"),"").toString(),merged_file,quote_number);
+		store_conf = workdrive_store_confirmed(ifnull(folders.get("confirmed_id"),"").toString(),merged_file,stable_filename);
 		result.put("workdrive_confirmed",store_conf);
 	}
 }
@@ -90,8 +96,7 @@ else
 {
 	result.put("workdrive_skipped_reason",ifnull(folders.get("reason"),"workdrive_unavailable"));
 }
-// Flow step: crm_replace_deal_attachment — ALWAYS (Save + Email)
-deal_attach = crm_replace_deal_attachment(safe_deal_id,merged_file,quote_number);
+deal_attach = crm_replace_deal_attachment(safe_deal_id,merged_file,quote_number,deal_record);
 result.put("deal_attachment",deal_attach);
 if(ifnull(deal_attach.get("status"),"") != "ok")
 {
@@ -99,7 +104,6 @@ if(ifnull(deal_attach.get("status"),"") != "ok")
 	result.put("reason",ifnull(deal_attach.get("reason"),"deal_attach_failed"));
 	return result;
 }
-// Flow step: snapshot_creator_revision — best-effort
 try
 {
 	snap = snapshot_creator_revision(ifnull(quote_request_id,"").trim(),quote_number,merge_data,folders);
@@ -109,14 +113,19 @@ catch (snap_error)
 {
 	result.put("creator_revision_error","skipped");
 }
-// ---- EMAIL-ONLY (never on Save) ----
 if(send_email)
 {
-	quote_res = upsert_crm_quote(safe_deal_id,ifnull(contact_id,"").trim(),quote_number,ifnull(quote_request_id,"").trim(),merge_data,merged_file);
+	quote_res = upsert_crm_quote(safe_deal_id,ifnull(contact_id,"").trim(),quote_number,ifnull(quote_request_id,"").trim(),merge_data,merged_file,deal_record);
 	result.put("crm_quote",quote_res);
-	mail_res = send_quote_email(safe_deal_id,ifnull(contact_id,"").trim(),ifnull(contact_email,"").trim(),quote_number,ifnull(quote_res.get("quote_action"),""),merged_file,ifnull(cc_email,"").trim());
+	if(ifnull(quote_res.get("status"),"") != "ok")
+	{
+		result.put("status","failed");
+		result.put("reason",ifnull(quote_res.get("reason"),"quote_upsert_failed"));
+		return result;
+	}
+	mail_res = send_quote_email(safe_deal_id,ifnull(contact_id,"").trim(),ifnull(contact_email,"").trim(),quote_number,ifnull(quote_res.get("quote_action"),""),merged_file,ifnull(cc_email,"").trim(),deal_record);
 	result.put("email",mail_res);
-	stage_res = advance_deal_stage(safe_deal_id);
+	stage_res = advance_deal_stage(safe_deal_id,deal_record);
 	result.put("deal_stage",stage_res);
 }
 result.put("status","filed");
