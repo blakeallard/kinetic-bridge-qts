@@ -6,6 +6,14 @@
 
 Zoho Task ID: 2543412000001469015
 
+## Active: QTS two-button CRM package (2026-07-29)
+
+Execution home: **this repo**. Not Supabase→Databricks. Not T110 product ownership.
+
+- Plan: [`docs/QTS_TWO_BUTTON_CRM_PLAN.md`](docs/QTS_TWO_BUTTON_CRM_PLAN.md)
+- External anchors: [`docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md)
+- Stage 0 in progress → then Stage 1 widget at `widget/app/widget.js`
+
 ## Metadata
 
 - Task key: `BI1-T71`
@@ -15,7 +23,7 @@ Zoho Task ID: 2543412000001469015
 - Owner: 923987103
 - Tags: automation, internal-work, repo-needed
 - Zoho task URL: Not provided
-- Repository URL: https://github.com/blake-bevco-tech/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations
+- Repository URL: https://github.com/blakeallard/kinetic-bridge-qts
 - Generated at: 2026-07-02T12:32:43-07:00
 
 ## Description
