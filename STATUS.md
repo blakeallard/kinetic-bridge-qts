@@ -4,9 +4,26 @@
 
 # BI1-T71 Status
 
-Last updated: 2026-07-26 (session summary: `docs/ACCOMPLISHMENTS_2026-07-26.md`)
+Last updated: 2026-07-29 (active: QTS two-button CRM)
 
-Canonical current-state file:
+## Active: QTS two-button CRM package
+
+**Execution home is this repo (BI1-T71).** This is **not** Supabase→Databricks work and **not** BI1-T110 product ownership.
+
+- Plan: [`docs/QTS_TWO_BUTTON_CRM_PLAN.md`](docs/QTS_TWO_BUTTON_CRM_PLAN.md)
+- External anchors: [`docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md)
+- Session handoff: [`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)
+
+| Stage | Status |
+| ----- | ------ |
+| Stage 0 — Spec lock | **in_progress** |
+| Stages 1–5 | pending |
+
+**Next:** lock Stage 0 defaults with Blake, then Stage 1 widget UX at `/Users/blakeallard/bevco/qts-quote-builder/app/widget.js` (+ Pack Bay mirror under `artifacts/qts-widget-ui-packbay/`).
+
+---
+
+Canonical current-state file (historical / broader QTS):
 
 - `QTS_PROJECT_STATUS.md`
 

@@ -6,6 +6,14 @@
 
 Zoho Task ID: 2543412000001469015
 
+## Active: QTS two-button CRM package (2026-07-29)
+
+Execution home: **this repo**. Not Supabase→Databricks. Not T110 product ownership.
+
+- Plan: [`docs/QTS_TWO_BUTTON_CRM_PLAN.md`](docs/QTS_TWO_BUTTON_CRM_PLAN.md)
+- External anchors: [`docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md)
+- Stage 0 in progress → then Stage 1 widget at `qts-quote-builder/app/widget.js`
+
 ## Metadata
 
 - Task key: `BI1-T71`
