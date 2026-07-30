@@ -243,7 +243,7 @@ Further lightweight rules:
 
 ## Current code anchors (what we will reshape)
 
-- Widget (primary edit surface): `/Users/blakeallard/bevco/qts-quote-builder/app/widget.js` + `widget.html` — also mirror Pack Bay under `artifacts/qts-widget-ui-packbay/` in this repo
+- Widget (primary edit surface): `widget/app/widget.js` + `widget.html` — Pack Bay mirror also under `artifacts/qts-widget-ui-packbay/`
 - Deal product sync (T71): `functions/fn_sync_to_crm.deluge` / `deploy_ready/fn_sync_to_crm.creator.deluge` + widget `sync_quote_to_crm` bridge
 - PDF + email + conditional Quotes (external today): T110 `scripts/generate_and_file_quote_document.deluge` — see external anchors doc
 - Status → Flow mapping (external today): T110 `docs/PDF_FILE_NO_EMAIL.md`

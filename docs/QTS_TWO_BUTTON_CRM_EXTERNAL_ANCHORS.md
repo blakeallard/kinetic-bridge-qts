@@ -1,54 +1,35 @@
-# QTS two-button CRM — external code anchors
+# QTS two-button CRM — external anchors
 
-Product ownership and execution for this plan live in **BI1-T71**.
+Paths are **repo-relative** (Kinetic Bridge QTS product repo = this T71 tree).
 
-## Widget (Stage 1 — done)
+## Widget (canonical — in this repo)
 
-| Role | Path |
-| ---- | ---- |
-| Primary widget app | `/Users/blakeallard/bevco/qts-quote-builder/app/widget.js` |
-| Primary widget HTML | `/Users/blakeallard/bevco/qts-quote-builder/app/widget.html` |
-| Pack Bay mirror (T71) | `artifacts/qts-widget-ui-packbay/` |
-| Widget tests | `/Users/blakeallard/bevco/qts-quote-builder/tests/widget_state_test.js` |
+| Piece | Path |
+| ----- | ---- |
+| Primary widget app | `widget/app/widget.js` |
+| Primary widget HTML | `widget/app/widget.html` |
+| Widget CSS | `widget/app/widget.css` |
+| Widget tests | `widget/tests/widget_state_test.js` |
+| Pack Bay ZIP | `widget/dist/qts-quote-builder.zip` |
+| Pack Bay UI mirror | `artifacts/qts-widget-ui-packbay/` |
 
-Key symbol: `publishQuotePackage({ email })` — Deal sync first, then Status `PDF Filed` / `Package Requested`.
+Legacy local folder `qts-quote-builder` outside this repo is retired as source of truth.
 
-## Modular Flow / Deluge (T71 — canonical)
+## Flow / publish Deluge (this repo)
 
-| Role | Path |
-| ---- | ---- |
-| Module directory | `scripts/qts_publish/` |
-| Thin orchestrator | `scripts/qts_publish/publish_quote_package.deluge` |
-| Compat monolith (send_email gated) | `scripts/qts_publish/generate_and_file_quote_document.COMPAT.deluge` |
-| Module README | `scripts/qts_publish/README.md` |
+| Piece | Path |
+| ----- | ---- |
+| Orchestrator | `scripts/qts_publish/publish_quote_package.deluge` |
+| Modular steps | `scripts/qts_publish/*.deluge` |
+| COMPAT / monolith (no WorkDrive) | `scripts/qts_publish/generate_and_file_quote_document*.deluge` |
 
-## Creator sync (T71)
+## Creator
 
-| Role | Path |
-| ---- | ---- |
-| Sync source | `functions/fn_sync_to_crm.deluge` |
-| Deploy paste | `deploy_ready/fn_sync_to_crm.creator.deluge` |
-| CRM bridge | `deploy_ready/crm_bridge_on_create.creator.deluge` |
+| Piece | Path |
+| ----- | ---- |
+| `fn_sync_to_crm` | `deploy_ready/fn_sync_to_crm.creator.deluge` |
+| Bridge actions | `deploy_ready/crm_bridge_actions/` |
 
-## External (T110 — keep in sync until Flow rewired)
+## Historical T110 notes
 
-| Role | Path |
-| ---- | ---- |
-| Live Flow function (gated copy) | `/Users/blakeallard/bevco/repos/bi1-t110-design-and-implement-ai-email-intelligence-workflow/scripts/generate_and_file_quote_document.deluge` |
-| Status → Flow mapping | `/Users/blakeallard/bevco/repos/bi1-t110-design-and-implement-ai-email-intelligence-workflow/docs/PDF_FILE_NO_EMAIL.md` |
-| Merge payload builder | `/Users/blakeallard/bevco/repos/bi1-t110-design-and-implement-ai-email-intelligence-workflow/scripts/build_quote_merge_payload.deluge` |
-
-**Copy path:** After editing T71 modules, re-paste into Zoho Flow. Until then, T110 COMPAT gating (Quotes only when `send_email`) is the live safety net for Save.
-
-## Docs
-
-| Doc | Path |
-| --- | ---- |
-| Plan + SPEC_LOCK | `docs/QTS_TWO_BUTTON_CRM_PLAN.md` |
-| Creator revision fields | `docs/QTS_TWO_BUTTON_CRM_CREATOR_REVISION.md` |
-| E2E / verify checklist | `docs/QTS_TWO_BUTTON_CRM_VERIFY.md` |
-
-## Cursor plan mirror
-
-Do not edit: `~/.cursor/plans/qts_two-button_crm_c1152a58.plan.md`  
-Repo canonical: [`QTS_TWO_BUTTON_CRM_PLAN.md`](./QTS_TWO_BUTTON_CRM_PLAN.md)
+Older Flow copies may still exist under the BI1-T110 email-intelligence repo. **Publish ownership is T71 / this product repo** — do not treat T110 as canonical for Save/Email Quote Package.

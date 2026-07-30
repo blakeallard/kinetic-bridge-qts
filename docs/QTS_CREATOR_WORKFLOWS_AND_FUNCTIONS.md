@@ -94,7 +94,7 @@ Quote_Request Status → Zoho **Flow** (not Creator workflow) runs `generate_and
 
 ---
 
-## Widget bridgeCall map (`qts-quote-builder/app/widget.js`)
+## Widget bridgeCall map (`widget/app/widget.js`)
 
 | Widget call | Action_field |
 | ----------- | ------------ |

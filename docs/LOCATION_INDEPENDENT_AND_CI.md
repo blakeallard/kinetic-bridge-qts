@@ -29,7 +29,9 @@ python3 import_preview/generate_preview.py "/path/to/workbook.xlsx"
 | `security.yml` | No tracked secrets; optional `pip-audit` if `requirements.txt` |
 | `pr-validation.yml` | PR body + STATUS/docs contract |
 
-When merging widget into this product repo, keep paths relative (`widget/`, `packages/qts-quote-builder/`) — never hardcode a second checkout path.
+When merging widget into this product repo, keep paths relative (`widget/`) — never hardcode a second checkout path.
+
+**Status (2026-07-30):** Widget lives at `widget/` in this repo. Legacy `qts-quote-builder` outside the repo is not canonical.
 
 Action pins: `actions/checkout@v6` / `setup-python@v6` are valid (v7 exists; bump later via Dependabot if desired).
 
