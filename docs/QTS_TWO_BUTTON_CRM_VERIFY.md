@@ -16,6 +16,8 @@ Repo: BI1-T71
 
 ## Live Zoho (needs Blake — dry-run preferred)
 
+**2026-07-29 evening:** Stage 5 live testing **paused** — Creator **External Calls** daily quota exhausted. Resume after ~00:00 Super Admin TZ. Check **Creator → Usage Details → External Calls** before retrying. See plan section *Creator external-call limits*.
+
 Do **not** burn live client email unless intentional. Prefer internal contact + dry-run mail skip if Flow supports it.
 
 ### Matrix
@@ -53,7 +55,9 @@ Pack Bay mirror: T71 `artifacts/qts-widget-ui-packbay/`
 
 ## Known limitations
 
-- WorkDrive root folder ID still a placeholder until Blake pastes it.
+- WorkDrive root folder ID is locked: `wctzef9e0b057e781406896d8866994e93156` (`My Folders/QTS Quotes`) in `workdrive_ensure_quote_folders.deluge`.
+- Prefer modular Flow modules from `scripts/qts_publish/` (`publish_quote_package` orchestrator). COMPAT lacks WorkDrive; monolith `generate_and_file_quote_document.deluge` also lacks WorkDrive.
+- After 2026-07-30 review fixes: Deal is fetched once per publish; prior Deal quote PDFs are deleted before attach; product search is batched (≤8 ORs); empty product lookup no longer wipes Deal Associated Products.
 - Creator `Prior_Revision_Snapshot` / WD ID fields may not exist yet — snapshot is best-effort.
 - Zoho Flow may require pasting each module as a separate custom function (orchestrator uses `thisapp.*` calls).
 - T110 COMPAT script does not yet implement WorkDrive CURRENT/CONFIRMED/DRAFTS — use T71 modular steps for full WD layout.

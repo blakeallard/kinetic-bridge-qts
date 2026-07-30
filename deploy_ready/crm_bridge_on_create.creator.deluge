@@ -10,10 +10,7 @@ if(action_name == "search_customers")
 	seen_ids = List();
 	if(query_text != "")
 	{
-		search_criteria_list = List();
-		search_criteria_list.add("(Email:starts_with:" + query_text + ")");
-		search_criteria_list.add("(Last_Name:starts_with:" + query_text + ")");
-		search_criteria_list.add("(First_Name:starts_with:" + query_text + ")");
+		contact_criteria = "(Email:starts_with:" + query_text + ")or(Last_Name:starts_with:" + query_text + ")or(First_Name:starts_with:" + query_text + ")";
 		has_space = query_text.contains(" ");
 		if(has_space)
 		{
@@ -22,49 +19,33 @@ if(action_name == "search_customers")
 			first_token = name_tokens.get(0).trim();
 			last_index = token_count - 1;
 			last_token = name_tokens.get(last_index).trim();
-			first_token_ok = false;
-			if(first_token != "")
+			if(first_token != "" && last_token != "")
 			{
-				first_token_ok = true;
-			}
-			last_token_ok = false;
-			if(last_token != "")
-			{
-				last_token_ok = true;
-			}
-			if(first_token_ok)
-			{
-				if(last_token_ok)
-				{
-					search_criteria_list.add("((First_Name:starts_with:" + first_token + ")and(Last_Name:starts_with:" + last_token + "))");
-					search_criteria_list.add("((First_Name:starts_with:" + last_token + ")and(Last_Name:starts_with:" + first_token + "))");
-				}
+				contact_criteria = contact_criteria + "or((First_Name:starts_with:" + first_token + ")and(Last_Name:starts_with:" + last_token + "))";
+				contact_criteria = contact_criteria + "or((First_Name:starts_with:" + last_token + ")and(Last_Name:starts_with:" + first_token + "))";
 			}
 		}
-		for each  search_criteria in search_criteria_list
+		found = zoho.crm.searchRecords("Contacts",contact_criteria);
+		if(found != null)
 		{
-			found = zoho.crm.searchRecords("Contacts",search_criteria);
-			if(found != null)
+			for each  contact in found
 			{
-				for each  contact in found
+				contact_id = contact.get("id").toString();
+				if(!seen_ids.contains(contact_id))
 				{
-					contact_id = contact.get("id").toString();
-					if(!seen_ids.contains(contact_id))
+					seen_ids.add(contact_id);
+					row = Map();
+					row.put("contact_id",contact_id);
+					row.put("name",ifnull(contact.get("Full_Name"),""));
+					row.put("email",ifnull(contact.get("Email"),""));
+					row.put("phone",ifnull(contact.get("Phone"),""));
+					account_ref = contact.get("Account_Name");
+					if(account_ref != null)
 					{
-						seen_ids.add(contact_id);
-						row = Map();
-						row.put("contact_id",contact_id);
-						row.put("name",ifnull(contact.get("Full_Name"),""));
-						row.put("email",ifnull(contact.get("Email"),""));
-						row.put("phone",ifnull(contact.get("Phone"),""));
-						account_ref = contact.get("Account_Name");
-						if(account_ref != null)
-						{
-							row.put("account_id",ifnull(account_ref.get("id"),"").toString());
-							row.put("account_name",ifnull(account_ref.get("name"),""));
-						}
-						matches.add(row);
+						row.put("account_id",ifnull(account_ref.get("id"),"").toString());
+						row.put("account_name",ifnull(account_ref.get("name"),""));
 					}
+					matches.add(row);
 				}
 			}
 		}
@@ -229,6 +210,37 @@ if(action_name == "create_customer")
 			{
 				out.put("error","CRM Contact creation returned null");
 			}
+		}
+	}
+}
+
+if(action_name == "sync_quote_to_crm")
+{
+	quote_id_text = ifnull(input.Query_Text,"").trim();
+	if(quote_id_text == "")
+	{
+		out.put("error","sync_quote_to_crm requires a Quote_Request record ID in Query_Text");
+	}
+	else
+	{
+		try
+		{
+			thisapp.fn_calc_quote_lines(quote_id_text);
+			thisapp.fn_sync_to_crm(quote_id_text);
+			deal_id_out = "";
+			for each  quote_hdr in Quote_Request[ID == quote_id_text.toLong()]
+			{
+				deal_id_out = ifnull(quote_hdr.CRM_Deal_ID,"").toString();
+				break;
+			}
+			out.put("status","synced");
+			out.put("quote_id",quote_id_text);
+			out.put("crm_deal_id",deal_id_out);
+			input.Request_Status = "done";
+		}
+		catch (sync_err)
+		{
+			out.put("error","sync_quote_to_crm failed: " + sync_err.toString());
 		}
 	}
 }
@@ -640,11 +652,7 @@ if(action_name == "search_leads")
 	seen_lead_ids = List();
 	if(query_text != "")
 	{
-		lead_criteria_list = List();
-		lead_criteria_list.add("(Email:starts_with:" + query_text + ")");
-		lead_criteria_list.add("(Last_Name:starts_with:" + query_text + ")");
-		lead_criteria_list.add("(First_Name:starts_with:" + query_text + ")");
-		lead_criteria_list.add("(Company:starts_with:" + query_text + ")");
+		lead_criteria = "(Email:starts_with:" + query_text + ")or(Last_Name:starts_with:" + query_text + ")or(First_Name:starts_with:" + query_text + ")or(Company:starts_with:" + query_text + ")";
 		has_space = query_text.contains(" ");
 		if(has_space)
 		{
@@ -653,39 +661,33 @@ if(action_name == "search_leads")
 			first_token = name_tokens.get(0).trim();
 			last_index = token_count - 1;
 			last_token = name_tokens.get(last_index).trim();
-			if(first_token != "")
+			if(first_token != "" && last_token != "")
 			{
-				if(last_token != "")
-				{
-					lead_criteria_list.add("((First_Name:starts_with:" + first_token + ")and(Last_Name:starts_with:" + last_token + "))");
-					lead_criteria_list.add("((First_Name:starts_with:" + last_token + ")and(Last_Name:starts_with:" + first_token + "))");
-				}
+				lead_criteria = lead_criteria + "or((First_Name:starts_with:" + first_token + ")and(Last_Name:starts_with:" + last_token + "))";
+				lead_criteria = lead_criteria + "or((First_Name:starts_with:" + last_token + ")and(Last_Name:starts_with:" + first_token + "))";
 			}
 		}
-		for each  lead_criteria in lead_criteria_list
+		found_leads = zoho.crm.searchRecords("Leads",lead_criteria);
+		if(found_leads != null)
 		{
-			found_leads = zoho.crm.searchRecords("Leads",lead_criteria);
-			if(found_leads != null)
+			for each  lead in found_leads
 			{
-				for each  lead in found_leads
+				lead_id_val = ifnull(lead.get("id"),"").toString();
+				if(lead_id_val != "")
 				{
-					lead_id_val = ifnull(lead.get("id"),"").toString();
-					if(lead_id_val != "")
+					if(!seen_lead_ids.contains(lead_id_val))
 					{
-						if(!seen_lead_ids.contains(lead_id_val))
+						is_converted = ifnull(lead.get("$converted"),false);
+						if(is_converted == false)
 						{
-							is_converted = ifnull(lead.get("$converted"),false);
-							if(is_converted == false)
-							{
-								seen_lead_ids.add(lead_id_val);
-								row = Map();
-								row.put("lead_id",lead_id_val);
-								row.put("name",ifnull(lead.get("Full_Name"),""));
-								row.put("email",ifnull(lead.get("Email"),""));
-								row.put("phone",ifnull(lead.get("Phone"),""));
-								row.put("company",ifnull(lead.get("Company"),""));
-								lead_matches.add(row);
-							}
+							seen_lead_ids.add(lead_id_val);
+							row = Map();
+							row.put("lead_id",lead_id_val);
+							row.put("name",ifnull(lead.get("Full_Name"),""));
+							row.put("email",ifnull(lead.get("Email"),""));
+							row.put("phone",ifnull(lead.get("Phone"),""));
+							row.put("company",ifnull(lead.get("Company"),""));
+							lead_matches.add(row);
 						}
 					}
 				}
@@ -733,6 +735,7 @@ known_actions = List();
 known_actions.add("search_customers");
 known_actions.add("get_customer");
 known_actions.add("create_customer");
+known_actions.add("sync_quote_to_crm");
 known_actions.add("get_quote_lines");
 known_actions.add("expand_kit");
 known_actions.add("get_tax");

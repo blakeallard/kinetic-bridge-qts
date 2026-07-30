@@ -54,6 +54,24 @@ Browser (index.html + widget.js)
 
 Production Creator Deluge and the upload ZIP are **not** modified.
 
+## Relational CRM practice tables
+
+The jsonb mirror (`zoho_crm.records`) stays the sync target. For normal SQL joins,
+kinetic-quote also has schema **`crm`** (`accounts`, `contacts`, `leads`, `deals`,
+`deal_products`) with real foreign keys.
+
+Rebuild after a Zoho sync:
+
+```sql
+SELECT * FROM crm.refresh_from_mirror();
+
+SELECT deal_name, account_name, contact_name
+FROM crm.v_deal_overview
+WHERE deal_id LIKE 'LOCAL-%';
+```
+
+Migration: `~/Dev/bevco/kinetic-quote/supabase/migrations/20260730070000_crm_relational_practice.sql`
+
 ## Smoke checks
 
 ```sh

@@ -1,5 +1,3 @@
-// Upload/store merged PDF into WorkDrive CURRENT/ with stable filename.
-// Returns workdrive file id for Creator writeback when fields exist.
 map workdrive_store_current(string current_folder_id, file merged_file, string stable_filename)
 {
 result = Map();

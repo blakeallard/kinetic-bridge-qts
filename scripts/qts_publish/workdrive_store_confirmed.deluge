@@ -1,5 +1,3 @@
-// EMAIL-ONLY: store client-sent PDF in WorkDrive CONFIRMED/.
-// Save Quote Package must never invoke this step.
 map workdrive_store_confirmed(string confirmed_folder_id, file merged_file, string stable_filename)
 {
 result = Map();

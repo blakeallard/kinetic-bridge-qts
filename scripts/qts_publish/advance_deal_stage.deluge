@@ -1,6 +1,4 @@
-// EMAIL-ONLY: advance Deal stage to Negotiation/Review (forward-only).
-// Save Quote Package must never invoke this step.
-map advance_deal_stage(string deal_id)
+map advance_deal_stage(string deal_id, map deal_record)
 {
 result = Map();
 result.put("status","skipped");
@@ -18,6 +16,7 @@ stage_rank = Map();
 stage_rank.put("Qualification",1);
 stage_rank.put("Needs Analysis",2);
 stage_rank.put("Value Proposition",3);
+stage_rank.put("Identify Decision Makers",4);
 stage_rank.put("Id. Decision Makers",4);
 stage_rank.put("Proposal/Price Quote",5);
 stage_rank.put("Negotiation/Review",6);
@@ -26,14 +25,18 @@ stage_rank.put("Closed Lost",99);
 stage_rank.put("Closed Lost to Competition",99);
 try
 {
-	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
-	if(deal_record == null)
+	deal = deal_record;
+	if(deal == null || deal.isEmpty())
+	{
+		deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	}
+	if(deal == null)
 	{
 		result.put("status","failed");
 		result.put("reason","deal_not_found");
 		return result;
 	}
-	current_stage = ifnull(deal_record.get("Stage"),"").toString().trim();
+	current_stage = ifnull(deal.get("Stage"),"").toString().trim();
 	cur_rank = ifnull(stage_rank.get(current_stage),0).toLong();
 	tgt_rank = ifnull(stage_rank.get(target_stage),6).toLong();
 	if(cur_rank >= 99)

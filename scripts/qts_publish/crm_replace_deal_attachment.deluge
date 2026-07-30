@@ -1,16 +1,66 @@
-// Replace CRM Deal attachment so only the latest CURRENT PDF shows.
-// Best-effort: attach new file; prior same-name attachments left for CRM UI cleanup.
-map crm_replace_deal_attachment(string deal_id, file merged_file, string quote_number)
+map crm_replace_deal_attachment(string deal_id, file merged_file, string quote_number, map deal_record)
 {
 result = Map();
 result.put("status","skipped");
 result.put("attached_to_deal","no");
+result.put("prior_attachments_deleted",0);
 safe_deal_id = ifnull(deal_id,"").trim();
+safe_qno = ifnull(quote_number,"").trim();
 if(safe_deal_id == "" || merged_file == null)
 {
 	result.put("status","failed");
 	result.put("reason","deal_or_file_missing");
 	return result;
+}
+// Delete prior Kinetic Bridge quote PDFs on the Deal so only one current attach remains.
+try
+{
+	att_resp = invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Attachments"
+		type :GET
+		connection:"zoho_crm_to_zoho_flow"
+	];
+	atts = ifnull(att_resp.get("data"),List());
+	delete_ids = "";
+	deleted_n = 0;
+	for each att in atts
+	{
+		fname = ifnull(att.get("File_Name"),"").toString();
+		aid = ifnull(att.get("id"),"").toString().trim();
+		match = false;
+		if(fname.contains("Kinetic_Bridge_Quote_"))
+		{
+			match = true;
+		}
+		if(!match && safe_qno != "" && fname.contains(safe_qno) && fname.toLowerCase().endsWith(".pdf"))
+		{
+			match = true;
+		}
+		if(match && aid != "")
+		{
+			if(delete_ids != "")
+			{
+				delete_ids = delete_ids + ",";
+			}
+			delete_ids = delete_ids + aid;
+			deleted_n = deleted_n + 1;
+		}
+	}
+	if(delete_ids != "")
+	{
+		invokeurl
+		[
+			url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Attachments?ids=" + delete_ids
+			type :DELETE
+			connection:"zoho_crm_to_zoho_flow"
+		];
+		result.put("prior_attachments_deleted",deleted_n);
+	}
+}
+catch (prior_attach_error)
+{
+	result.put("prior_attach_delete","skipped");
 }
 try
 {
@@ -31,24 +81,26 @@ catch (attach_error)
 	result.put("status","failed");
 	result.put("reason","deal_attach_exception");
 }
-// Keep Deal_Name aligned with current quote number (shared publish)
-safe_qno = ifnull(quote_number,"").trim();
 if(safe_qno != "" && result.get("status") == "ok")
 {
 	try
 	{
-		deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
-		company_name_text = "";
-		if(deal_record != null)
+		deal = deal_record;
+		if(deal == null || deal.isEmpty())
 		{
-			account_ref = deal_record.get("Account_Name");
+			deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+		}
+		company_name_text = "";
+		if(deal != null)
+		{
+			account_ref = deal.get("Account_Name");
 			if(account_ref != null)
 			{
 				company_name_text = ifnull(account_ref.get("name"),"").toString().trim();
 			}
 			if(company_name_text == "")
 			{
-				company_name_text = ifnull(deal_record.get("Deal_Name"),"").toString().trim();
+				company_name_text = ifnull(deal.get("Deal_Name"),"").toString().trim();
 			}
 		}
 		quote_suffix_marker = " - TEST-QUOTE";
@@ -56,10 +108,8 @@ if(safe_qno != "" && result.get("status") == "ok")
 		{
 			company_name_text = company_name_text.subString(0,company_name_text.indexOf(quote_suffix_marker)).trim();
 		}
-		// Strip prior " - QUOTE####" / " - TEST-QUOTE####" suffixes loosely
 		if(company_name_text.contains(" - "))
 		{
-			// keep leftmost company label when already renamed
 			parts = company_name_text.toList(" - ");
 			if(parts.size() > 1 && parts.get(parts.size() - 1).contains("QUOTE"))
 			{

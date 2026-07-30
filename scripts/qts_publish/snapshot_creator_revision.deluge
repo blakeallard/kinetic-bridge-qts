@@ -1,6 +1,3 @@
-// Lightweight Creator revision snapshot (Stage 4).
-// Best-effort: never fail the PDF path. Writes info logs + optional fields when present.
-// Prefer storing: revision, quote_number, WorkDrive CURRENT/CONFIRMED IDs, timestamp.
 map snapshot_creator_revision(string quote_request_id, string quote_number, map merge_data, map workdrive_folders)
 {
 result = Map();
@@ -30,16 +27,10 @@ if(safe_id == "")
 	result.put("reason","no_quote_request_id_logged_only");
 	return result;
 }
-// Optional writeback when fields exist on Quote_Request (ignore failures).
 try
 {
 	upd = Map();
 	upd.put("Last_Published_At",stamp);
-	// Uncomment when Creator fields exist:
-	// upd.put("WorkDrive_Current_Folder_ID",wd_current);
-	// upd.put("WorkDrive_Confirmed_Folder_ID",wd_confirmed);
-	// upd.put("WorkDrive_Drafts_Folder_ID",wd_drafts);
-	// upd.put("PDF_Revision",revision);
 	result.put("status","ok");
 	result.put("reason","logged_optional_fields_not_written");
 	result.put("revision",revision);

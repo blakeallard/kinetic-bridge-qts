@@ -291,20 +291,80 @@ void fn_sync_to_crm(string p_quote_id)
 				}
 				missing_products = "";
 				assoc_rows = List();
+				unique_parts = List();
+				seen_parts = Map();
 				for each  line in quote.Quote_Lines
 				{
 					part_no = ifnull(line.Part_Number,"").toString().trim();
 					if(part_no != "")
 					{
-						product_id = "";
-						product_matches = zoho.crm.searchRecords("Products","Product_Code:equals:" + part_no);
+						if(ifnull(seen_parts.get(part_no),"") == "")
+						{
+							unique_parts.add(part_no);
+							seen_parts.put(part_no,"1");
+						}
+					}
+				}
+				product_by_code = Map();
+				if(unique_parts.size() > 0)
+				{
+					// CRM search criteria caps ~10 OR conditions — batch Product lookups.
+					product_criteria = "";
+					batch_count = 0;
+					for each  part_no in unique_parts
+					{
+						piece = "(Product_Code:equals:" + part_no + ")";
+						if(product_criteria == "")
+						{
+							product_criteria = piece;
+						}
+						else
+						{
+							product_criteria = product_criteria + "or" + piece;
+						}
+						batch_count = batch_count + 1;
+						if(batch_count >= 8)
+						{
+							product_matches = zoho.crm.searchRecords("Products",product_criteria);
+							if(product_matches != null)
+							{
+								for each  prod in product_matches
+								{
+									code = ifnull(prod.get("Product_Code"),"").toString().trim();
+									pid = ifnull(prod.get("id"),"").toString().trim();
+									if(code != "" && pid != "")
+									{
+										product_by_code.put(code,pid);
+									}
+								}
+							}
+							product_criteria = "";
+							batch_count = 0;
+						}
+					}
+					if(product_criteria != "")
+					{
+						product_matches = zoho.crm.searchRecords("Products",product_criteria);
 						if(product_matches != null)
 						{
-							if(product_matches.size() > 0)
+							for each  prod in product_matches
 							{
-								product_id = ifnull(product_matches.get(0).get("id"),"").toString();
+								code = ifnull(prod.get("Product_Code"),"").toString().trim();
+								pid = ifnull(prod.get("id"),"").toString().trim();
+								if(code != "" && pid != "")
+								{
+									product_by_code.put(code,pid);
+								}
 							}
 						}
+					}
+				}
+				for each  line in quote.Quote_Lines
+				{
+					part_no = ifnull(line.Part_Number,"").toString().trim();
+					if(part_no != "")
+					{
+						product_id = ifnull(product_by_code.get(part_no),"").toString().trim();
 						if(product_id == "")
 						{
 							if(missing_products != "")
@@ -326,16 +386,21 @@ void fn_sync_to_crm(string p_quote_id)
 						}
 					}
 				}
-				deal_update.put("Associated_Products",assoc_rows);
+				// Never wipe existing Deal products when lookup returns zero rows but lines exist.
+				if(assoc_rows.size() > 0)
+				{
+					deal_update.put("Associated_Products",assoc_rows);
+				}
+				else if(unique_parts.size() > 0)
+				{
+					info "fn_sync_to_crm: refusing to write empty Associated_Products for Deal " + deal_id_text + " — product lookup returned 0 rows for " + unique_parts.size() + " part(s). Existing Deal products left unchanged.";
+				}
 				update_resp = zoho.crm.updateRecord("Deals",deal_id_text.toLong(),deal_update);
 				if(missing_products != "")
 				{
 					info "fn_sync_to_crm: CRM Products missing for part(s) " + missing_products + " - those lines are NOT on the Deal Associated Products list. Add them to CRM Products (Product_Code = Part_Number) and resave.";
 				}
 				info "fn_sync_to_crm: Deal " + deal_id_text + " updated with " + assoc_rows.size() + " Associated Product row(s) for quote '" + ifnull(quote.Quote_Number,"") + "': " + ifnull(update_resp,"null").toString();
-				// CRM Quotes upsert removed from sync (2026-07-29 two-button plan).
-				// Quotes create/update runs ONLY on Email Quote Package via Flow
-				// upsert_crm_quote / generate_and_file_quote_document(send_email=true).
 				info "fn_sync_to_crm: CRM Quotes skipped on sync — email path owns Quotes module.";
 			}
 		}
