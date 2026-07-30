@@ -1,0 +1,57 @@
+// Ensure Deal ↔ Contact link. Skip CRM update when Contact already matches.
+map ensure_deal_contact_link(string deal_id, string contact_id)
+{
+result = Map();
+result.put("status","skipped");
+result.put("updated","no");
+safe_deal_id = ifnull(deal_id,"").trim();
+safe_contact_id = ifnull(contact_id,"").trim();
+if(safe_deal_id == "" || safe_contact_id == "")
+{
+	result.put("reason","deal_or_contact_missing");
+	return result;
+}
+try
+{
+	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	if(deal_record == null)
+	{
+		result.put("status","failed");
+		result.put("reason","deal_not_found");
+		return result;
+	}
+	contact_ref = deal_record.get("Contact_Name");
+	existing_id = "";
+	if(contact_ref != null)
+	{
+		existing_id = ifnull(contact_ref.get("id"),"").toString().trim();
+	}
+	if(existing_id == safe_contact_id)
+	{
+		result.put("status","ok");
+		result.put("reason","already_linked");
+		return result;
+	}
+	upd = Map();
+	contact_lookup = Map();
+	contact_lookup.put("id",safe_contact_id);
+	upd.put("Contact_Name",contact_lookup);
+	resp = zoho.crm.updateRecord("Deals",safe_deal_id.toLong(),upd);
+	if(resp != null && ifnull(resp.get("status"),"") != "error")
+	{
+		result.put("status","ok");
+		result.put("updated","yes");
+	}
+	else
+	{
+		result.put("status","failed");
+		result.put("reason","contact_link_update_failed");
+	}
+}
+catch (link_error)
+{
+	result.put("status","failed");
+	result.put("reason","contact_link_exception");
+}
+return result;
+}

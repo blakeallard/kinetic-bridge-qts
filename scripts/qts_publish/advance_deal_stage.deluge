@@ -1,0 +1,74 @@
+// EMAIL-ONLY: advance Deal stage to Negotiation/Review (forward-only).
+// Save Quote Package must never invoke this step.
+map advance_deal_stage(string deal_id)
+{
+result = Map();
+result.put("status","skipped");
+result.put("stage_updated","no");
+result.put("target_stage","Negotiation/Review");
+safe_deal_id = ifnull(deal_id,"").trim();
+if(safe_deal_id == "")
+{
+	result.put("status","failed");
+	result.put("reason","deal_id_missing");
+	return result;
+}
+target_stage = "Negotiation/Review";
+stage_rank = Map();
+stage_rank.put("Qualification",1);
+stage_rank.put("Needs Analysis",2);
+stage_rank.put("Value Proposition",3);
+stage_rank.put("Id. Decision Makers",4);
+stage_rank.put("Proposal/Price Quote",5);
+stage_rank.put("Negotiation/Review",6);
+stage_rank.put("Closed Won",99);
+stage_rank.put("Closed Lost",99);
+stage_rank.put("Closed Lost to Competition",99);
+try
+{
+	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	if(deal_record == null)
+	{
+		result.put("status","failed");
+		result.put("reason","deal_not_found");
+		return result;
+	}
+	current_stage = ifnull(deal_record.get("Stage"),"").toString().trim();
+	cur_rank = ifnull(stage_rank.get(current_stage),0).toLong();
+	tgt_rank = ifnull(stage_rank.get(target_stage),6).toLong();
+	if(cur_rank >= 99)
+	{
+		result.put("status","ok");
+		result.put("reason","terminal_deal_not_reopened");
+		result.put("current_stage",current_stage);
+		return result;
+	}
+	if(cur_rank >= tgt_rank)
+	{
+		result.put("status","ok");
+		result.put("reason","already_at_or_past_target");
+		result.put("current_stage",current_stage);
+		return result;
+	}
+	upd = Map();
+	upd.put("Stage",target_stage);
+	resp = zoho.crm.updateRecord("Deals",safe_deal_id.toLong(),upd);
+	if(resp != null && ifnull(resp.get("status"),"") != "error")
+	{
+		result.put("status","ok");
+		result.put("stage_updated","yes");
+		result.put("previous_stage",current_stage);
+	}
+	else
+	{
+		result.put("status","failed");
+		result.put("reason","stage_update_failed");
+	}
+}
+catch (stage_error)
+{
+	result.put("status","failed");
+	result.put("reason","stage_update_exception");
+}
+return result;
+}

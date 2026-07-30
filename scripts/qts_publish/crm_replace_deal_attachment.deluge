@@ -1,0 +1,81 @@
+// Replace CRM Deal attachment so only the latest CURRENT PDF shows.
+// Best-effort: attach new file; prior same-name attachments left for CRM UI cleanup.
+map crm_replace_deal_attachment(string deal_id, file merged_file, string quote_number)
+{
+result = Map();
+result.put("status","skipped");
+result.put("attached_to_deal","no");
+safe_deal_id = ifnull(deal_id,"").trim();
+if(safe_deal_id == "" || merged_file == null)
+{
+	result.put("status","failed");
+	result.put("reason","deal_or_file_missing");
+	return result;
+}
+try
+{
+	deal_attach = zoho.crm.attachFile("Deals",safe_deal_id.toLong(),merged_file,"zoho_crm_to_zoho_flow");
+	if(deal_attach != null && ifnull(deal_attach.get("status"),"") != "error")
+	{
+		result.put("attached_to_deal","yes");
+		result.put("status","ok");
+	}
+	else
+	{
+		result.put("status","failed");
+		result.put("reason","deal_attach_failed");
+	}
+}
+catch (attach_error)
+{
+	result.put("status","failed");
+	result.put("reason","deal_attach_exception");
+}
+// Keep Deal_Name aligned with current quote number (shared publish)
+safe_qno = ifnull(quote_number,"").trim();
+if(safe_qno != "" && result.get("status") == "ok")
+{
+	try
+	{
+		deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+		company_name_text = "";
+		if(deal_record != null)
+		{
+			account_ref = deal_record.get("Account_Name");
+			if(account_ref != null)
+			{
+				company_name_text = ifnull(account_ref.get("name"),"").toString().trim();
+			}
+			if(company_name_text == "")
+			{
+				company_name_text = ifnull(deal_record.get("Deal_Name"),"").toString().trim();
+			}
+		}
+		quote_suffix_marker = " - TEST-QUOTE";
+		if(company_name_text.contains(quote_suffix_marker))
+		{
+			company_name_text = company_name_text.subString(0,company_name_text.indexOf(quote_suffix_marker)).trim();
+		}
+		// Strip prior " - QUOTE####" / " - TEST-QUOTE####" suffixes loosely
+		if(company_name_text.contains(" - "))
+		{
+			// keep leftmost company label when already renamed
+			parts = company_name_text.toList(" - ");
+			if(parts.size() > 1 && parts.get(parts.size() - 1).contains("QUOTE"))
+			{
+				company_name_text = parts.get(0).trim();
+			}
+		}
+		if(company_name_text == "") { company_name_text = "Quote"; }
+		deal_name_update = Map();
+		deal_name_update.put("Deal_Name",company_name_text + " - " + safe_qno);
+		zoho.crm.updateRecord("Deals",safe_deal_id.toLong(),deal_name_update);
+		result.put("deal_renamed","yes");
+	}
+	catch (rename_error)
+	{
+		result.put("deal_renamed","no");
+	}
+}
+return result;
+}
