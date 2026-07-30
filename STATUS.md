@@ -21,9 +21,11 @@ Last updated: 2026-07-29 (active: QTS two-button CRM)
 | Stage 2 — Flow modularization | **done** (`scripts/qts_publish/` + T110 Quotes gated on `send_email`) |
 | Stage 3 — WorkDrive | **done** (CURRENT/CONFIRMED/DRAFTS Deluge; root folder ID placeholder) |
 | Stage 4 — Creator rev | **done** (`snapshot_creator_revision` + field notes; non-blocking) |
-| Stage 5 — Verify | **done** locally (ALL TESTS PASS); live E2E → `docs/QTS_TWO_BUTTON_CRM_VERIFY.md` |
+| Stage 5 — Verify | **BLOCKED live** — Creator External Calls daily quota (2026-07-29); resume after ~00:00 reset. See plan § external-call limits. |
 
-**Blake next:** Upload widget ZIP; paste `scripts/qts_publish/*` (or COMPAT/T110) into Flow; set `QTS_QUOTES_ROOT_FOLDER_ID`; run Save×2 / Email matrix dry-run-safe.
+**Local sandbox (quota bypass):** [`local_qts/`](local_qts/) — widget + FastAPI against kinetic-quote Postgres (`zoho_crm` + QTS tables). Zero Zoho External Calls. Run: `cd local_qts && ./run.sh` → http://127.0.0.1:8789
+
+**Blake next:** Use `local_qts` for CRM/quote UX testing while quota is blocked; after reset, upload widget ZIP + paste `scripts/qts_publish/*` into Flow and run Save×2 / Email matrix.
 
 ---
 
