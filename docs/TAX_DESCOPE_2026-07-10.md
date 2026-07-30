@@ -18,7 +18,7 @@ pass-through.
 The global tax-rate database built in handoff Rounds 20–28 is now a standalone personal
 project owned by Blake, with possible future commercialization:
 
-- New location: `/Users/blakeallard/Dev/taxatlas` (git repo, initial commit `72a5faa`;
+- New location: `/Users/blakeallard/Dev/web/taxatlas` (git repo, initial commit `72a5faa`;
   no GitHub remote yet — account choice + IP confirmation with Bill/Bryan pending).
 - Moved there: `tax_data/` (SQLite DB, schema, registry, seeds, archive), `tax_sources/`
   (all adapters), `scripts/tax_resolver.py` / `tax_source_audit.py` / `tax_db_validate.py`
