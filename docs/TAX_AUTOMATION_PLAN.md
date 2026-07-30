@@ -4,7 +4,7 @@
 > tax integration is REMOVED from BI1-T71/QTS scope. Do not enable Books Sales Tax
 > Automation; do not wire any tax engine into QTS. This document is retained as
 > historical research only. The local global tax-rate database was separated into a
-> standalone personal project at `/Users/blakeallard/Dev/taxatlas` — see
+> standalone personal project at `/Users/blakeallard/Dev/web/taxatlas` — see
 > `docs/TAX_DESCOPE_2026-07-10.md`.
 
 ## Research findings 2026-07-09 (official docs; org 892868938 has taxes=[] / authorities=[])
