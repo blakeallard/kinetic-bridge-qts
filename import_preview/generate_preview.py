@@ -25,15 +25,34 @@ M = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# Canonical local copy (see docs/LIBAL_REFERENCE_PRICE_QC.md) — stable path, not a
-# job-scoped temp file. Falls back to the original job tmp path if the canonical
-# copy isn't present on this machine.
-# SKUs Blake explicitly ruled NOT discountable despite a blank DISTRIB
-# DISCOUNT cell in the workbook (Round 80 authoritative list, 2026-07-12).
+REPO_ROOT = os.path.dirname(HERE)
+# Location-independent workbook resolution: argv > LIBAL_RSP_XLSX env >
+# optional in-repo fixtures. Never hardcode machine home paths.
 NOT_DISCOUNTABLE_OVERRIDES = {'200001'}
 
-DEFAULT_XLSX ='/Users/blakeallard/bevco/data/references/lithium_balance/BMS Pricelist/Lithium Balance BMS_July 01_RSP_Distributor.xlsx'
-FALLBACK_XLSX = '/Users/blakeallard/.claude/jobs/d8eec8fc/tmp/july_rsp.xlsx'
+_WORKBOOK_NAME = "Lithium Balance BMS_July 01_RSP_Distributor.xlsx"
+
+
+def resolve_workbook_path():
+    if len(sys.argv) > 1:
+        return sys.argv[1]
+    env_path = os.environ.get("LIBAL_RSP_XLSX", "").strip()
+    if env_path:
+        return env_path
+    candidates = [
+        os.path.join(HERE, "fixtures", _WORKBOOK_NAME),
+        os.path.join(REPO_ROOT, "data", "references", "lithium_balance", "BMS Pricelist", _WORKBOOK_NAME),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    sys.stderr.write(
+        "Workbook not found. Pass a path, or set LIBAL_RSP_XLSX to the RSP xlsx.\n"
+        "Expected filename: " + _WORKBOOK_NAME + "\n"
+    )
+    sys.exit(2)
+
+
 SHEET_NAME = 'RSP_EUR'
 
 CSV_HEADER = ['Part_Number', 'Description', 'Category', 'Tier_Scheme', 'Discountable',
@@ -272,12 +291,10 @@ def fmt_price(raw):
 
 
 def main():
-    if len(sys.argv) > 1:
-        xlsx = sys.argv[1]
-    elif os.path.exists(DEFAULT_XLSX):
-        xlsx = DEFAULT_XLSX
-    else:
-        xlsx = FALLBACK_XLSX
+    xlsx = resolve_workbook_path()
+    if not os.path.isfile(xlsx):
+        sys.stderr.write("Workbook not found: %s\n" % xlsx)
+        sys.exit(2)
     rows = read_rsp_rows(xlsx)
     visibility_map = read_rsp_hidden_map(xlsx)
     duplicate_classification = load_duplicate_classification(CLASSIFICATION_JSON)

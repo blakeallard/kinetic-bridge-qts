@@ -430,7 +430,7 @@ def _get_quote_lines(quote_id: str) -> dict[str, Any]:
 def _sync_quote_to_crm(quote_id: str) -> dict[str, Any]:
     rec = quotes.get_quote(quote_id)
     if not rec:
-        return {"error": f"sync_quote_to_crm requires a Quote_Request record ID in Query_Text"}
+        return {"error": "sync_quote_to_crm requires a Quote_Request record ID in Query_Text"}
     deal_id = (rec.get("CRM_Deal_ID") or "").strip()
     lines = rec.get("Quote_Lines") or []
     amount = 0.0

@@ -32,7 +32,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t files < <(find . -type f -name '*.py' -not -path './.git/*' -not -path './.venv/*' -not -path './venv/*')
+          mapfile -t files < <(
+            find . -type f -name '*.py' \
+              -not -path './.git/*' \
+              -not -path '*/.venv/*' \
+              -not -path '*/venv/*' \
+              -not -path '*/node_modules/*' \
+              -not -path '*/.ruff_cache/*'
+          )
           if (( ${#files[@]} )); then
             python -m py_compile "${files[@]}"
           else
@@ -42,7 +49,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if find . -type f -name '*.py' -not -path './.git/*' | grep -q .; then
+          if find . -type f -name '*.py' \
+              -not -path './.git/*' \
+              -not -path '*/.venv/*' \
+              -not -path '*/venv/*' \
+              -not -path '*/node_modules/*' \
+              | grep -q .; then
             python -m ruff check .
           else
             echo "No Python files found; Ruff skipped."

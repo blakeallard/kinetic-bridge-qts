@@ -26,11 +26,32 @@ except ImportError:
     from xml.etree import ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_XLSX = ('/Users/blakeallard/bevco/data/references/lithium_balance/'
-                'BMS Pricelist/Lithium Balance BMS_July 01_RSP_Distributor.xlsx')
+REPO_ROOT = os.path.dirname(HERE)
+_WORKBOOK_NAME = "Lithium Balance BMS_July 01_RSP_Distributor.xlsx"
 DB_PATH = os.path.join(HERE, 'workbook_audit.sqlite')
 NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
       'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
+
+
+def resolve_workbook_path():
+    """argv > LIBAL_RSP_XLSX env > optional in-repo data/fixtures. No machine home paths."""
+    if len(sys.argv) > 1:
+        return sys.argv[1]
+    env_path = os.environ.get("LIBAL_RSP_XLSX", "").strip()
+    if env_path:
+        return env_path
+    candidates = [
+        os.path.join(HERE, "fixtures", _WORKBOOK_NAME),
+        os.path.join(REPO_ROOT, "import_preview", "fixtures", _WORKBOOK_NAME),
+        os.path.join(REPO_ROOT, "data", "references", "lithium_balance", "BMS Pricelist", _WORKBOOK_NAME),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    sys.stderr.write(
+        "Workbook not found. Pass a path, or set LIBAL_RSP_XLSX to the RSP xlsx.\n"
+    )
+    sys.exit(2)
 
 
 def col_to_num(ref):
@@ -108,7 +129,7 @@ def sheet_targets(z):
 
 
 def main():
-    xlsx = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_XLSX
+    xlsx = resolve_workbook_path()
     if not os.path.exists(xlsx):
         sys.exit('workbook not found: %s' % xlsx)
 
