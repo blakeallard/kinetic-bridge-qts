@@ -78,9 +78,3 @@ Operational detail: [`STATUS.md`](STATUS.md), [`QTS_PROJECT_STATUS.md`](QTS_PROJ
 - [`kinetic-quote`](https://github.com/blakeallard/kinetic-quote) — Postgres/Supabase mirror + datasheet provenance DB
 - [`kinetic-bridge-email-intel`](https://github.com/blakeallard/kinetic-bridge-email-intel) — inbound email → AI recommendation workflow
 - [`kinetic-bridge-ops`](https://github.com/blakeallard/kinetic-bridge-ops) — meeting/ops automation packages
-
-## For agents / maintainers
-
-Read `STATUS.md`, `AGENTS.md`, `CLAUDE.md`, and `docs/CURRENT_HANDOFF.md` before changing runtime. Prefer `deploy_ready/` for Creator pastes. Do not commit secrets.
-
-Internal task key: `BI1-T71`. Zoho IDs and task snapshot live in `TASK.md`.
