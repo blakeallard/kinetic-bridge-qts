@@ -9,4 +9,4 @@ Warm graphite + amber volt LED, cell rail, oversized totals readout. **Not** Ops
 | `widget.packbay.html` / `.css` | Mirror of production |
 | `logo.packbay.svg` | Matching mark |
 
-Keep in sync with `~/bevco/qts-quote-builder/app/widget.html` + `widget.css`.
+Keep in sync with `widget/app/widget.html` + `widget.css` in this repo.

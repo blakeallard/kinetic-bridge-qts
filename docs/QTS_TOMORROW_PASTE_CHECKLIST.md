@@ -80,7 +80,7 @@ Other bridge actions (`get_customer`, `get_deal`, `create_deal`, `get_quote_line
 
 | Piece | Where |
 | ----- | ----- |
-| Buttons + Status writes | Widget (`qts-quote-builder`) — already deployed if ZIP uploaded |
+| Buttons + Status writes | Widget (`widget/`) — rebuild/upload ZIP if UI changed |
 | Status → Flow trigger | Zoho Flow config UI |
 
 ---

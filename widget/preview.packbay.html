@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QTS Quote Builder — Preview</title>
+<link rel="stylesheet" href="app/widget.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="cell-rail" aria-hidden="true">
+      <div class="cell lit"></div>
+      <div class="cell"></div>
+      <div class="cell"></div>
+      <div class="cell lit dim"></div>
+      <div class="cell"></div>
+      <div class="cell"></div>
+      <div class="cell lit"></div>
+      <div class="cell"></div>
+    </aside>
+
+    <div class="bay">
+      <header class="mast">
+        <div class="mast-brand">
+          <img src="app/assets/logo.svg" alt="QTS" />
+          <div>
+            <p class="eyebrow">Kinetic Bridge</p>
+            <h1>Quote bay</h1>
+          </div>
+        </div>
+        <div class="mast-id">
+          <span class="eyebrow">Quote</span>
+          <strong class="mono" id="quote-no">QTS-DRAFT-0007</strong>
+        </div>
+        <div class="mast-meta">
+          <div class="gauge-chip">
+            <span class="eyebrow">Status</span>
+            <span id="quote-status">Draft</span>
+          </div>
+          <div class="gauge-chip">
+            <span class="eyebrow">Currency</span>
+            <span class="mono">USD</span>
+          </div>
+          <span class="live-pill" title="Mock data — no live Zoho connection">
+            <span class="pulse"></span> Mock · Dry-run
+          </span>
+          <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle light / dark theme" title="Toggle light / dark">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1.5a6.5 6.5 0 100 13 5 5 0 010-13z" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <div class="main-col">
+          <section class="slab">
+            <div class="slab-head"><h2>Customer &amp; project</h2></div>
+            <div class="slab-body">
+              <div class="form-grid">
+                <div class="field"><label for="f-customer">Customer</label><input id="f-customer" type="text" placeholder="e.g. Motive Workforce" /></div>
+                <div class="field"><label for="f-contact">Contact</label><input id="f-contact" type="text" placeholder="Primary contact" /></div>
+                <div class="field"><label for="f-project">Project / ref</label><input id="f-project" type="text" placeholder="Project name or PO ref" /></div>
+                <div class="field"><label for="f-currency">Currency</label>
+                  <select id="f-currency"><option>USD</option><option>CAD</option><option>EUR</option></select>
+                </div>
+                <div class="field"><label for="f-date">Quote date</label><input id="f-date" type="date" /></div>
+                <div class="field"><label for="f-valid">Valid until</label><input id="f-valid" type="date" /></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="slab">
+            <div class="slab-head"><h2>Parts bay</h2><span class="meta">Item Master</span></div>
+            <div class="slab-body picker">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <input id="search" type="text" placeholder="Find a SKU or part name…" autocomplete="off" />
+                <kbd>SKU</kbd>
+              </div>
+              <div class="chips" id="chips"></div>
+              <div class="results" id="results"></div>
+            </div>
+          </section>
+
+          <section class="slab helper-panel">
+            <details class="collapsible" open>
+              <summary class="slab-head">
+                <svg class="chev" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <h2>BMS kit helper</h2><span class="tag">Optional</span>
+                <span class="meta">expands to editable lines</span>
+              </summary>
+              <div class="slab-body">
+                <div class="bms-note">
+                  <b>Helper only.</b> A kit inserts individual line items you can edit or remove. It does <b>not</b> replace normal product selection, and the kit itself is never the quote.
+                </div>
+                <div class="bms-controls">
+                  <div class="field"><label for="kit-select">Kit</label><select id="kit-select"></select></div>
+                  <div class="field qty"><label for="kit-qty">Kit qty</label><input id="kit-qty" type="number" min="1" value="1" class="mono" /></div>
+                  <button class="btn secondary" id="kit-add" type="button">Add kit items</button>
+                </div>
+                <div class="kit-preview" id="kit-preview"></div>
+              </div>
+            </details>
+          </section>
+
+          <section class="slab lines-panel">
+            <div class="slab-head"><h2>Bill of materials</h2><span class="meta"><b id="lines-count" class="mono">0</b> lines</span></div>
+            <div class="slab-body flush">
+              <div class="table-wrap">
+                <table class="lines">
+                  <thead>
+                    <tr>
+                      <th class="c">#</th><th>SKU</th><th>Description &amp; warnings</th><th>Type</th>
+                      <th class="c">Qty</th><th class="r">Unit</th><th class="r">Line total</th><th class="c"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="lines-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="slab pending-panel" id="pending-card">
+            <div class="slab-head"><h2>Needs confirmation</h2>
+              <span class="meta"><span class="badge pending_business"><span class="bdot"></span><b id="pending-count" class="mono">0</b>&nbsp;pending</span></span></div>
+            <div class="slab-body">
+              <p class="pending-note">These Q1/Q2 SKUs were referenced but are <b>not</b> added automatically. Confirm the business before adding.</p>
+              <div id="pending-list"></div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="rail">
+          <section class="readout">
+            <div class="readout-top"><span class="eyebrow">Quote total</span></div>
+            <div class="readout-total mono" id="t-total">$0.00</div>
+            <div class="readout-rows">
+              <div class="trow"><span class="lbl">Subtotal</span><span class="val" id="t-subtotal">$0.00</span></div>
+              <div class="trow editable"><span class="lbl">Discount</span><span><input id="discount" type="number" min="0" step="0.01" value="0" aria-label="Discount amount" /></span></div>
+              <div class="trow editable"><span class="lbl">Tax rate</span><span><input id="taxrate" type="number" min="0" step="0.1" value="0" aria-label="Tax rate percent" /><span class="suffix">%</span></span></div>
+              <div class="trow"><span class="lbl">Tax (est.)</span><span class="val" id="t-tax">$0.00</span></div>
+            </div>
+            <div class="warn-summary" id="warn-summary"></div>
+          </section>
+          <section class="action-dock">
+            <div class="actions">
+              <button class="btn primary" id="btn-generate" type="button">Generate package</button>
+              <button class="btn secondary" id="btn-recalc" type="button">Recalculate</button>
+              <button class="btn ghost" id="btn-save" type="button">Save draft</button>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+  </div>
+  <div class="toast-wrap" id="toasts" aria-live="polite"></div>
+
+<script>
+/* QTS Quote Builder — mock data (design pass only)
+ *
+ * This file stands in for live Zoho Creator data. When the widget is wired to
+ * real data, replace the contents of window.QTS_MOCK with the result of a
+ * ZOHO.CREATOR.API.getAllRecords('Item_Master', ...) call in widget.js.
+ * The shape below mirrors the fields the render layer expects.
+ *
+ * Warning flags a line/item can carry:
+ *   'discontinued'      — no longer sold
+ *   'not_released'      — exists in Item_Master but not yet available
+ *   'unpriced'          — active item with no unit price on record
+ *   'pending_business'  — Q1/Q2 SKU awaiting business confirmation (never auto-added)
+ */
+window.QTS_MOCK = {
+  meta: {
+    quoteNo: 'QTS-DRAFT-0007',
+    currency: 'USD',
+    taxRateDefault: 0,
+    source: 'mock', // 'mock' until wired to Item_Master
+  },
+
+  // Categories used by the picker filter chips.
+  categories: [
+    { key: 'all', label: 'All' },
+    { key: 'bms', label: 'BMS' },
+    { key: 'non_bms', label: 'Non-BMS' },
+    { key: 'part', label: 'Parts' },
+    { key: 'service', label: 'Service / SW / License' },
+  ],
+
+  // Item_Master stand-in. `type` is the human line type; `category` drives the filter.
+  items: [
+    { sku: 'SKU-1024', name: 'Cell Module 48V (14s)',      category: 'non_bms', type: 'Product', unit: 420.00, flags: [] },
+    { sku: 'SKU-1090', name: 'Cell Module 24V (7s)',       category: 'non_bms', type: 'Product', unit: 268.00, flags: [] },
+    { sku: 'SKU-2210', name: 'BMS Controller v3',          category: 'bms',     type: 'Product', unit: null,   flags: ['not_released'] },
+    { sku: 'SKU-2180', name: 'BMS Controller v2',          category: 'bms',     type: 'Product', unit: 355.00, flags: [] },
+    { sku: 'SKU-1330', name: 'BMS Sense Harness',          category: 'part',    type: 'Replacement Part', unit: 65.00, flags: [] },
+    { sku: 'SKU-1331', name: 'BMS Temp Sensor',            category: 'part',    type: 'Replacement Part', unit: 22.00, flags: [] },
+    { sku: 'SKU-5501', name: 'Enclosure Bracket',          category: 'part',    type: 'Replacement Part', unit: 18.00, flags: [] },
+    { sku: 'SKU-7000', name: 'Rapid Cell Pack 96V',        category: 'non_bms', type: 'Product', unit: null,   flags: ['unpriced'] },
+    { sku: 'SKU-4400', name: 'Legacy Charger 24V',         category: 'non_bms', type: 'Product', unit: 310.00, flags: ['discontinued'] },
+    { sku: 'SKU-9001', name: 'On-site Install Service',    category: 'service', type: 'Service', unit: 150.00, flags: [] },
+    { sku: 'SKU-9002', name: 'Commissioning (per day)',    category: 'service', type: 'Service', unit: 900.00, flags: [] },
+    { sku: 'SKU-9100', name: 'QTS Software License (annual)', category: 'service', type: 'License', unit: 1200.00, flags: [] },
+    // Pending-business SKUs — surfaced in the picker as blocked, never auto-added.
+    { sku: 'Q1-SKU-5500', name: 'Prototype Pack (Q1)',     category: 'non_bms', type: 'Product', unit: null, flags: ['pending_business'] },
+    { sku: 'Q2-SKU-5600', name: 'Pilot Module (Q2)',       category: 'bms',     type: 'Product', unit: null, flags: ['pending_business'] },
+  ],
+
+  // Optional helper only. Each kit expands into individual, editable line items.
+  bmsKits: [
+    {
+      id: 'kit-48v-starter',
+      name: '48V Starter BMS Kit',
+      note: 'Controller + harness + 2 sensors',
+      contents: [
+        { sku: 'SKU-2180', qty: 1 },
+        { sku: 'SKU-1330', qty: 1 },
+        { sku: 'SKU-1331', qty: 2 },
+      ],
+    },
+    {
+      id: 'kit-24v-compact',
+      name: '24V Compact BMS Kit',
+      note: 'Controller + harness',
+      contents: [
+        { sku: 'SKU-2180', qty: 1 },
+        { sku: 'SKU-1330', qty: 1 },
+      ],
+    },
+  ],
+
+  // SKUs referenced by the source meeting/request but awaiting confirmation.
+  // These are shown in the "Needs confirmation" panel and are NOT added to the quote.
+  pendingReferenced: ['Q1-SKU-5500', 'Q2-SKU-5600'],
+
+  // Seed lines so the builder opens with representative content for review.
+  seedLines: [
+    { sku: 'SKU-1024', qty: 2 },
+    { sku: 'SKU-2210', qty: 1 }, // carries a not_released warning
+    { sku: 'SKU-9001', qty: 1 },
+    { custom: true, name: 'Custom freight & crating', type: 'Custom', qty: 1, unit: 240.00 },
+  ],
+};
+</script>
+<script>
+/* QTS Quote Builder — app logic (mock-data pass)
+ *
+ * No live Zoho calls. When wiring real data later, replace loadData() with a
+ * ZOHO.CREATOR.API.getAllRecords('Item_Master', ...) call and map the result
+ * into the same shape as window.QTS_MOCK. Everything below the data layer
+ * (render, edit, totals, warnings) stays untouched.
+ */
+(function () {
+  'use strict';
+
+  var DATA = window.QTS_MOCK;
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+
+  var FLAG_LABEL = {
+    discontinued:     'Discontinued',
+    not_released:     'Not released',
+    unpriced:         'Unpriced',
+    pending_business: 'Pending business',
+  };
+  var FLAG_STRIPE = {
+    discontinued: 'var(--sev-disc)',
+    not_released: 'var(--sev-notrel)',
+    unpriced: 'var(--sev-unpriced)',
+    pending_business: 'var(--sev-pending)',
+  };
+
+  /* ---------------- State ---------------- */
+  var state = {
+    filter: 'all',
+    query: '',
+    lines: [],
+    kitId: null,        // set from data in boot()
+    kitQty: 1,
+    discount: 0,
+    taxRate: 0,         // set from data in boot()
+    dismissedPending: {},
+    seq: 1,
+  };
+
+  function itemBySku(sku) {
+    for (var i = 0; i < DATA.items.length; i++) if (DATA.items[i].sku === sku) return DATA.items[i];
+    return null;
+  }
+  function money(n) {
+    if (n === null || n === undefined || isNaN(n)) return null;
+    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  /* ---------------- Data load (mock) ---------------- */
+  function loadData() {
+    // Seed representative lines from mock. Real version: fetch Item_Master, map, seed empty.
+    DATA.seedLines.forEach(function (seed) {
+      if (seed.custom) {
+        state.lines.push({
+          id: 'L' + state.seq++, sku: 'CUSTOM', name: seed.name, type: 'Custom',
+          qty: seed.qty, unit: seed.unit, flags: [], custom: true,
+        });
+      } else {
+        addLineFromItem(itemBySku(seed.sku), seed.qty);
+      }
+    });
+  }
+
+  function addLineFromItem(item, qty) {
+    if (!item) return;
+    // Enforce the critical rule: pending-business SKUs are never added to the quote.
+    if (item.flags.indexOf('pending_business') !== -1) {
+      toast('“' + item.sku + '” needs confirmation — see the Needs confirmation panel', 'warn');
+      return;
+    }
+    state.lines.push({
+      id: 'L' + state.seq++, sku: item.sku, name: item.name, type: item.type,
+      qty: qty || 1, unit: item.unit, flags: item.flags.slice(), custom: false,
+    });
+  }
+
+  /* ---------------- Picker ---------------- */
+  function filteredItems() {
+    var q = state.query.trim().toLowerCase();
+    return DATA.items.filter(function (it) {
+      if (state.filter !== 'all' && it.category !== state.filter) return false;
+      if (!q) return true;
+      return (it.sku + ' ' + it.name).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function renderChips() {
+    var wrap = $('#chips');
+    wrap.innerHTML = '';
+    DATA.categories.forEach(function (c) {
+      var b = document.createElement('button');
+      b.className = 'chip';
+      b.type = 'button';
+      b.textContent = c.label;
+      b.setAttribute('aria-pressed', state.filter === c.key ? 'true' : 'false');
+      b.addEventListener('click', function () { state.filter = c.key; render(); });
+      wrap.appendChild(b);
+    });
+    var custom = document.createElement('button');
+    custom.className = 'chip ghost';
+    custom.type = 'button';
+    custom.textContent = '+ Custom line';
+    custom.addEventListener('click', addCustomLine);
+    wrap.appendChild(custom);
+  }
+
+  function renderResults() {
+    var box = $('#results');
+    var items = filteredItems();
+    box.innerHTML = '';
+    if (!items.length) {
+      box.innerHTML =
+        '<div class="state">' +
+          '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="10.5" cy="10.5" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
+          '<div class="state-title">No matching items</div>' +
+          '<div>Adjust your search or filter, or add a custom line.</div>' +
+        '</div>';
+      return;
+    }
+    items.forEach(function (it) {
+      var pending = it.flags.indexOf('pending_business') !== -1;
+      var btn = document.createElement('button');
+      btn.className = 'result';
+      btn.type = 'button';
+      btn.disabled = pending;
+      btn.title = pending ? 'Pending business — confirm before adding' : 'Add to quote';
+
+      var sku = document.createElement('div'); sku.className = 'sku num'; sku.textContent = it.sku;
+      var mid = document.createElement('div');
+      mid.innerHTML = '<div class="name">' + it.name + '</div><div class="type-tag">' + it.type + '</div>';
+      var badges = document.createElement('div'); badges.className = 'badge-stack';
+      it.flags.forEach(function (f) { badges.appendChild(badgeEl(f)); });
+      var price = document.createElement('div');
+      var m = money(it.unit);
+      price.className = 'price num' + (m ? '' : ' none');
+      price.textContent = m || '—';
+
+      btn.appendChild(sku); btn.appendChild(mid); btn.appendChild(badges); btn.appendChild(price);
+      if (!pending) btn.addEventListener('click', function () { addLineFromItem(it, 1); render(); toast('Added ' + it.sku); });
+      box.appendChild(btn);
+    });
+  }
+
+  function badgeEl(flag) {
+    var b = document.createElement('span');
+    b.className = 'badge ' + flag;
+    b.innerHTML = '<span class="bdot"></span>' + (FLAG_LABEL[flag] || flag);
+    return b;
+  }
+
+  /* ---------------- BMS kit helper ---------------- */
+  function renderKits() {
+    var sel = $('#kit-select');
+    sel.innerHTML = '';
+    DATA.bmsKits.forEach(function (k) {
+      var o = document.createElement('option');
+      o.value = k.id; o.textContent = k.name;
+      if (k.id === state.kitId) o.selected = true;
+      sel.appendChild(o);
+    });
+    var kit = DATA.bmsKits.filter(function (k) { return k.id === state.kitId; })[0];
+    var prev = $('#kit-preview');
+    if (kit) {
+      var rows = kit.contents.map(function (c) {
+        var it = itemBySku(c.sku);
+        return '<li>' + (c.qty * state.kitQty) + '× ' + c.sku + ' — ' + (it ? it.name : c.sku) + '</li>';
+      }).join('');
+      prev.innerHTML = 'Adds <b>' + kit.contents.length + ' editable line items</b> (' + kit.note + '):<ul>' + rows + '</ul>';
+    }
+  }
+
+  function addKit() {
+    var kit = DATA.bmsKits.filter(function (k) { return k.id === state.kitId; })[0];
+    if (!kit) return;
+    var added = 0;
+    kit.contents.forEach(function (c) {
+      var it = itemBySku(c.sku);
+      if (it) { addLineFromItem(it, c.qty * state.kitQty); added++; }
+    });
+    render();
+    toast('Added ' + added + ' line items from ' + kit.name + ' — edit them like any other line');
+  }
+
+  /* ---------------- Custom line ---------------- */
+  function addCustomLine() {
+    state.lines.push({
+      id: 'L' + state.seq++, sku: 'CUSTOM', name: '', type: 'Custom',
+      qty: 1, unit: 0, flags: [], custom: true,
+    });
+    render();
+    // focus the new description field
+    var inputs = document.querySelectorAll('.line-name-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }
+
+  /* ---------------- Lines table ---------------- */
+  function lineTotal(l) {
+    if (l.unit === null || l.unit === undefined || isNaN(l.unit)) return null;
+    return l.qty * l.unit;
+  }
+
+  function renderLines() {
+    var body = $('#lines-body');
+    body.innerHTML = '';
+    $('#lines-count').textContent = state.lines.length;
+
+    if (!state.lines.length) {
+      var empty = document.createElement('tr'); empty.className = 'lines-empty';
+      var td = document.createElement('td'); td.colSpan = 8;
+      td.innerHTML =
+        '<div class="state">' +
+          '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M3 10h18M8 15h5" stroke="currentColor" stroke-width="1.5"/></svg>' +
+          '<div class="state-title">No line items yet</div>' +
+          '<div>Search a SKU above, add a custom line, or use the BMS kit helper.</div>' +
+        '</div>';
+      empty.appendChild(td); body.appendChild(empty);
+      addCustomFooter(body);
+      return;
+    }
+
+    state.lines.forEach(function (l, idx) {
+      var tr = document.createElement('tr');
+      var warnFlags = l.flags.filter(function (f) { return f !== 'pending_business'; });
+      if (warnFlags.length) {
+        tr.className = 'has-warn';
+        tr.style.setProperty('--stripe', FLAG_STRIPE[warnFlags[0]]);
+      }
+
+      // # + severity badges
+      var tdIdx = document.createElement('td'); tdIdx.className = 'line-idx num'; tdIdx.textContent = idx + 1;
+      // SKU
+      var tdSku = document.createElement('td'); tdSku.className = 'line-sku'; tdSku.textContent = l.sku;
+      // Description (editable)
+      var tdName = document.createElement('td');
+      var nameIn = document.createElement('input');
+      nameIn.className = 'line-name-input'; nameIn.value = l.name;
+      nameIn.placeholder = l.custom ? 'Describe this custom line…' : '';
+      nameIn.readOnly = !l.custom;
+      if (l.custom) nameIn.addEventListener('input', function () { l.name = nameIn.value; });
+      tdName.appendChild(nameIn);
+      if (warnFlags.length) {
+        var stack = document.createElement('div'); stack.className = 'badge-stack'; stack.style.marginTop = '5px';
+        warnFlags.forEach(function (f) { stack.appendChild(badgeEl(f)); });
+        tdName.appendChild(stack);
+      }
+      // Type
+      var tdType = document.createElement('td');
+      tdType.innerHTML = '<span class="type-pill">' + l.type + '</span>';
+      // Qty (editable)
+      var tdQty = document.createElement('td'); tdQty.className = 'c';
+      var qtyIn = document.createElement('input');
+      qtyIn.className = 'line-cell-input qty-input num'; qtyIn.type = 'number'; qtyIn.min = '0'; qtyIn.step = '1';
+      qtyIn.value = l.qty;
+      qtyIn.addEventListener('input', function () { l.qty = Math.max(0, parseInt(qtyIn.value, 10) || 0); updateTotalsOnly(); });
+      tdQty.appendChild(qtyIn);
+      // Unit (editable when custom or unpriced)
+      var tdUnit = document.createElement('td'); tdUnit.className = 'r';
+      var canPrice = l.custom || l.unit === null || l.flags.indexOf('unpriced') !== -1;
+      if (canPrice) {
+        var unitIn = document.createElement('input');
+        unitIn.className = 'line-cell-input unit-input num'; unitIn.type = 'number'; unitIn.min = '0'; unitIn.step = '0.01';
+        unitIn.value = (l.unit === null ? '' : l.unit);
+        unitIn.placeholder = 'set price';
+        unitIn.addEventListener('input', function () {
+          l.unit = unitIn.value === '' ? null : Math.max(0, parseFloat(unitIn.value) || 0);
+          // clearing the unpriced flag once a real price is entered
+          if (l.unit !== null) l.flags = l.flags.filter(function (f) { return f !== 'unpriced'; });
+          render();
+        });
+        tdUnit.appendChild(unitIn);
+      } else {
+        tdUnit.className = 'r num'; tdUnit.textContent = money(l.unit);
+      }
+      // Line total
+      var tdTotal = document.createElement('td'); tdTotal.className = 'r num line-total';
+      var lt = lineTotal(l);
+      if (lt === null) { tdTotal.classList.add('none'); tdTotal.textContent = '—'; }
+      else tdTotal.textContent = money(lt);
+      // Remove
+      var tdRm = document.createElement('td'); tdRm.className = 'c';
+      var rm = document.createElement('button');
+      rm.className = 'row-remove'; rm.type = 'button'; rm.setAttribute('aria-label', 'Remove line'); rm.innerHTML = '&times;';
+      rm.addEventListener('click', function () {
+        state.lines = state.lines.filter(function (x) { return x.id !== l.id; });
+        render();
+      });
+      tdRm.appendChild(rm);
+
+      [tdIdx, tdSku, tdName, tdType, tdQty, tdUnit, tdTotal, tdRm].forEach(function (td) { tr.appendChild(td); });
+      body.appendChild(tr);
+    });
+
+    addCustomFooter(body);
+  }
+
+  function addCustomFooter(body) {
+    var addTr = document.createElement('tr'); addTr.className = 'add-custom-row';
+    var addTd = document.createElement('td'); addTd.colSpan = 8;
+    var addBtn = document.createElement('button');
+    addBtn.className = 'add-custom-btn'; addBtn.type = 'button';
+    addBtn.textContent = '+ Add custom / manual line';
+    addBtn.addEventListener('click', addCustomLine);
+    addTd.appendChild(addBtn); addTr.appendChild(addTd); body.appendChild(addTr);
+  }
+
+  /* ---------------- Pending business ---------------- */
+  function activePending() {
+    return DATA.pendingReferenced.filter(function (sku) { return !state.dismissedPending[sku]; });
+  }
+  function renderPending() {
+    var card = $('#pending-card');
+    var list = $('#pending-list');
+    var pend = activePending();
+    if (!pend.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    $('#pending-count').textContent = pend.length;
+    list.innerHTML = '';
+    pend.forEach(function (sku) {
+      var it = itemBySku(sku);
+      var row = document.createElement('div'); row.className = 'pending-item';
+      row.innerHTML =
+        '<div>' +
+          '<div class="sku num">' + sku + '</div>' +
+          '<div class="name">' + (it ? it.name : sku) + '</div>' +
+          '<div class="why">Confirm pricing & availability before adding to a quote.</div>' +
+        '</div>';
+      var actions = document.createElement('div'); actions.className = 'row-actions';
+      var review = document.createElement('button'); review.className = 'mini-btn'; review.type = 'button'; review.textContent = 'Review';
+      review.addEventListener('click', function () { toast('Flagged ' + sku + ' for business review (mock)'); });
+      var dismiss = document.createElement('button'); dismiss.className = 'mini-btn subtle'; dismiss.type = 'button'; dismiss.textContent = 'Dismiss';
+      dismiss.addEventListener('click', function () { state.dismissedPending[sku] = true; render(); });
+      actions.appendChild(review); actions.appendChild(dismiss);
+      row.appendChild(actions);
+      list.appendChild(row);
+    });
+  }
+
+  /* ---------------- Totals & warnings ---------------- */
+  function computeTotals() {
+    var subtotal = 0, unpricedCount = 0;
+    state.lines.forEach(function (l) {
+      var lt = lineTotal(l);
+      if (lt === null) unpricedCount++;
+      else subtotal += lt;
+    });
+    var discount = Math.max(0, state.discount || 0);
+    var taxable = Math.max(0, subtotal - discount);
+    var tax = taxable * (Math.max(0, state.taxRate || 0) / 100);
+    return { subtotal: subtotal, discount: discount, tax: tax, total: taxable + tax, unpricedCount: unpricedCount };
+  }
+
+  function warningTally() {
+    var t = { discontinued: 0, not_released: 0, unpriced: 0, pending_business: activePending().length };
+    state.lines.forEach(function (l) {
+      l.flags.forEach(function (f) { if (t[f] !== undefined && f !== 'pending_business') t[f]++; });
+    });
+    var total = t.discontinued + t.not_released + t.unpriced + t.pending_business;
+    return { t: t, total: total };
+  }
+
+  function renderTotals() {
+    var tot = computeTotals();
+    $('#t-subtotal').textContent = money(tot.subtotal);
+    $('#t-tax').textContent = money(tot.tax);
+    $('#t-total').textContent = money(tot.total);
+
+    var w = warningTally();
+    var box = $('#warn-summary');
+    if (w.total === 0) {
+      box.className = 'warn-summary clean';
+      box.innerHTML = '<div class="warn-line" style="color:var(--ok)"><span class="badge ok"><span class="bdot"></span>All clear</span> No blocking warnings on this quote.</div>';
+      return;
+    }
+    box.className = 'warn-summary';
+    var rows = '';
+    [['not_released', 'Not released'], ['discontinued', 'Discontinued'], ['unpriced', 'Unpriced'], ['pending_business', 'Pending business']]
+      .forEach(function (pair) {
+        var n = w.t[pair[0]];
+        if (n > 0) rows += '<div class="warn-line"><span class="badge ' + pair[0] + '"><span class="bdot"></span>' + pair[1] + '</span><span class="cnt">' + n + '</span></div>';
+      });
+    box.innerHTML = '<div class="warn-head"><span class="n">⚠</span> ' + w.total + ' warning' + (w.total === 1 ? '' : 's') + ' to review</div>' + rows;
+  }
+
+  // lightweight path used by qty typing (avoids full re-render / focus loss)
+  function updateTotalsOnly() {
+    var tot = computeTotals();
+    // update visible line totals in place
+    var body = $('#lines-body');
+    var rows = body.querySelectorAll('tr');
+    var li = 0;
+    state.lines.forEach(function (l) {
+      var tr = rows[li++]; if (!tr) return;
+      var cell = tr.querySelector('.line-total');
+      var lt = lineTotal(l);
+      if (cell) {
+        if (lt === null) { cell.classList.add('none'); cell.textContent = '—'; }
+        else { cell.classList.remove('none'); cell.textContent = money(lt); }
+      }
+    });
+    $('#t-subtotal').textContent = money(tot.subtotal);
+    $('#t-tax').textContent = money(tot.tax);
+    $('#t-total').textContent = money(tot.total);
+  }
+
+  /* ---------------- Actions ---------------- */
+  function saveDraft() { toast('Draft saved locally (mock — no Zoho write)'); }
+  function recalculate() { render(); toast('Recalculated ' + state.lines.length + ' lines'); }
+  function generatePackage() {
+    var w = warningTally();
+    if (w.total > 0) {
+      toast(w.total + ' warning' + (w.total === 1 ? '' : 's') + ' unresolved — review before generating', 'warn');
+      return;
+    }
+    toast('Quote package generated (dry-run — no file written)');
+  }
+
+  /* ---------------- Toast ---------------- */
+  var toastTimer = null;
+  function toast(msg, kind) {
+    var wrap = $('#toasts');
+    var el = document.createElement('div');
+    el.className = 'toast' + (kind === 'warn' ? ' warn' : '');
+    el.innerHTML = '<span class="tdot"></span><span>' + msg + '</span>';
+    wrap.innerHTML = '';
+    wrap.appendChild(el);
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { wrap.innerHTML = ''; }, 3200);
+  }
+
+  /* ---------------- Render ---------------- */
+  function render() {
+    renderChips();
+    renderResults();
+    renderKits();
+    renderLines();
+    renderPending();
+    renderTotals();
+  }
+
+  /* ---------------- Wire up ---------------- */
+  function bindStatic() {
+    var search = $('#search');
+    search.addEventListener('input', function () { state.query = search.value; renderResults(); });
+
+    $('#kit-select').addEventListener('change', function (e) { state.kitId = e.target.value; renderKits(); });
+    $('#kit-qty').addEventListener('input', function (e) { state.kitQty = Math.max(1, parseInt(e.target.value, 10) || 1); renderKits(); });
+    $('#kit-add').addEventListener('click', addKit);
+
+    $('#discount').addEventListener('input', function (e) { state.discount = parseFloat(e.target.value) || 0; renderTotals(); });
+    $('#taxrate').addEventListener('input', function (e) { state.taxRate = parseFloat(e.target.value) || 0; renderTotals(); });
+
+    $('#btn-save').addEventListener('click', saveDraft);
+    $('#btn-recalc').addEventListener('click', recalculate);
+    $('#btn-generate').addEventListener('click', generatePackage);
+
+    $('#theme-toggle').addEventListener('click', toggleTheme);
+    if (typeof restoreAppearance === 'function') restoreAppearance();
+    $('#quote-no').textContent = DATA.meta.quoteNo;
+  }
+
+  var STYLE_ORDER = ['carbon', 'copper', 'cobalt'];
+  var STYLE_LABEL = { carbon: 'Carbon', copper: 'Copper', cobalt: 'Cobalt' };
+
+  function persistAppearance() {
+    try {
+      var root = document.documentElement;
+      localStorage.setItem('qts-theme', root.getAttribute('data-theme') || 'dark');
+      localStorage.setItem('qts-style', root.getAttribute('data-style') || 'carbon');
+    } catch (e) {}
+  }
+
+  function syncStyleLabel() {
+    var root = document.documentElement;
+    var style = root.getAttribute('data-style') || 'carbon';
+    var label = $('#style-label');
+    if (label) label.textContent = STYLE_LABEL[style] || style;
+    var btn = $('#style-toggle');
+    if (btn) btn.title = 'Style: ' + (STYLE_LABEL[style] || style) + ' — click to cycle';
+  }
+
+  function restoreAppearance() {
+    var root = document.documentElement;
+    try {
+      var theme = localStorage.getItem('qts-theme');
+      var style = localStorage.getItem('qts-style');
+      if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
+      if (STYLE_ORDER.indexOf(style) !== -1) root.setAttribute('data-style', style);
+    } catch (e) {}
+    if (!root.getAttribute('data-theme')) root.setAttribute('data-theme', 'dark');
+    if (!root.getAttribute('data-style')) root.setAttribute('data-style', 'carbon');
+    syncStyleLabel();
+  }
+
+  function toggleTheme() {
+    var root = document.documentElement;
+    var cur = root.getAttribute('data-theme') || 'dark';
+    root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+    persistAppearance();
+  }
+
+  function cycleStyle() {
+    var root = document.documentElement;
+    var cur = root.getAttribute('data-style') || 'carbon';
+    var idx = STYLE_ORDER.indexOf(cur);
+    var next = STYLE_ORDER[(idx + 1) % STYLE_ORDER.length];
+    root.setAttribute('data-style', next);
+    syncStyleLabel();
+    persistAppearance();
+  }
+
+  function prefersReduced() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  // Loading state — mock data resolves synchronously, so we show a brief skeleton
+  // to demonstrate the state. Real version shows this while ZOHO.CREATOR.API resolves.
+  function renderLoading() {
+    renderChips();
+    var sk = function (cols) {
+      var r = '<div class="skeleton-row">';
+      for (var i = 0; i < cols; i++) r += '<div class="skeleton-bar" style="width:' + (55 + (i * 17) % 40) + '%"></div>';
+      return r + '</div>';
+    };
+    $('#results').innerHTML = sk(3) + sk(3) + sk(3);
+    $('#lines-body').innerHTML = '<tr><td colspan="8" style="padding:0">' + sk(3) + sk(3) + '</td></tr>';
+    $('#pending-card').style.display = 'none';
+  }
+
+  // Error state — shown if the data source is unavailable (e.g. QTS_MOCK missing,
+  // or a failed getAllRecords in the live version). Offers a retry.
+  function renderError(msg) {
+    var body = $('#lines-body');
+    body.innerHTML =
+      '<tr><td colspan="8"><div class="state error">' +
+        '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 16H3L12 3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 10v4M12 16.5v.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>' +
+        '<div class="state-title">Couldn’t load item data</div>' +
+        '<div>' + (msg || 'The Item_Master source is unavailable.') + '</div>' +
+        '<button class="btn secondary" id="err-retry" type="button" style="margin-top:10px">Retry</button>' +
+      '</div></td></tr>';
+    var r = $('#err-retry');
+    if (r) r.addEventListener('click', boot);
+  }
+
+  function boot() {
+    bindStatic();
+    if (!window.QTS_MOCK || !DATA || !Array.isArray(DATA.items)) { renderError(); return; }
+    if (!state.kitId) state.kitId = DATA.bmsKits[0].id;
+    state.taxRate = DATA.meta.taxRateDefault;
+    renderLoading();
+    // simulate the async fetch the live widget will perform
+    setTimeout(function () {
+      state.lines = []; state.seq = 1; state.dismissedPending = {}; // reset in case of retry
+      loadData();
+      render();
+    }, prefersReduced() ? 0 : 360);
+  }
+
+  // In a real Creator widget, ZOHO.CREATOR.init() would gate this. For the mock
+  // pass we run standalone; if the SDK is present we still just boot with mock data.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "service": "CREATOR",
+  "version": "1.0.6",
+  "locale": [
+    "en"
+  ],
+  "cspDomains": {
+    "connect-src": [],
+    "img-src": []
+  },
+  "modules": {
+    "widgets": [
+      {
+        "name": "QTS Quote Builder",
+        "index-url": "/widget.html",
+        "options": {
+          "width": 1200,
+          "height": 860,
+          "type": "full-page"
+        }
+      }
+    ]
+  },
+  "cli-version": "1.0",
+  "framework": "vanilla",
+  "notes": "Internal Creator widget. Live-data read-only pass: fetches Item_Master_Report and Kit_Components_Report via ZOHO.CREATOR.API.getAllRecords in app/widget.js (loadLiveData()). No record writes, no OAuth, no external hosting. mock-data.js retained for reference only (not loaded)."
+}

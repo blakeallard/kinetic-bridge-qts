@@ -7,7 +7,7 @@ Repo: BI1-T71
 
 | Check | Result |
 | ----- | ------ |
-| Widget exposes `publishQuotePackage` | Code present in `qts-quote-builder/app/widget.js` |
+| Widget exposes `publishQuotePackage` | Code present in `widget/app/widget.js` |
 | Two buttons only (Save / Email); no Update CRM deal | `widget.html` + packbay mirrors |
 | Unit tests `node tests/widget_state_test.js` | **ALL TESTS PASS** (2026-07-29) |
 | Modular Deluge under `scripts/qts_publish/` | 13 step/orchestrator files + COMPAT + README |
@@ -41,9 +41,9 @@ Do **not** burn live client email unless intentional. Prefer internal contact + 
 ### Widget deploy
 
 ```bash
-# From sibling/local widget checkout — rebuild/upload ZIP per Creator packbay process
-cd ../qts-quote-builder   # or: path to widget package in this product repo
-# npm/build steps as documented in that project's README
+# From repo widget package — rebuild/upload ZIP per Creator packbay process
+cd widget
+# zip -r dist/qts-quote-builder.zip plugin-manifest.json app -x "*.DS_Store"
 node tests/widget_state_test.js
 ```
 
