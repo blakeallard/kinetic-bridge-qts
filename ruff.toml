@@ -1,3 +1,13 @@
 # Pin the lint rule set so CI results do not drift with ruff releases.
+# Exclude nested virtualenvs / caches so local trees match CI clean checkouts.
+exclude = [
+  ".venv",
+  "venv",
+  "**/local_qts/.venv/**",
+  "node_modules",
+  ".ruff_cache",
+  "**/.venv/**",
+]
+
 [lint]
 select = ["E4", "E7", "E9", "F"]

@@ -41,8 +41,9 @@ Do **not** burn live client email unless intentional. Prefer internal contact + 
 ### Widget deploy
 
 ```bash
-# From qts-quote-builder — rebuild/upload widget ZIP per existing Creator packbay process
-cd /Users/blakeallard/bevco/qts-quote-builder
+# From sibling/local widget checkout — rebuild/upload ZIP per Creator packbay process
+cd ../qts-quote-builder   # or: path to widget package in this product repo
+# npm/build steps as documented in that project's README
 node tests/widget_state_test.js
 ```
 
