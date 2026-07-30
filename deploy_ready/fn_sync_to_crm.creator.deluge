@@ -333,80 +333,10 @@ void fn_sync_to_crm(string p_quote_id)
 					info "fn_sync_to_crm: CRM Products missing for part(s) " + missing_products + " - those lines are NOT on the Deal Associated Products list. Add them to CRM Products (Product_Code = Part_Number) and resave.";
 				}
 				info "fn_sync_to_crm: Deal " + deal_id_text + " updated with " + assoc_rows.size() + " Associated Product row(s) for quote '" + ifnull(quote.Quote_Number,"") + "': " + ifnull(update_resp,"null").toString();
-				quote_no_for_crm = ifnull(quote.Quote_Number,"").toString().trim();
-				if(quote_no_for_crm != "")
-				{
-					quoted_items = List();
-					for each  line in quote.Quote_Lines
-					{
-						part_no = ifnull(line.Part_Number,"").toString().trim();
-						if(part_no != "")
-						{
-							product_id = "";
-							product_matches = zoho.crm.searchRecords("Products","Product_Code:equals:" + part_no);
-							if(product_matches != null)
-							{
-								if(product_matches.size() > 0)
-								{
-									product_id = ifnull(product_matches.get(0).get("id"),"").toString();
-								}
-							}
-							if(product_id != "")
-							{
-								item_row = Map();
-								product_ref = Map();
-								product_ref.put("id",product_id);
-								item_row.put("Product_Name",product_ref);
-								item_row.put("Quantity",ifnull(line.Qty,0));
-								item_row.put("List_Price",ifnull(line.Unit_Price,0));
-								quoted_items.add(item_row);
-							}
-						}
-					}
-					if(quoted_items.size() > 0)
-					{
-						crm_quote = Map();
-						crm_quote.put("Subject","Kinetic Bridge Quote " + quote_no_for_crm);
-						deal_ref = Map();
-						deal_ref.put("id",deal_id_text);
-						crm_quote.put("Deal_Name",deal_ref);
-						if(contact_id != "")
-						{
-							contact_ref = Map();
-							contact_ref.put("id",contact_id);
-							crm_quote.put("Contact_Name",contact_ref);
-						}
-						valid_until_crm = ifnull(quote.Valid_Until,null);
-						if(valid_until_crm != null)
-						{
-							crm_quote.put("Valid_Till",valid_until_crm.toString("yyyy-MM-dd"));
-						}
-						crm_quote.put("Quoted_Items",quoted_items);
-						existing_quote_id = "";
-						quote_search = zoho.crm.searchRecords("Quotes","Subject:equals:Kinetic Bridge Quote " + quote_no_for_crm);
-						if(quote_search != null)
-						{
-							if(quote_search.size() > 0)
-							{
-								existing_quote_id = ifnull(quote_search.get(0).get("id"),"").toString();
-							}
-						}
-						if(existing_quote_id == "")
-						{
-							quote_create_resp = zoho.crm.createRecord("Quotes",crm_quote);
-							info "fn_sync_to_crm: CRM Quote CREATED for '" + quote_no_for_crm + "': " + ifnull(quote_create_resp,"null").toString();
-						}
-						else
-						{
-							quote_update_resp = zoho.crm.updateRecord("Quotes",existing_quote_id.toLong(),crm_quote);
-							info "fn_sync_to_crm: CRM Quote " + existing_quote_id + " UPDATED for '" + quote_no_for_crm + "': " + ifnull(quote_update_resp,"null").toString();
-						}
-					}
-					else
-					{
-						info "fn_sync_to_crm: zero lines resolved to CRM Products - CRM Quote record skipped for '" + quote_no_for_crm + "'.";
-					}
-				}
+				// CRM Quotes upsert removed from sync (2026-07-29 two-button plan).
+				// Quotes create/update runs ONLY on Email Quote Package via Flow
+				// upsert_crm_quote / generate_and_file_quote_document(send_email=true).
+				info "fn_sync_to_crm: CRM Quotes skipped on sync — email path owns Quotes module.";
 			}
 		}
 		break;

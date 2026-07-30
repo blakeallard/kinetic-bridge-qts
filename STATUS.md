@@ -16,10 +16,14 @@ Last updated: 2026-07-29 (active: QTS two-button CRM)
 
 | Stage | Status |
 | ----- | ------ |
-| Stage 0 — Spec lock | **in_progress** |
-| Stages 1–5 | pending |
+| Stage 0 — Spec lock | **done** |
+| Stage 1 — Widget UX | **done** (`publishQuotePackage`, two buttons) |
+| Stage 2 — Flow modularization | **done** (`scripts/qts_publish/` + T110 Quotes gated on `send_email`) |
+| Stage 3 — WorkDrive | **done** (CURRENT/CONFIRMED/DRAFTS Deluge; root folder ID placeholder) |
+| Stage 4 — Creator rev | **done** (`snapshot_creator_revision` + field notes; non-blocking) |
+| Stage 5 — Verify | **done** locally (ALL TESTS PASS); live E2E → `docs/QTS_TWO_BUTTON_CRM_VERIFY.md` |
 
-**Next:** lock Stage 0 defaults with Blake, then Stage 1 widget UX at `/Users/blakeallard/bevco/qts-quote-builder/app/widget.js` (+ Pack Bay mirror under `artifacts/qts-widget-ui-packbay/`).
+**Blake next:** Upload widget ZIP; paste `scripts/qts_publish/*` (or COMPAT/T110) into Flow; set `QTS_QUOTES_ROOT_FOLDER_ID`; run Save×2 / Email matrix dry-run-safe.
 
 ---
 

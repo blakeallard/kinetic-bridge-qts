@@ -1,0 +1,46 @@
+// Writer merge → PDF file. Shared by Save + Email.
+// Connection: writer_to_flow (existing). No new OAuth scopes.
+map merge_quote_pdf(map merge_data, string quote_number)
+{
+result = Map();
+result.put("status","skipped");
+result.put("reason","");
+result.put("merged_file",null);
+template_document_id = "h5zhu2051759ecefd4148816cf61ad65a9cbc";
+if(merge_data == null || merge_data.isEmpty())
+{
+	result.put("status","failed");
+	result.put("reason","merge_data_missing");
+	return result;
+}
+safe_qno = ifnull(quote_number,"").trim();
+if(safe_qno == "")
+{
+	safe_qno = ifnull(merge_data.get("quote_number"),"").toString().trim();
+}
+data_list = List();
+data_list.add(merge_data);
+merge_payload = Map();
+merge_payload.put("data",data_list);
+merge_params = Map();
+merge_params.put("merge_data",merge_payload.toString());
+merge_params.put("output_settings","{\"format\":\"pdf\"}");
+merge_params.put("filename","Kinetic_Bridge_Quote_" + safe_qno);
+merged_file = invokeurl
+[
+	url : "https://writer.zoho.com/writer/api/v1/documents/" + template_document_id + "/merge"
+	type : POST
+	parameters : merge_params
+	connection : "writer_to_flow"
+];
+if(merged_file == null)
+{
+	result.put("status","failed");
+	result.put("reason","merge_failed");
+	return result;
+}
+result.put("status","ok");
+result.put("merged_file",merged_file);
+result.put("filename","Kinetic_Bridge_Quote_" + safe_qno + ".pdf");
+return result;
+}

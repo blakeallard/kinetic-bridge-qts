@@ -1,0 +1,163 @@
+// EMAIL-ONLY: upsert CRM Quotes from Deal Associated Products + attach PDF.
+// Subject key: "Kinetic Bridge Quote {quote_number}"
+// Save Quote Package must never invoke this step.
+map upsert_crm_quote(string deal_id, string contact_id, string quote_number, string quote_request_id, map merge_data, file merged_file)
+{
+result = Map();
+result.put("status","skipped");
+result.put("quote_record_id","");
+result.put("quote_action","");
+result.put("attached_to_quote","no");
+safe_deal_id = ifnull(deal_id,"").trim();
+safe_qno = ifnull(quote_number,"").trim();
+if(safe_deal_id == "" || safe_qno == "")
+{
+	result.put("status","failed");
+	result.put("reason","deal_or_quote_number_missing");
+	return result;
+}
+quoted_items = List();
+try
+{
+	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	if(deal_record != null)
+	{
+		products = ifnull(deal_record.get("Associated_Products"),List());
+		for each item in products
+		{
+			quantity = ifnull(item.get("Quantity"),0).toDecimal();
+			if(quantity > 0)
+			{
+				product = item.get("Product");
+				if(product != null && ifnull(product.get("id"),"").toString() != "")
+				{
+					product_lookup = Map();
+					product_lookup.put("id",ifnull(product.get("id"),"").toString());
+					quoted_item = Map();
+					quoted_item.put("Product_Name",product_lookup);
+					quoted_item.put("Quantity",quantity);
+					quoted_item.put("List_Price",ifnull(item.get("List_Price"),0).toDecimal());
+					quoted_items.add(quoted_item);
+				}
+			}
+		}
+	}
+}
+catch (deal_read_error)
+{
+	quoted_items = List();
+}
+if(quoted_items.size() == 0)
+{
+	result.put("status","failed");
+	result.put("reason","associated_products_empty");
+	return result;
+}
+quote_subject = "Kinetic Bridge Quote " + safe_qno;
+quote_map = Map();
+quote_map.put("Subject",quote_subject.trim());
+deal_lookup = Map();
+deal_lookup.put("id",safe_deal_id);
+quote_map.put("Deal_Name",deal_lookup);
+safe_contact_id = ifnull(contact_id,"").trim();
+if(safe_contact_id != "")
+{
+	quote_contact_lookup = Map();
+	quote_contact_lookup.put("id",safe_contact_id);
+	quote_map.put("Contact_Name",quote_contact_lookup);
+}
+valid_till_value = "";
+if(merge_data != null)
+{
+	valid_till_value = ifnull(merge_data.get("valid_till"),"").toString().trim();
+}
+if(valid_till_value != "")
+{
+	try
+	{
+		quote_map.put("Valid_Till",valid_till_value.toDate().toString("yyyy-MM-dd"));
+	}
+	catch (valid_till_error)
+	{
+	}
+}
+safe_quote_request_id = ifnull(quote_request_id,"").trim();
+if(safe_quote_request_id != "")
+{
+	quote_map.put("Description","QTS Quote_Request ID: " + safe_quote_request_id);
+}
+quote_map.put("Quoted_Items",quoted_items);
+quote_record_id = "";
+existing_quote_id = "";
+try
+{
+	existing_quotes = zoho.crm.searchRecords("Quotes","(Subject:equals:" + quote_subject.trim() + ")");
+	if(existing_quotes != null && existing_quotes.size() > 0)
+	{
+		existing_quote_id = ifnull(existing_quotes.get(0).get("id"),"").toString().trim();
+	}
+}
+catch (quote_search_error)
+{
+	existing_quote_id = "";
+}
+if(existing_quote_id != "")
+{
+	try
+	{
+		quote_response = zoho.crm.updateRecord("Quotes",existing_quote_id.toLong(),quote_map);
+		if(quote_response != null && ifnull(quote_response.get("status"),"") != "error")
+		{
+			quote_record_id = existing_quote_id;
+			result.put("quote_action","updated");
+		}
+	}
+	catch (quote_update_error)
+	{
+		quote_record_id = "";
+	}
+}
+else
+{
+	try
+	{
+		quote_response = zoho.crm.createRecord("Quotes",quote_map);
+		if(quote_response != null)
+		{
+			quote_record_id = ifnull(quote_response.get("id"),"").toString().trim();
+			if(quote_record_id != "")
+			{
+				result.put("quote_action","created");
+			}
+		}
+	}
+	catch (quote_create_error)
+	{
+		quote_record_id = "";
+	}
+}
+if(quote_record_id == "")
+{
+	result.put("status","failed");
+	result.put("reason","quote_upsert_failed");
+	return result;
+}
+result.put("quote_record_id",quote_record_id);
+if(merged_file != null)
+{
+	try
+	{
+		quote_attach = zoho.crm.attachFile("Quotes",quote_record_id.toLong(),merged_file,"zoho_crm_to_zoho_flow");
+		if(quote_attach != null && ifnull(quote_attach.get("status"),"") != "error")
+		{
+			result.put("attached_to_quote","yes");
+		}
+	}
+	catch (quote_attach_error)
+	{
+		result.put("attached_to_quote","no");
+	}
+}
+result.put("status","ok");
+return result;
+}

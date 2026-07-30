@@ -9,12 +9,43 @@ External path pointers: [`QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](./QTS_TWO_BUT
 
 | Stage | Status |
 | ----- | ------ |
-| Stage 0 — Spec lock | **in_progress** |
-| Stage 1 — Widget UX consolidation | pending |
-| Stage 2 — Flow pipeline hardening | pending |
-| Stage 3 — WorkDrive revision organization | pending |
-| Stage 4 — Creator revision history | pending |
-| Stage 5 — Verify | pending |
+| Stage 0 — Spec lock | **complete** |
+| Stage 1 — Widget UX consolidation | **complete** |
+| Stage 2 — Flow pipeline hardening | **complete** |
+| Stage 3 — WorkDrive revision organization | **complete** |
+| Stage 4 — Creator revision history | **complete** |
+| Stage 5 — Verify | **complete** (local) — live Zoho: see `QTS_TWO_BUTTON_CRM_VERIFY.md` |
+
+---
+
+## SPEC_LOCK (Stage 0 — locked 2026-07-29)
+
+These defaults are locked for implementation. Override only with an explicit Blake decision.
+
+| Topic | Locked value |
+| ----- | ------------ |
+| Button 1 label | **Save Quote Package** |
+| Button 2 label | **Email Quote Package** |
+| Save → Creator Status | `PDF Filed` |
+| Email → Creator Status | `Package Requested` |
+| Deal stage on Email only | **Negotiation/Review** |
+| WorkDrive root folder **name** | `QTS Quotes` |
+| WorkDrive root folder **ID** | **UNKNOWN** — use config placeholder `QTS_QUOTES_ROOT_FOLDER_ID` (empty string) and resolve by name under the Team Folder / parent used by Flow (`workdrive_ensure_quote_folders`) |
+| WorkDrive layout | `QTS Quotes/{quote_number}/{CURRENT,CONFIRMED,DRAFTS}/` |
+| Stable PDF filename | `Kinetic_Bridge_Quote_{quote_number}.pdf` |
+| DRAFTS filename suffix | `r{n}_{yyyyMMdd_HHmmss}` (e.g. `Kinetic_Bridge_Quote_QUOTE0001_r2_20260729_173045.pdf`) |
+| CRM Quotes subject upsert key | `Kinetic Bridge Quote {quote_number}` (**Email path only**) |
+| Standalone “Update CRM deal” button | **Removed** from main UI (Deal sync is step 1 inside both publish buttons) |
+| Zoho Sign / Books / OAuth scopes / secrets | **Unchanged** (out of scope) |
+
+Config comment pattern (Deluge):
+
+```deluge
+// QTS_QUOTES_ROOT_FOLDER_ID: paste WorkDrive folder resource_id when known.
+// Until then, look up a child named "QTS Quotes" under the Flow connection parent.
+qts_quotes_root_folder_id = ""; // PLACEHOLDER — name-based lookup when blank
+qts_quotes_root_folder_name = "QTS Quotes";
+```
 
 ---
 
@@ -148,11 +179,9 @@ Further lightweight rules:
 
 ## Staged implementation
 
-### Stage 0 — Spec lock (this plan)
+### Stage 0 — Spec lock (this plan) — DONE
 
-- Confirm WorkDrive root folder ID/name in org
-- Confirm Negotiation/Review as email stage
-- Confirm button copy: Save Quote Package / Email Quote Package
+See **SPEC_LOCK** above. WorkDrive root ID remains a placeholder; name-based lookup proceeds.
 
 ### Stage 1 — Widget UX consolidation
 

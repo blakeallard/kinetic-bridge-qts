@@ -1,0 +1,47 @@
+// Loud fail if Deal Associated Products empty after sync — abort before Writer merge.
+map assert_deal_has_products(string deal_id)
+{
+result = Map();
+result.put("status","skipped");
+result.put("product_count",0);
+safe_deal_id = ifnull(deal_id,"").trim();
+if(safe_deal_id == "")
+{
+	result.put("status","failed");
+	result.put("reason","deal_id_missing");
+	return result;
+}
+quoted_count = 0;
+try
+{
+	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	if(deal_record != null)
+	{
+		products = ifnull(deal_record.get("Associated_Products"),List());
+		for each item in products
+		{
+			quantity = ifnull(item.get("Quantity"),0).toDecimal();
+			product = item.get("Product");
+			if(quantity > 0 && product != null && ifnull(product.get("id"),"").toString() != "")
+			{
+				quoted_count = quoted_count + 1;
+			}
+		}
+	}
+}
+catch (deal_read_error)
+{
+	result.put("status","failed");
+	result.put("reason","deal_read_failed");
+	return result;
+}
+result.put("product_count",quoted_count);
+if(quoted_count == 0)
+{
+	result.put("status","failed");
+	result.put("reason","associated_products_empty_after_sync");
+	return result;
+}
+result.put("status","ok");
+return result;
+}

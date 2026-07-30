@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>QTS Quote Builder — Pack Bay (UI copy)</title>
-  <link rel="stylesheet" href="widget.packbay.css" />
+  <link rel="stylesheet" href="widget.css" />
   <!-- Official Zoho Creator widget JS SDK v1, bundled locally (same-origin) so it
        cannot be blocked by iframe CSP / external fetch. Source of this exact file:
        https://js.zohostatic.com/creator/widgets/version/1.0/widgetsdk-min.js -->
@@ -27,7 +27,7 @@
     <div class="bay">
       <header class="mast">
         <div class="mast-brand">
-          <img src="assets/logo.packbay.svg" alt="QTS" />
+          <img src="assets/logo.svg" alt="QTS" />
           <div>
             <p class="eyebrow">Kinetic Bridge · Engineering Energy. Delivering Solutions.</p>
             <h1>QTS Quotation</h1>
@@ -114,6 +114,10 @@
                 </div>
                 <div class="field"><label for="f-date">Quote date</label><input id="f-date" type="date" /></div>
                 <div class="field"><label for="f-valid">Valid until</label><input id="f-valid" type="date" /></div>
+                <div class="field">
+                  <label for="f-payment-terms">Payment terms</label>
+                  <input id="f-payment-terms" type="text" value="Net 30" maxlength="255" autocomplete="off" placeholder="e.g. Net 30" title="Free-text payment terms — appears on the quote PDF" />
+                </div>
               </div>
             </div>
           </section>
@@ -169,7 +173,11 @@
                   <thead>
                     <tr>
                       <th class="c">#</th><th>SKU</th><th>Description &amp; warnings</th><th>Type</th>
-                      <th class="c">Qty</th><th class="r">Unit</th><th class="r">Line total</th><th class="c"></th>
+                      <th class="c">Qty</th>
+                      <th class="r">List (EUR)</th>
+                      <th class="r">Disc %</th>
+                      <th class="r">Sale (USD)</th>
+                      <th class="r">Line total</th><th class="c"></th>
                     </tr>
                   </thead>
                   <tbody id="lines-body"></tbody>
@@ -196,14 +204,10 @@
             <div class="panel-body slab-body">
               <div class="readout-top">
                 <span class="eyebrow">Quote total</span>
-                <div class="tax-status" id="price-basis" style="display:none"></div>
               </div>
               <div class="readout-total mono" id="t-total">$0.00</div>
               <div class="readout-rows">
                 <div class="trow"><span class="lbl">Subtotal</span><span class="val" id="t-subtotal">$0.00</span></div>
-                <div class="trow editable"><span class="lbl">Discount</span><span><input id="discount" type="number" min="0" step="0.01" value="0" aria-label="Discount amount" /></span></div>
-                <!-- Tax rows removed 2026-07-12: Kinetic Bridge does not charge tax
-                     on quotes (management decision — see docs/CURRENT_HANDOFF.md). -->
               </div>
               <div class="warn-summary" id="warn-summary"></div>
             </div>
@@ -212,14 +216,12 @@
           <section class="action-dock panel">
             <div class="panel-body slab-body">
               <div class="actions">
-                <button class="btn primary" id="btn-generate" type="button"
-                  title="Preview/package check only — does not save, send, or change the quote">Generate quote package</button>
-                <button class="btn secondary" id="btn-send-sign" type="button"
-                  title="Sets this saved Draft to 'Send for Signature' — Creator then merges the Writer PDF and creates the REAL Zoho Sign request">Send for signature…</button>
-                <button class="btn secondary" id="btn-recalc" type="button">Recalculate</button>
-                <button class="btn ghost" id="btn-save" type="button">Save draft</button>
-                <span class="autosave-note" id="autosave-status">Auto-save on</span>
-                <button class="btn ghost danger" id="btn-discard" type="button" hidden
+                <button class="btn primary" id="btn-email-package" type="button"
+                  title="Shared publish + WorkDrive CONFIRMED + CRM Quotes + email client + Deal stage Negotiation/Review">Email Quote Package</button>
+                <button class="btn secondary" id="btn-save-package" type="button"
+                  title="Shared publish (Deal sync + PDF + WorkDrive CURRENT) — NO email, NO CRM Quotes, NO stage advance">Save Quote Package</button>
+                <span class="autosave-note" id="autosave-status">Auto-save on · build 2026-07-29g</span>
+                <button class="btn danger" id="btn-discard" type="button" hidden
                   title="Permanently delete this saved draft from Creator">Discard draft</button>
               </div>
               <!-- In-widget confirmation: browser-native confirm() is silently
