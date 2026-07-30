@@ -23,7 +23,7 @@ Execution home: **this repo**. Not Supabase→Databricks. Not T110 product owner
 - Owner: 923987103
 - Tags: automation, internal-work, repo-needed
 - Zoho task URL: Not provided
-- Repository URL: https://github.com/blake-bevco-tech/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations
+- Repository URL: https://github.com/blakeallard/kinetic-bridge-qts
 - Generated at: 2026-07-02T12:32:43-07:00
 
 ## Description
