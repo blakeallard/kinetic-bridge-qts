@@ -62,6 +62,15 @@ CSV_HEADER = ['Part_Number', 'Description', 'Category', 'Tier_Scheme', 'Discount
               'Price_T7', 'Price_T8', 'Price_T9', 'Review_Flag', 'Review_Reason',
               'Recommended_Action']
 
+# Creator import ONLY — no audit columns (those mis-map and blank out Tier_Scheme).
+# Tier_Scheme values must match the live dropdown exactly (Deluge lowercases on read).
+CREATOR_CSV_HEADER = [
+    'Part_Number', 'Description', 'Category', 'Tier_Scheme', 'Discountable',
+    'Active', 'Item_Status', 'Quote_Warning',
+    'Price_T1', 'Price_T2', 'Price_T3', 'Price_T4', 'Price_T5',
+    'Price_T6', 'Price_T7', 'Price_T8', 'Price_T9',
+]
+
 # Section header text (column B) -> (tier_scheme, category, number of price bands, band labels)
 SECTIONS = {
     'BMS boards incl. wire harness kits': ('hardware', 'Hardware', 9,
@@ -338,21 +347,20 @@ def main():
         prices = [fmt_price(cells.get(i, '')) for i in band_cols]
 
         # Tail scan beyond the band columns: the DISTRIB DISCOUNT column carries
-        # a standalone "X" meaning NOT discountable; blank means discountable
-        # (authoritative rule, Blake 2026-07-12 — Round 80). Anything else out
-        # there is junk (e.g. stray "47" on the 200500 row).
-        discountable = 'Y'
+        # a standalone "X" meaning discountable (vendor legend + Blake 2026-07-31:
+        # "Discount to RSP on products marked with X"). Blank / no X = NOT
+        # discountable. Anything else out there is junk (e.g. stray "47" on
+        # the 200500 row).
+        discountable = 'N'
         for i in sorted(cells):
             if i < 2 + nbands:
                 continue
             v = cells[i].strip()
             if v == 'X':
-                discountable = 'N'
+                discountable = 'Y'
             elif v:
                 junk_notes.append((rownum, col0, f'ignored stray cell at column index {i}: "{v}"'))
-        # Explicit Blake override (2026-07-12, Round 80 list, live-verified via
-        # the r80 import): 200001's DISTRIB DISCOUNT cell is blank in the
-        # workbook, but Blake ruled it NOT discountable.
+        # Explicit override: 200001 stays NOT discountable even if workbook drifts.
         if col0 in NOT_DISCOUNTABLE_OVERRIDES:
             discountable = 'N'
 
@@ -421,17 +429,72 @@ def main():
         it['flag'], it['reason'], it['active'], it['action'] = flag, reason, active, action
         it['status'], it['warning'] = derive_item_status(it)
 
-    # ---- CSV ----
+    def item_csv_row(it):
+        """Audit preview row — full CSV_HEADER."""
+        p = it['prices'] + [''] * (9 - len(it['prices']))
+        return [it['sku'], it['desc'], it['category'], it['tier_scheme'],
+                it['discountable'], it['active'], it['status'], it['warning'],
+                it['row'], it['visibility'],
+                it['dup_classification']] + p + [it['flag'], it['reason'], it['action']]
+
+    def creator_csv_row(it, *, include_tier=True, tier_style='lower'):
+        """Creator-only columns. Tier_Scheme style: lower | title | omit."""
+        p = it['prices'] + [''] * (9 - len(it['prices']))
+        category = 'BMS' if it['category'] == 'Hardware' else it['category']
+        active = it['active'] if it['active'] in ('Y', 'N') else 'Y'
+        tier = it['tier_scheme']  # hardware | license
+        if tier_style == 'title':
+            tier = tier[:1].upper() + tier[1:]  # Hardware | License
+        row = [it['sku'], it['desc'], category]
+        if include_tier:
+            row.append(tier)
+        row += [it['discountable'], active, it['status'], it['warning']] + p
+        return row
+
+    def creator_header(include_tier=True):
+        if include_tier:
+            return list(CREATOR_CSV_HEADER)
+        return [c for c in CREATOR_CSV_HEADER if c != 'Tier_Scheme']
+
+    # ---- Audit preview (familiar full layout; do NOT import into Creator) ----
     csv_path = os.path.join(HERE, 'item_master_import_preview.csv')
     with open(csv_path, 'w', newline='') as f:
         w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         w.writerow(CSV_HEADER)
         for it in items:
-            p = it['prices'] + [''] * (9 - len(it['prices']))
-            w.writerow([it['sku'], it['desc'], it['category'], it['tier_scheme'],
-                        it['discountable'], it['active'], it['status'], it['warning'],
-                        it['row'], it['visibility'],
-                        it['dup_classification']] + p + [it['flag'], it['reason'], it['action']])
+            w.writerow(item_csv_row(it))
+
+    # ---- Creator import (NO audit columns — they blank Tier_Scheme on map) ----
+    creator_csv_path = os.path.join(HERE, 'item_master_import_for_creator.csv')
+    with open(creator_csv_path, 'w', newline='') as f:
+        w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+        w.writerow(creator_header(include_tier=True))
+        for it in items:
+            w.writerow(creator_csv_row(it, include_tier=True, tier_style='lower'))
+
+    # Fallback if live dropdown is Hardware/License (title case)
+    creator_title_path = os.path.join(HERE, 'item_master_import_for_creator_tier_titlecase.csv')
+    with open(creator_title_path, 'w', newline='') as f:
+        w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+        w.writerow(creator_header(include_tier=True))
+        for it in items:
+            w.writerow(creator_csv_row(it, include_tier=True, tier_style='title'))
+
+    # Fallback if Tier_Scheme picklist blocks import: omit column (Deluge defaults blank→hardware).
+    # Set license SKUs manually afterward, or fix dropdown then re-import title/lower file.
+    creator_no_tier_path = os.path.join(HERE, 'item_master_import_for_creator_no_tier_scheme.csv')
+    with open(creator_no_tier_path, 'w', newline='') as f:
+        w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+        w.writerow(creator_header(include_tier=False))
+        for it in items:
+            w.writerow(creator_csv_row(it, include_tier=False))
+
+    disc_csv_path = os.path.join(HERE, 'item_master_discountable_update.csv')
+    with open(disc_csv_path, 'w', newline='') as f:
+        w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+        w.writerow(['Part_Number', 'Discountable'])
+        for it in items:
+            w.writerow([it['sku'], it['discountable']])
 
     # ---- Report ----
     total = len(items)
@@ -466,7 +529,7 @@ def main():
     lines.append('3. Rows with an empty column A (titles, quantity-band headers, discount-multiplier rows like `0.75 / 0.65 / ...`) and pre-section metadata rows (delivery-time / MOQ rows with slash-joined part numbers) are skipped, not items.')
     lines.append('4. Price bands map to `Price_T1..Tn` per section: BMS boards = 9 hardware bands (1-19 ... 10000-24999); Accessories = 4 hardware bands; Creator/Service Tool = 6 license bands (1 / 2 / 3-4 / 5-9 / 10-24 / 25-249); obsolete software = 3 license bands. `Tier_Scheme` = `hardware` or `license` accordingly.')
     lines.append('5. Prices are rounded to exactly 2 decimals (source has float noise, e.g. `506.00000000000006` -> `506.00`). "Not priced" text = blank.')
-    lines.append('6. A standalone `X` in the row tail (the DISTRIB DISCOUNT column, beyond the band columns) sets `Discountable=N` (NOT discountable); absent/blank = `Y` (discountable) — authoritative rule confirmed by Blake 2026-07-12 (Round 80; this corrects the original inverted mapping). Explicit exception: `200001` is `N` by Blake\'s override (blank in workbook, ruled NOT discountable). Other stray tail cells are ignored as junk (see notes).')
+    lines.append('6. A standalone `X` in the row tail (the DISTRIB DISCOUNT column, beyond the band columns) sets `Discountable=Y` (discountable); absent/blank = `N` (NOT discountable) — vendor legend on sheet `Distrib discount` ("Discount to RSP on products marked with X") and Blake 2026-07-31. Explicit exception: `200001` is always `N`. Other stray tail cells are ignored as junk (see notes).')
     lines.append('7. Category proposal: BMS boards -> Hardware; Accessories -> Accessory; Creator Tool / Service Tool / obsolete software -> Software.')
     lines.append('8. Review flag precedence per row: `DUPLICATE_SKU` > `UNPRICED` > `CONFIRM_DISCOUNT_CLASS`. `Active=REVIEW` for duplicate/unpriced rows; `Active=Y` otherwise (no `N` rows in this pass).')
     lines.append('9. `import_preview/duplicate_sku_classification.json` is the single source of truth for duplicate-SKU working assumptions. Preview generation verifies the workbook row visibility against that file and fails loudly if any duplicate SKU lacks exactly one `CANONICAL_CANDIDATE` row with all others marked `EXCLUDE_CANDIDATE`.')
@@ -533,7 +596,12 @@ def main():
     with open(report_path, 'w') as f:
         f.write('\n'.join(lines))
 
-    print(f'Wrote {csv_path} ({total} item rows) and {report_path}')
+    print(f'Wrote {csv_path} ({total} item rows) [audit — do not import]')
+    print(f'Wrote {creator_csv_path} [IMPORT — Tier_Scheme=hardware|license]')
+    print(f'Wrote {creator_title_path} [IMPORT alt — Tier_Scheme=Hardware|License]')
+    print(f'Wrote {creator_no_tier_path} [IMPORT alt — no Tier_Scheme column]')
+    print(f'Wrote {disc_csv_path} (Part_Number + Discountable only)')
+    print(f'Wrote {report_path}')
     print(f'total={total} priced={priced} unpriced={unpriced} dup_skus={len(dup_skus)} '
           f'dup_rows={dup_rows} active_review={review_active} flagged={len(flagged)}')
 

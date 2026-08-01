@@ -134,7 +134,7 @@ const KIT7 = [
     check('blank server unit keeps prior price', t.state.lines[0].unit === 318.18);
     check('blank server unit is not UNPRICED when prior price kept',
       t.state.lines[0].flags.indexOf('unpriced') === -1);
-    check('autosave delay is instant (0ms)', t.AUTOSAVE_DELAY_MS === 0, String(t.AUTOSAVE_DELAY_MS));
+    check('autosave debounced at 3s (burst edits collapse to one write)', t.AUTOSAVE_DELAY_MS === 3000, String(t.AUTOSAVE_DELAY_MS));
 
     // Update-in-place completion: silent internal reload, then "Draft updated —"
     // is the FINAL toast (reload cannot overwrite it).
@@ -585,14 +585,39 @@ const KIT7 = [
   // kit-added Item_Master-backed lines retain tiers and reprice
   {
     const t = freshWidget();
+    t.setCustomerType('End Customer'); // isolate tier math from catalog Disc %
     t.DATA.items = [{ sku: '100980', name: 'i-BMS Master', type: 'BMS', unit: 150,
-      tiers: [150, 100, null, null, null, null, null, null, null], scheme: 'hardware', flags: [] }];
+      tiers: [150, 100, null, null, null, null, null, null, null], scheme: 'hardware',
+      flags: [], discountable: true }];
     t.applyKitRows([{ part_number: '100980', qty: '2', kit_warning: '' }], 12); // qty 24 -> T2
     const kl = t.state.lines[0];
     check('kit-added line carries tiers', Array.isArray(kl.tiers));
-    check('kit-added line reprices past band (qty 24 -> 100)', kl.qty === 24 && kl.unit === 100);
+    check('kit-added line reprices past band (qty 24 -> 100)', kl.qty === 24 && kl.unit === 100,
+      String([kl.qty, kl.unit, kl.discountPct]));
     t.applyKitRows([{ part_number: '100980', qty: '2', kit_warning: '' }], 1); // merge to 26 (still T2)
     check('kit merge keeps repriced tier', t.state.lines.length === 1 && kl.unit === 100);
+
+    // Live expand_kit / Deluge may emit Part_Number (PascalCase) — must still join Item_Master
+    const t2 = freshWidget();
+    t2.setCustomerType('Distributor');
+    t2.DATA.items = [{ sku: '100916', name: 'i-BMS15/6', type: 'BMS', listEur: 330, unit: 330,
+      tiers: [330, 275, null, null, null, null, null, null, null], scheme: 'hardware',
+      flags: [], discountable: true, category: 'bms' }];
+    t2.applyKitRows([{ Part_Number: '100916', Qty: '1', Kit_Warning: '' }], 1);
+    check('kit PascalCase Part_Number joins Item_Master',
+      t2.state.lines.length === 1 && t2.state.lines[0].name === 'i-BMS15/6' && t2.state.lines[0].listEur === 330);
+    check('kit PascalCase row preloads Distributor Disc %',
+      t2.state.lines[0].discountPct === 10, String(t2.state.lines[0].discountPct));
+
+    // qty 24 Distributor HW → 7.5% when discountable
+    const t3 = freshWidget();
+    t3.setCustomerType('Distributor');
+    t3.DATA.items = [{ sku: '100980', name: 'Harness', type: 'BMS', listEur: 100, unit: 100,
+      tiers: [150, 100, null, null, null, null, null, null, null], scheme: 'hardware',
+      flags: [], discountable: true, category: 'bms' }];
+    t3.applyKitRows([{ part_number: '100980', qty: '24', kit_warning: '' }], 1);
+    check('kit-added discountable line preloads Disc % for qty band',
+      t3.state.lines[0].discountPct === 7.5, String(t3.state.lines[0].discountPct));
   }
 
   // Recalculate re-runs tier derivation for eligible lines only
@@ -998,6 +1023,19 @@ const KIT7 = [
     check('lead quote persists CRM_Lead_ID', payload.CRM_Lead_ID === '6719186000004000001');
     check('lead quote carries no invented Deal', payload.CRM_Deal_ID === undefined);
     check('lead quote save gate passes (no deal candidates possible)', t.dealSaveGate().ok === true);
+    check('lead pending conversion is detected', t.isLeadPendingConversion() === true);
+    t.applyConvertedCrmIds({
+      contactId: '6719186000004000101',
+      accountId: '6719186000004000102',
+      dealId: '6719186000004000103',
+      dealName: 'LEAD CO - TEST',
+      stage: 'Proposal/Price Quote',
+    });
+    check('lead convert hydrates contact in place', t.state.customer.contactId === '6719186000004000101');
+    check('lead convert hydrates account in place', t.state.customer.accountId === '6719186000004000102');
+    check('lead convert sets deal without reload', t.state.deal && t.state.deal.dealId === '6719186000004000103');
+    check('lead convert marks deal choice made', t.state.dealChoiceMade === true);
+    check('after convert lead is no longer pending', t.isLeadPendingConversion() === false);
   }
 
   {
@@ -1060,6 +1098,150 @@ const KIT7 = [
     check('payment terms default to Net 30 with no DOM', t.paymentTermsDays() === 30 && t.paymentTermsLabel() === 'Net 30');
     const payload = t.buildQuotePayload();
     check('save payload carries Payment_Terms text', payload.Payment_Terms === 'Net 30');
+  }
+
+  /* ---- Stage 6 Margin % (markup) ---- */
+  {
+    const t = freshWidget();
+    t.setFxRate(1); // usdPerEur = 1
+    t.setCustomerType('End Customer'); // isolate margin math from catalog Disc %
+    t.addLineFromItem({ sku: 'M1', name: 'Margin item', type: 'BMS', listEur: 100, unit: 100, flags: [], discountable: true }, 1);
+    t.addLineFromItem({ sku: 'M2', name: 'Margin item 2', type: 'BMS', listEur: 200, unit: 200, flags: [], discountable: true }, 1);
+    check('new lines default marginPct 0',
+      t.state.lines[0].marginPct === 0 && t.state.lines[1].marginPct === 0);
+
+    t.applyHeaderMarginToLines(15);
+    check('header Margin 15 sets all unlocked lines',
+      t.state.lines[0].marginPct === 15 && t.state.lines[1].marginPct === 15);
+    check('header Margin 15 recomputes sale = list×FX×1.15',
+      t.state.lines[0].unit === 115 && t.state.lines[1].unit === 230,
+      String([t.state.lines[0].unit, t.state.lines[1].unit]));
+
+    t.state.lines[0].marginPct = 10;
+    t.state.lines[0].priceSource = 'eur_ref';
+    t.state.lines[0].unit = t.computeSaleUsd(t.state.lines[0]);
+    check('per-line Margin 10 only changes that line',
+      t.state.lines[0].unit === 110 && t.state.lines[1].unit === 230,
+      String([t.state.lines[0].unit, t.state.lines[1].unit]));
+
+    t.state.lines[0].discountPct = 20;
+    t.state.lines[0].unit = t.computeSaleUsd(t.state.lines[0]);
+    // 100 × (1-0.20) × (1+0.10) = 88
+    check('Disc % and Margin % combine independently',
+      t.state.lines[0].unit === 88, String(t.state.lines[0].unit));
+
+    const payloadMid = t.buildQuotePayload();
+    const warn0 = (payloadMid.Quote_Lines[0].Kit_Warning || '');
+    check('payload Kit_Warning encodes DISC and MARGIN sidecars',
+      warn0.indexOf('\u00abDISC:20\u00bb') !== -1 && warn0.indexOf('\u00abMARGIN:10\u00bb') !== -1,
+      warn0);
+
+    t.state.lines[1].priceLocked = true;
+    t.state.lines[1].unit = 999;
+    t.applyHeaderMarginToLines(25);
+    check('locked line skips header Margin recompute',
+      t.state.lines[1].unit === 999 && t.state.lines[1].marginPct === 15,
+      String([t.state.lines[1].unit, t.state.lines[1].marginPct]));
+
+    const payload = t.buildQuotePayload();
+    check('payload carries Markup_Rate_Pct from header',
+      Number(payload.Markup_Rate_Pct) === 25, String(payload.Markup_Rate_Pct));
+  }
+
+  /* ---- Stage 7 catalog Disc % (Distrib discount page 2) ---- */
+  {
+    const t = freshWidget();
+    t.setFxRate(1);
+    t.setCustomerType('Distributor');
+    check('X and Y are discountable flags',
+      t.isDiscountableFlag('X') && t.isDiscountableFlag('Y') && !t.isDiscountableFlag('N') && !t.isDiscountableFlag(''));
+    check('Creator display_value wrapper parses as discountable',
+      t.isDiscountableFlag({ display_value: 'Y', value: 'Y' }));
+    check('Distributor HW qty 5 → 10%',
+      t.catalogDiscountPct({ discountable: true, qty: 5, isSoftware: false }) === 10);
+    check('Distributor HW qty 50 → 7.5%',
+      t.catalogDiscountPct({ discountable: true, qty: 50, isSoftware: false }) === 7.5);
+    check('Distributor Software → 16.5%',
+      t.catalogDiscountPct({ discountable: true, qty: 1, isSoftware: true }) === 16.5);
+    check('non-discountable → 0%',
+      t.catalogDiscountPct({ discountable: false, qty: 5, isSoftware: false }) === 0);
+    check('End Customer → 0%',
+      t.catalogDiscountPct({ discountable: true, qty: 5, isSoftware: false, customerType: 'End Customer' }) === 0);
+
+    // Seed Item_Master catalog — select path must read Discountable from here.
+    t.DATA.items = [
+      { sku: 'D100', name: 'Disc HW', type: 'BMS', category: 'bms', listEur: 100, unit: 100,
+        flags: [], discountable: true, scheme: 'hardware', tiers: null },
+      { sku: 'N100', name: 'No-X accessory', type: 'Part / Accessory', category: 'part', listEur: 50, unit: 50,
+        flags: [], discountable: false, scheme: 'hardware', tiers: null },
+      { sku: 'S200', name: 'Creator License', type: 'Software / License', category: 'service', listEur: 200, unit: 200,
+        flags: [], discountable: true, scheme: 'license', tiers: null },
+    ];
+
+    t.addLineFromItem({ sku: 'D100' }, 5);
+    check('select discountable SKU preloads Distributor 10% from Item_Master',
+      t.state.lines[0].discountPct === 10 && t.state.lines[0].discountable === true,
+      String(t.state.lines[0].discountPct));
+    check('preloaded Disc % applied to sale (100×0.9)',
+      t.state.lines[0].unit === 90, String(t.state.lines[0].unit));
+
+    t.addLineFromItem({ sku: 'N100' }, 5);
+    check('select non-discountable SKU Disc % stays 0',
+      t.state.lines[1].discountPct === 0 && t.state.lines[1].discountable === false,
+      String(t.state.lines[1].discountPct));
+
+    t.addLineFromItem({ sku: 'S200' }, 1);
+    check('select software SKU preloads Distributor 16.5%',
+      t.state.lines[2].discountPct === 16.5, String(t.state.lines[2].discountPct));
+
+    // Qty band change refreshes catalog Disc %
+    t.state.lines[0].qty = 50;
+    t.preloadLineDiscountFromItemMaster(t.state.lines[0]);
+    check('qty 50 on discountable HW refreshes Disc % to 7.5',
+      t.state.lines[0].discountPct === 7.5, String(t.state.lines[0].discountPct));
+
+    const mapped = t.mapItems([
+      { Part_Number: 'X1', Description: 'with X', Discountable: { display_value: 'X' }, Category: 'BMS', Price_T1: 10 },
+      { Part_Number: 'B1', Description: 'blank', Discountable: 'N', Category: 'Accessory', Price_T1: 10 },
+    ]);
+    check('mapItems treats Discountable X as discountable', mapped[0].discountable === true);
+    check('mapItems treats Discountable N as not discountable', mapped[1].discountable === false);
+
+    // Inverted Round-80 live data: accessories wrongly Y → auto-flip
+    const inverted = t.mapItems([
+      { Part_Number: 'A1', Description: 'acc1', Discountable: 'Y', Category: 'Accessory', Price_T1: 1 },
+      { Part_Number: 'A2', Description: 'acc2', Discountable: 'Y', Category: 'Accessory', Price_T1: 1 },
+      { Part_Number: 'A3', Description: 'acc3', Discountable: 'Y', Category: 'Accessory', Price_T1: 1 },
+      { Part_Number: 'H1', Description: 'board', Discountable: 'N', Category: 'BMS', Price_T1: 1 },
+    ]);
+    check('inverted Discountable polarity auto-flips accessories to not discountable',
+      inverted[0].discountable === false && inverted[1].discountable === false);
+    check('inverted polarity flip marks former-N board as discountable',
+      inverted[3].discountable === true);
+
+    const rulesN = t.ingestPriceRules([
+      { Customer_Type: 'Distributor', Product_Type: 'Hardware', Qty_Min: 1, Qty_Max: 9, Discount_Pct: 10 },
+      { Customer_Type: 'Distributor', Product_Type: 'Software', Qty_Min: 1, Qty_Max: 999999, Discount_Pct: 16.5 },
+    ]);
+    check('Price_Rules ingest accepts Creator rows', rulesN === 2);
+
+    const payload = t.buildQuotePayload();
+    check('save payload carries Customer_Type Distributor',
+      payload.Customer_Type === 'Distributor', String(payload.Customer_Type));
+  }
+
+  // CRM search cache (External Calls) — same query must hit cache, not re-bridge.
+  {
+    const t = freshWidget();
+    check('CRM search cache helpers exist',
+      typeof t.putCachedCrmSearch === 'function' && typeof t.getCachedCrmSearch === 'function');
+    t.clearCrmSearchCache();
+    check('empty cache miss', t.getCachedCrmSearch('rova') === null);
+    t.putCachedCrmSearch('Rova', [{ contact_id: '1' }], [{ lead_id: '2' }]);
+    const hit = t.getCachedCrmSearch('rova');
+    check('cache is case-insensitive', !!hit && hit.contacts.length === 1 && hit.leads.length === 1);
+    t.clearCrmSearchCache();
+    check('clearCrmSearchCache empties search cache', t.getCachedCrmSearch('rova') === null);
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASS' : '\n' + failures + ' FAILURE(S)');
