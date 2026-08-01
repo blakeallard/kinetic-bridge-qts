@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>QTS Quote Builder — Pack Bay (UI copy)</title>
-  <link rel="stylesheet" href="widget.css" />
+  <link rel="stylesheet" href="widget.packbay.css" />
   <!-- Official Zoho Creator widget JS SDK v1, bundled locally (same-origin) so it
        cannot be blocked by iframe CSP / external fetch. Source of this exact file:
        https://js.zohostatic.com/creator/widgets/version/1.0/widgetsdk-min.js -->
@@ -27,7 +27,7 @@
     <div class="bay">
       <header class="mast">
         <div class="mast-brand">
-          <img src="assets/logo.svg" alt="QTS" />
+          <img src="assets/logo.packbay.svg" alt="QTS" />
           <div>
             <p class="eyebrow">Kinetic Bridge · Engineering Energy. Delivering Solutions.</p>
             <h1>QTS Quotation</h1>
@@ -112,6 +112,13 @@
                 <div class="field"><label for="f-currency">Currency</label>
                   <select id="f-currency"><option>USD</option><option>CAD</option><option>EUR</option></select>
                 </div>
+                <div class="field"><label for="f-customer-type">Customer type</label>
+                  <select id="f-customer-type" title="Drives Disc % from Distrib discount sheet (page 2) for Item_Master X / Discountable SKUs">
+                    <option value="Distributor" selected>Distributor</option>
+                    <option value="Partner">Partner</option>
+                    <option value="End Customer">End Customer</option>
+                  </select>
+                </div>
                 <div class="field"><label for="f-date">Quote date</label><input id="f-date" type="date" /></div>
                 <div class="field"><label for="f-valid">Valid until</label><input id="f-valid" type="date" /></div>
                 <div class="field">
@@ -176,6 +183,7 @@
                       <th class="c">Qty</th>
                       <th class="r">List (EUR)</th>
                       <th class="r">Disc %</th>
+                      <th class="r">Margin % <input id="hdr-margin" class="line-cell-input disc-input num" type="number" min="0" max="1000" step="0.1" value="0" title="Apply this markup % to all unlocked lines" style="width:3.6rem;display:inline-block;margin-left:4px;font-weight:400"></th>
                       <th class="r">Sale (USD)</th>
                       <th class="r">Line total</th><th class="c"></th>
                     </tr>

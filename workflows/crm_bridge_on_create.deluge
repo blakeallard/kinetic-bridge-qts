@@ -8,7 +8,8 @@ if(action_name == "search_customers")
 	query_text = ifnull(input.Query_Text,"").trim();
 	matches = List();
 	seen_ids = List();
-	if(query_text != "")
+	// Require minimum 3 characters to reduce API calls
+	if(query_text.len() >= 3)
 	{
 		contact_criteria = "(Email:starts_with:" + query_text + ")or(Last_Name:starts_with:" + query_text + ")or(First_Name:starts_with:" + query_text + ")";
 		has_space = query_text.contains(" ");
@@ -650,7 +651,8 @@ if(action_name == "search_leads")
 	query_text = ifnull(input.Query_Text,"").trim();
 	lead_matches = List();
 	seen_lead_ids = List();
-	if(query_text != "")
+	// Require minimum 3 characters to reduce API calls (was burning ~7k credits/day)
+	if(query_text.len() >= 3)
 	{
 		lead_criteria = "(Email:starts_with:" + query_text + ")or(Last_Name:starts_with:" + query_text + ")or(First_Name:starts_with:" + query_text + ")or(Company:starts_with:" + query_text + ")";
 		has_space = query_text.contains(" ");

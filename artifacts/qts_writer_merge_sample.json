@@ -1,0 +1,38 @@
+{
+  "data": [
+    {
+      "contact_name": "Alex Martinez",
+      "company_name": "Example Customer LLC",
+      "billing_street": "123 Main St",
+      "billing_city": "Austin",
+      "billing_state": "TX",
+      "billing_code": "78701",
+      "billing_country": "USA",
+      "contact_email": "blake@kinetic-bridge.com",
+      "quote_number": "TEST-QUOTE0099",
+      "quote_date": "2026-07-30",
+      "valid_till": "2026-08-29",
+      "payment_terms": "Net 30",
+      "terms_and_conditions": "Prices valid until Valid Till date. Subject to Kinetic Bridge standard terms.",
+      "sub_total": "2625.00",
+      "discount": "0.00",
+      "tax": "0.00",
+      "adjustment": "0.00",
+      "grand_total": "2625.00",
+      "line_items": [
+        {
+          "line_items.name": "AcmeBMS c-BMS24X",
+          "line_items.qty": "2",
+          "line_items.unit_price": "419.54",
+          "line_items.total": "839.08"
+        },
+        {
+          "line_items.name": "n3-BMS MCU",
+          "line_items.qty": "3",
+          "line_items.unit_price": "595.31",
+          "line_items.total": "1785.92"
+        }
+      ]
+    }
+  ]
+}

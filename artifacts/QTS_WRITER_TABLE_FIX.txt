@@ -1,0 +1,27 @@
+QTS Writer table fix (2026-07-29)
+
+USE THIS TEMPLATE (good layout):
+  https://writer.zoho.com/writer/open/h5zhu2051759ecefd4148816cf61ad65a9cbc
+  name: qts_quote_template_v4
+
+DO NOT USE (text dump workaround):
+  smae0dd1b741cd62242e7b1cfa76bd12cc745
+  qts_quote_template_v4_LINE_ITEMS_BLOCK
+
+PROVEN WITH Writer MCP:
+  - Flat keys line_items.name/qty/unit_price/total → fills ONE table row correctly
+  - Nested line_items:[{...}] → blank row, because fields are type=text not type=subform
+
+TO GET ALL ROWS (required one-time in Writer UI):
+  1. Open h5zhu template
+  2. Automate → Select data source / Import fields
+  3. Import ~/Downloads/qts_writer_fields_sample.json
+     (defines line_items as type=subform with name/qty/unit_price/total)
+  4. Select the products DATA row (not header) → mark as repeating region / related list bound to line_items
+  5. Save
+  6. Ask AI to Get_All_Fields — line_items should appear as type=subform
+  7. Flow paste:
+     template_document_id = "h5zhu2051759ecefd4148816cf61ad65a9cbc";
+  8. Save PDF to Deal
+
+Payload already sends the correct array shape.

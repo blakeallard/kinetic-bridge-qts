@@ -17,11 +17,14 @@ Legacy local folder `qts-quote-builder` outside this repo is retired as source o
 
 ## Flow / publish Deluge (this repo)
 
+Organized by Zoho Flow name under [`scripts/zoho_flow/`](../scripts/zoho_flow/).
+
 | Piece | Path |
 | ----- | ---- |
-| Orchestrator | `scripts/qts_publish/publish_quote_package.deluge` |
-| Modular steps | `scripts/qts_publish/*.deluge` |
-| COMPAT / monolith (no WorkDrive) | `scripts/qts_publish/generate_and_file_quote_document*.deluge` |
+| Flow folder | `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` → live Flow **QTS Saved Draft To Writer** |
+| Orchestrator | `…/publish_quote_package.deluge` |
+| Modular helpers | `…/*.deluge` (same folder) |
+| COMPAT / monolith (no WorkDrive) | `…/_do_not_paste_for_live_workdrive/` |
 
 ## Creator
 

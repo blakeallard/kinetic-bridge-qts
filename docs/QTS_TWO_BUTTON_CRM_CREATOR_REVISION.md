@@ -10,7 +10,7 @@ Lightweight history for republish — mirrors WorkDrive **DRAFTS** inside Creato
 | `revision > 1` | Write `Prior_Revision_Snapshot` JSON (lines/totals + prior WD IDs) before overwrite |
 | Field missing / update fails | Log `fields_missing=yes`; **do not** fail merge / WorkDrive / Deal attach |
 
-Implementation: `scripts/qts_publish/snapshot_creator_revision.deluge`
+Implementation: `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/snapshot_creator_revision.deluge`
 
 ## Fields
 

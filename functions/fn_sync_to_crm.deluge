@@ -57,27 +57,35 @@ void fn_sync_to_crm(string p_quote_id)
 				converted_contact = "";
 				converted_account = "";
 				converted_deal = "";
-				if(convert_response != null)
+				convert_body_text = ifnull(convert_response,"").toString().trim();
+				if(convert_body_text.startsWith("{"))
 				{
-					convert_map = convert_response.toMap();
+					convert_map = convert_body_text.toMap();
 					if(convert_map != null)
 					{
-						convert_rows = convert_map.getJSON("data");
-						if(convert_rows != null)
+						if(convert_map.containKey("data"))
 						{
-							for each  convert_row in convert_rows
+							convert_rows = convert_map.get("data");
+							if(convert_rows != null)
 							{
-								convert_row_map = convert_row.toMap();
-								if(convert_row_map != null)
+								for each  convert_row in convert_rows
 								{
-									converted_contact = ifnull(convert_row_map.get("Contacts"),"").toString();
-									converted_account = ifnull(convert_row_map.get("Accounts"),"").toString();
-									converted_deal = ifnull(convert_row_map.get("Deals"),"").toString();
+									convert_row_map = convert_row.toMap();
+									if(convert_row_map != null)
+									{
+										converted_contact = ifnull(convert_row_map.get("Contacts"),"").toString();
+										converted_account = ifnull(convert_row_map.get("Accounts"),"").toString();
+										converted_deal = ifnull(convert_row_map.get("Deals"),"").toString();
+									}
+									break;
 								}
-								break;
 							}
 						}
 					}
+				}
+				else if(convert_body_text != "")
+				{
+					info "fn_sync_to_crm: Lead convert returned non-JSON: " + convert_body_text;
 				}
 				if(converted_contact == "" || converted_contact == "null")
 				{
@@ -142,12 +150,18 @@ void fn_sync_to_crm(string p_quote_id)
 				lead_id_text = persisted_lead_id;
 			}
 			quote_email = ifnull(quote.Customer_Email,"").trim();
+			// Converted-Lead email search is optional metadata only. Skip when a
+			// Deal is already linked (normal Save/Email path) — each invokeurl
+			// burns Creator External Calls and is unused for product sync.
 			run_lookup = false;
 			if(lead_id_text == "")
 			{
 				if(quote_email != "")
 				{
-					run_lookup = true;
+					if(existing_deal_id == "")
+					{
+						run_lookup = true;
+					}
 				}
 			}
 			if(run_lookup)
@@ -159,18 +173,29 @@ void fn_sync_to_crm(string p_quote_id)
 					type :GET
 					connection:"zoho_crm_connection"
 				];
+				// CRM search often returns HTTP 204 / empty body when no converted Lead
+				// matches. toMap()/getJSON on that throws "Invalid JSON Format String"
+				// and aborts Save — treat empty/non-JSON as "no rows".
 				lead_rows = List();
-				if(lead_response != null)
+				lead_body = ifnull(lead_response,"").toString().trim();
+				if(lead_body.startsWith("{"))
 				{
-					lead_result_map = lead_response.toMap();
+					lead_result_map = lead_body.toMap();
 					if(lead_result_map != null)
 					{
-						lead_rows_raw = lead_result_map.getJSON("data");
-						if(lead_rows_raw != null)
+						if(lead_result_map.containKey("data"))
 						{
-							lead_rows.addAll(lead_rows_raw);
+							lead_rows_raw = lead_result_map.get("data");
+							if(lead_rows_raw != null)
+							{
+								lead_rows.addAll(lead_rows_raw);
+							}
 						}
 					}
+				}
+				else if(lead_body != "")
+				{
+					info "fn_sync_to_crm: converted-Lead search returned non-JSON (ignored): " + lead_body;
 				}
 				for each  lead_row in lead_rows
 				{

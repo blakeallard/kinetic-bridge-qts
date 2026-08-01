@@ -33,6 +33,8 @@ flowchart LR
 
 Deep plans and paste checklists live under `docs/` (especially `QTS_TWO_BUTTON_CRM_PLAN.md`).
 
+**Learn the Deluge surface area:** [`docs/QTS_DELUGE_LEARNING_PLAN.md`](docs/QTS_DELUGE_LEARNING_PLAN.md) (single curriculum — all lessons in that one file).
+
 ## Key engineering problems
 
 | Problem | Approach |

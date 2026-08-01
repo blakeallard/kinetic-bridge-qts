@@ -1,0 +1,75 @@
+{
+  "fields": [
+    {"id": "quote_number", "display_name": "Quote Number", "type": "text"},
+    {"id": "quote_date", "display_name": "Quote Date", "type": "text"},
+    {"id": "valid_till", "display_name": "Valid Till", "type": "text"},
+    {"id": "contact_name", "display_name": "Contact Name", "type": "text"},
+    {"id": "company_name", "display_name": "Company Name", "type": "text"},
+    {"id": "contact_email", "display_name": "Contact Email", "type": "text"},
+    {"id": "billing_street", "display_name": "Billing Street", "type": "text"},
+    {"id": "billing_city", "display_name": "Billing City", "type": "text"},
+    {"id": "billing_state", "display_name": "Billing State", "type": "text"},
+    {"id": "billing_code", "display_name": "Billing Code", "type": "text"},
+    {"id": "billing_country", "display_name": "Billing Country", "type": "text"},
+    {"id": "sub_total", "display_name": "Sub Total", "type": "text"},
+    {"id": "discount", "display_name": "Discount", "type": "text"},
+    {"id": "tax", "display_name": "Tax", "type": "text"},
+    {"id": "adjustment", "display_name": "Adjustment", "type": "text"},
+    {"id": "grand_total", "display_name": "Grand Total", "type": "text"},
+    {"id": "terms_and_conditions", "display_name": "Terms And Conditions", "type": "text"},
+    {"id": "payment_terms", "display_name": "Payment Terms", "type": "text"},
+    {
+      "id": "line_items",
+      "display_name": "Line Items",
+      "type": "subform",
+      "fields": [
+        {"id": "name", "display_name": "Description", "type": "text"},
+        {"id": "qty", "display_name": "Qty", "type": "text"},
+        {"id": "unit_price", "display_name": "Unit Price", "type": "text"},
+        {"id": "total", "display_name": "Total", "type": "text"}
+      ]
+    }
+  ],
+  "data": [
+    {
+      "quote_number": "TEST-QUOTE0002",
+      "quote_date": "2026-07-26",
+      "valid_till": "2026-08-25",
+      "contact_name": "Dana Whitfield",
+      "company_name": "Northgate Fleet Systems LLC",
+      "contact_email": "d.whitfield@northgatefleet.com",
+      "billing_street": "4820 Corbin Avenue",
+      "billing_city": "Torrance",
+      "billing_state": "CA",
+      "billing_code": "90503",
+      "billing_country": "USA",
+      "sub_total": "$28,735.63",
+      "discount": "$0.00",
+      "tax": "$0.00",
+      "adjustment": "$0.00",
+      "grand_total": "$28,735.63",
+      "terms_and_conditions": "Prices valid until Valid Till date.",
+      "payment_terms": "Net 30",
+      "line_items": [
+        {
+          "name": "i-BMS15/6",
+          "qty": "20",
+          "unit_price": "$316.09",
+          "total": "$6,321.84"
+        },
+        {
+          "name": "i-BMS15 Wire harness kit SINGLE PACK",
+          "qty": "20",
+          "unit_price": "$114.94",
+          "total": "$2,298.85"
+        },
+        {
+          "name": "i-BMS Unified Creator License FULL",
+          "qty": "20",
+          "unit_price": "$683.91",
+          "total": "$13,678.16"
+        }
+      ]
+    }
+  ]
+}
