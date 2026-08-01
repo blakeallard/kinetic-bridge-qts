@@ -2,7 +2,7 @@
 
 **Full path:**
 
-`/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/artifacts/qts_writer_fields_sample_v2.json`
+`/Users/blakeallard/bevco/repos/kinetic-bridge-qts/artifacts/qts_writer_fields_sample_v2.json`
 
 **Original (qts-quote-builder):**
 

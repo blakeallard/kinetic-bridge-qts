@@ -97,7 +97,7 @@ Black **LINE ITEMS** bar (and column headers) sit **inside** the `line_items` su
 
 **Use this one** (copied from qts-quote-builder + `payment_terms`):
 
-`/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/artifacts/qts_writer_fields_sample_v2.json`
+`/Users/blakeallard/bevco/repos/kinetic-bridge-qts/artifacts/qts_writer_fields_sample_v2.json`
 
 - Table columns → `line_items` subform  
 - **Do not** place `line_items_block` in the table (that text dump is why live PDFs looked awful)  
