@@ -1,0 +1,1019 @@
+map publish_quote_package(string deal_id, string contact_id, string contact_email, map merge_data, bool send_email, string quote_request_id, string cc_email, string workdrive_parent_folder_id)
+{
+result = Map();
+result.put("status","skipped");
+safe_deal_id = ifnull(deal_id,"").trim();
+if(safe_deal_id == "")
+{
+	result.put("status","failed");
+	result.put("reason","deal_id_missing");
+	return result;
+}
+merge_missing = false;
+if(merge_data == null)
+{
+	merge_missing = true;
+}
+if(merge_missing == false)
+{
+	if(merge_data.isEmpty())
+	{
+		merge_missing = true;
+	}
+}
+if(merge_missing)
+{
+	result.put("status","failed");
+	result.put("reason","merge_data_missing");
+	return result;
+}
+quote_number = ifnull(merge_data.get("quote_number"),"").toString().trim();
+if(quote_number == "")
+{
+	result.put("status","failed");
+	result.put("reason","quote_number_missing");
+	return result;
+}
+// Save Quote Package stamps Deal note QTS_SAVE_ONLY|{qno} before Status write.
+// Live Flow often only runs the Package Requested / send_email=true branch; the
+// marker forces shared PDF+WorkDrive+Deal-attach without client email / Quotes / stage.
+save_only = false;
+save_only_title = "QTS_SAVE_ONLY|" + quote_number;
+try
+{
+	save_notes = invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Notes"
+		type :GET
+		connection:"zoho_crm_to_zoho_flow"
+	];
+	save_note_rows = ifnull(save_notes.get("data"),List());
+	save_delete_ids = "";
+	for each save_note_row in save_note_rows
+	{
+		save_note_title = ifnull(save_note_row.get("Note_Title"),"").toString();
+		save_note_id = ifnull(save_note_row.get("id"),"").toString().trim();
+		if(save_note_title == save_only_title && save_note_id != "")
+		{
+			save_only = true;
+			if(save_delete_ids != "")
+			{
+				save_delete_ids = save_delete_ids + ",";
+			}
+			save_delete_ids = save_delete_ids + save_note_id;
+		}
+	}
+	if(save_delete_ids != "")
+	{
+		invokeurl
+		[
+			url :"https://www.zohoapis.com/crm/v2/Notes?ids=" + save_delete_ids
+			type :DELETE
+			connection:"zoho_crm_to_zoho_flow"
+		];
+	}
+}
+catch (save_only_probe_error)
+{
+	save_only = false;
+}
+if(save_only)
+{
+	send_email = false;
+}
+result.put("send_email",send_email);
+result.put("save_only",save_only);
+branch = "save";
+if(send_email)
+{
+	branch = "email";
+}
+result.put("branch",branch);
+dedupe_total = ifnull(merge_data.get("grand_total"),ifnull(merge_data.get("sub_total"),"")).toString().trim();
+dedupe_title = "QTS_DEDUP|" + quote_number + "|" + branch + "|" + dedupe_total;
+dedupe_note_id = "";
+try
+{
+	existing_notes = invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Notes"
+		type :GET
+		connection:"zoho_crm_to_zoho_flow"
+	];
+	note_rows = ifnull(existing_notes.get("data"),List());
+	for each note_row in note_rows
+	{
+		note_title = ifnull(note_row.get("Note_Title"),"").toString();
+		if(note_title == dedupe_title)
+		{
+			result.put("status","skipped");
+			result.put("reason","duplicate_publish_skipped");
+			result.put("dedupe_title",dedupe_title);
+			result.put("dedupe_existing_note",ifnull(note_row.get("id"),"").toString());
+			return result;
+		}
+	}
+	lock_note = Map();
+	lock_note.put("Note_Title",dedupe_title);
+	lock_note.put("Note_Content","QTS publish lock " + zoho.currenttime.toString("yyyy-MM-dd'T'HH:mm:ssXXX"));
+	lock_note.put("Parent_Id",safe_deal_id);
+	lock_note.put("se_module","Deals");
+	lock_body = Map();
+	lock_data = List();
+	lock_data.add(lock_note);
+	lock_body.put("data",lock_data);
+	lock_create = invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Notes"
+		type :POST
+		parameters:lock_body.toString()
+		connection:"zoho_crm_to_zoho_flow"
+		content-type:"application/json"
+	];
+	lock_items = ifnull(lock_create.get("data"),List());
+	if(lock_items != null && lock_items.size() > 0)
+	{
+		lock_first = lock_items.get(0);
+		lock_details = ifnull(lock_first.get("details"),Map());
+		dedupe_note_id = ifnull(lock_details.get("id"),ifnull(lock_first.get("id"),"")).toString().trim();
+	}
+	// Race-condition delay: reduced from 10 calls to 2 (saves ~8 API credits per publish)
+	// Two GET calls provide sufficient delay for CRM eventual consistency
+	invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "?fields=id"
+		type :GET
+		connection:"zoho_crm_to_zoho_flow"
+	];
+	invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "?fields=id"
+		type :GET
+		connection:"zoho_crm_to_zoho_flow"
+	];
+	race_notes = invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Notes"
+		type :GET
+		connection:"zoho_crm_to_zoho_flow"
+	];
+	race_rows = ifnull(race_notes.get("data"),List());
+	match_ids = List();
+	for each race_row in race_rows
+	{
+		race_title = ifnull(race_row.get("Note_Title"),"").toString();
+		if(race_title == dedupe_title)
+		{
+			match_ids.add(ifnull(race_row.get("id"),"").toString());
+		}
+	}
+	if(match_ids.size() > 1 && dedupe_note_id != "")
+	{
+		winner_id = match_ids.get(0);
+		for each match_id in match_ids
+		{
+			if(match_id.toLong() < winner_id.toLong())
+			{
+				winner_id = match_id;
+			}
+		}
+		if(dedupe_note_id != winner_id)
+		{
+			result.put("status","skipped");
+			result.put("reason","duplicate_publish_skipped_race");
+			result.put("dedupe_title",dedupe_title);
+			result.put("dedupe_note_id",dedupe_note_id);
+			result.put("dedupe_winner_id",winner_id);
+			return result;
+		}
+	}
+}
+catch (dedupe_error)
+{
+	result.put("dedupe_warning","lock_failed_continuing");
+}
+result.put("dedupe_note_id",dedupe_note_id);
+result.put("dedupe_title",dedupe_title);
+stable_filename = "Kinetic_Bridge_Quote_" + quote_number + ".pdf";
+revision = 1;
+try
+{
+	revision = ifnull(merge_data.get("revision"),1).toLong();
+}
+catch (rev_error)
+{
+	revision = 1;
+}
+if(revision < 1)
+{
+	revision = 1;
+}
+deal_record = Map();
+try
+{
+	deal_record = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+	if(deal_record == null)
+	{
+		deal_record = Map();
+	}
+}
+catch (deal_fetch_error)
+{
+	deal_record = Map();
+}
+products_check = assert_deal_has_products(safe_deal_id,deal_record);
+result.put("assert_products",products_check);
+if(ifnull(products_check.get("status"),"") != "ok")
+{
+	result.put("status","failed");
+	result.put("reason",ifnull(products_check.get("reason"),"associated_products_empty_after_sync"));
+	return result;
+}
+link_check = ensure_deal_contact_link(safe_deal_id,ifnull(contact_id,"").trim(),deal_record);
+result.put("deal_contact_link",link_check);
+merge_res = Map();
+merge_res.put("status","skipped");
+merge_res.put("reason","");
+template_document_id = "h5zhu2051759ecefd4148816cf61ad65a9cbc";
+if(merge_data == null)
+{
+	merge_res.put("status","failed");
+	merge_res.put("reason","merge_data_missing");
+	result.put("merge",merge_res);
+	result.put("status","failed");
+	result.put("reason","merge_failed");
+	return result;
+}
+if(merge_data.isEmpty())
+{
+	merge_res.put("status","failed");
+	merge_res.put("reason","merge_data_missing");
+	result.put("merge",merge_res);
+	result.put("status","failed");
+	result.put("reason","merge_failed");
+	return result;
+}
+safe_qno = ifnull(quote_number,"").trim();
+if(safe_qno == "")
+{
+	safe_qno = ifnull(merge_data.get("quote_number"),"").toString().trim();
+}
+data_list = List();
+data_list.add(merge_data);
+merge_payload = Map();
+merge_payload.put("data",data_list);
+merge_params = Map();
+merge_params.put("merge_data",merge_payload.toString());
+merge_params.put("output_settings","{\"format\":\"pdf\"}");
+merge_params.put("filename","Kinetic_Bridge_Quote_" + safe_qno);
+merged_file = invokeurl
+[
+	url : "https://writer.zoho.com/writer/api/v1/documents/" + template_document_id + "/merge"
+	type : POST
+	parameters : merge_params
+	connection : "writer_to_flow"
+];
+if(merged_file == null)
+{
+	merge_res.put("status","failed");
+	merge_res.put("reason","merge_failed");
+	result.put("merge",merge_res);
+	result.put("status","failed");
+	result.put("reason","merge_failed");
+	return result;
+}
+try
+{
+	err_msg = ifnull(merged_file.get("error"),"").toString().trim();
+	err_code = ifnull(merged_file.get("code"),"").toString().trim();
+	err_message = ifnull(merged_file.get("message"),"").toString().trim();
+	merge_err = false;
+	if(err_msg != "")
+	{
+		merge_err = true;
+	}
+	if(err_code != "")
+	{
+		merge_err = true;
+	}
+	if(err_message != "")
+	{
+		merge_err = true;
+	}
+	if(merge_err)
+	{
+		merge_res.put("status","failed");
+		merge_res.put("reason","merge_error_payload");
+		result.put("merge",merge_res);
+		result.put("status","failed");
+		result.put("reason","merge_failed");
+		return result;
+	}
+}
+catch (not_error_map)
+{
+}
+merge_res.put("status","ok");
+merge_res.put("filename","Kinetic_Bridge_Quote_" + safe_qno + ".pdf");
+result.put("merge",merge_res);
+wd_upload_files = List();
+wd_upload_files.add(merged_file);
+folders = workdrive_ensure_quote_folders(quote_number,ifnull(workdrive_parent_folder_id,"").trim());
+result.put("workdrive_folders",folders);
+if(ifnull(folders.get("status"),"") == "ok")
+{
+	archive_res = workdrive_archive_to_drafts(ifnull(folders.get("current_id"),"").toString(),ifnull(folders.get("drafts_id"),"").toString(),stable_filename,revision,"",false);
+	result.put("workdrive_archive",archive_res);
+	current_folder_id_local = ifnull(folders.get("current_id"),"").toString();
+	store_cur = Map();
+	store_cur.put("status","skipped");
+	store_cur.put("workdrive_file_id","");
+	store_cur.put("folder","CURRENT");
+	safe_folder_cur = ifnull(current_folder_id_local,"").trim();
+	safe_name_cur = ifnull(stable_filename,"").trim();
+	if(safe_name_cur == "")
+	{
+		safe_name_cur = "Kinetic_Bridge_Quote.pdf";
+	}
+	if(safe_folder_cur != "")
+	{
+		if(wd_upload_files.size() > 0)
+		{
+			try
+			{
+				upload = invokeurl
+				[
+					url :"https://workdrive.zoho.com/api/v1/upload?parent_id=" + safe_folder_cur + "&override-name-exist=true"
+					type :POST
+					files:wd_upload_files
+					connection:"flow_to_workdrive_full_access"
+				];
+				udata = ifnull(upload.get("data"),List());
+				file_id = "";
+				if(udata != null)
+				{
+					if(udata.size() > 0)
+					{
+						first = udata.get(0);
+						attrs = ifnull(first.get("attributes"),Map());
+						file_id = ifnull(attrs.get("resource_id"),ifnull(first.get("id"),"")).toString();
+					}
+				}
+				if(file_id == "")
+				{
+					d = ifnull(upload.get("data"),Map());
+					file_id = ifnull(d.get("id"),"").toString();
+				}
+				store_cur.put("workdrive_file_id",file_id);
+				store_cur.put("filename",safe_name_cur);
+				store_cur.put("status","ok");
+			}
+			catch (store_error)
+			{
+				store_cur.put("status","failed");
+				store_cur.put("reason","workdrive_store_current_failed");
+			}
+		}
+	}
+	result.put("workdrive_current",store_cur);
+	if(send_email)
+	{
+		archive_conf = workdrive_archive_to_drafts("",ifnull(folders.get("drafts_id"),"").toString(),stable_filename,revision,ifnull(folders.get("confirmed_id"),"").toString(),true);
+		result.put("workdrive_archive_confirmed",archive_conf);
+		confirmed_folder_id_local = ifnull(folders.get("confirmed_id"),"").toString();
+		store_conf = Map();
+		store_conf.put("status","skipped");
+		store_conf.put("workdrive_file_id","");
+		store_conf.put("folder","CONFIRMED");
+		safe_folder_conf = ifnull(confirmed_folder_id_local,"").trim();
+		safe_name_conf = ifnull(stable_filename,"").trim();
+		if(safe_name_conf == "")
+		{
+			safe_name_conf = "Kinetic_Bridge_Quote.pdf";
+		}
+		if(safe_folder_conf != "")
+		{
+			if(wd_upload_files.size() > 0)
+			{
+				try
+				{
+					upload = invokeurl
+					[
+						url :"https://workdrive.zoho.com/api/v1/upload?parent_id=" + safe_folder_conf + "&override-name-exist=true"
+						type :POST
+						files:wd_upload_files
+						connection:"flow_to_workdrive_full_access"
+					];
+					udata = ifnull(upload.get("data"),List());
+					file_id = "";
+					if(udata != null)
+					{
+						if(udata.size() > 0)
+						{
+							first = udata.get(0);
+							attrs = ifnull(first.get("attributes"),Map());
+							file_id = ifnull(attrs.get("resource_id"),ifnull(first.get("id"),"")).toString();
+						}
+					}
+					if(file_id == "")
+					{
+						d = ifnull(upload.get("data"),Map());
+						file_id = ifnull(d.get("id"),"").toString();
+					}
+					store_conf.put("workdrive_file_id",file_id);
+					store_conf.put("filename",safe_name_conf);
+					store_conf.put("status","ok");
+				}
+				catch (store_error)
+				{
+					store_conf.put("status","failed");
+					store_conf.put("reason","workdrive_store_confrent_failed");
+				}
+			}
+		}
+		result.put("workdrive_confirmed",store_conf);
+	}
+}
+else
+{
+	result.put("workdrive_skipped_reason",ifnull(folders.get("reason"),"workdrive_unavailable"));
+}
+deal_attach = Map();
+deal_attach.put("status","skipped");
+deal_attach.put("attached_to_deal","no");
+deal_attach.put("prior_attachments_deleted",0);
+safe_deal_id = ifnull(deal_id,"").trim();
+safe_qno = ifnull(quote_number,"").trim();
+if(safe_deal_id == "" || merged_file == null)
+{
+	deal_attach.put("status","failed");
+	deal_attach.put("reason","deal_or_file_missing");
+	result.put("deal_attach",deal_attach);
+	if(ifnull(deal_attach.get("status"),"") != "ok")
+	{
+		result.put("status","failed");
+		result.put("reason",ifnull(deal_attach.get("reason"),"deal_attach_failed"));
+		return result;
+	}
+}
+try
+{
+	att_resp = invokeurl
+	[
+		url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Attachments"
+		type :GET
+		connection:"zoho_crm_to_zoho_flow"
+	];
+	atts = ifnull(att_resp.get("data"),List());
+	delete_ids = "";
+	deleted_n = 0;
+	for each att in atts
+	{
+		fname = ifnull(att.get("File_Name"),"").toString();
+		aid = ifnull(att.get("id"),"").toString().trim();
+		match = false;
+		if(fname.contains("Kinetic_Bridge_Quote_"))
+		{
+			match = true;
+		}
+		if(!match && safe_qno != "" && fname.contains(safe_qno) && fname.toLowerCase().endsWith(".pdf"))
+		{
+			match = true;
+		}
+		if(match && aid != "")
+		{
+			if(delete_ids != "")
+			{
+				delete_ids = delete_ids + ",";
+			}
+			delete_ids = delete_ids + aid;
+			deleted_n = deleted_n + 1;
+		}
+	}
+	if(delete_ids != "")
+	{
+		invokeurl
+		[
+			url :"https://www.zohoapis.com/crm/v2/Deals/" + safe_deal_id + "/Attachments?ids=" + delete_ids
+			type :DELETE
+			connection:"zoho_crm_to_zoho_flow"
+		];
+		deal_attach.put("prior_attachments_deleted",deleted_n);
+	}
+}
+catch (prior_attach_error)
+{
+	deal_attach.put("prior_attach_delete","skipped");
+}
+try
+{
+	deal_attach = zoho.crm.attachFile("Deals",safe_deal_id.toLong(),merged_file,"zoho_crm_to_zoho_flow");
+	if(deal_attach != null && ifnull(deal_attach.get("status"),"") != "error")
+	{
+		deal_attach.put("attached_to_deal","yes");
+		deal_attach.put("status","ok");
+	}
+	else
+	{
+		deal_attach.put("status","failed");
+		deal_attach.put("reason","deal_attach_failed");
+	}
+}
+catch (attach_error)
+{
+	deal_attach.put("status","failed");
+	deal_attach.put("reason","deal_attach_exception");
+}
+if(safe_qno != "" && deal_attach.get("status") == "ok")
+{
+	try
+	{
+		deal = deal_record;
+		if(deal == null || deal.isEmpty())
+		{
+			deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+		}
+		company_name_text = "";
+		if(deal != null)
+		{
+			account_ref = deal.get("Account_Name");
+			if(account_ref != null)
+			{
+				company_name_text = ifnull(account_ref.get("name"),"").toString().trim();
+			}
+			if(company_name_text == "")
+			{
+				company_name_text = ifnull(deal.get("Deal_Name"),"").toString().trim();
+			}
+		}
+		quote_suffix_marker = " - TEST-QUOTE";
+		if(company_name_text.contains(quote_suffix_marker))
+		{
+			company_name_text = company_name_text.subString(0,company_name_text.indexOf(quote_suffix_marker)).trim();
+		}
+		if(company_name_text.contains(" - "))
+		{
+			parts = company_name_text.toList(" - ");
+			if(parts.size() > 1 && parts.get(parts.size() - 1).contains("QUOTE"))
+			{
+				company_name_text = parts.get(0).trim();
+			}
+		}
+		if(company_name_text == "") { company_name_text = "Quote"; }
+		deal_name_update = Map();
+		deal_name_update.put("Deal_Name",company_name_text + " - " + safe_qno);
+		zoho.crm.updateRecord("Deals",safe_deal_id.toLong(),deal_name_update);
+		deal_attach.put("deal_renamed","yes");
+	}
+	catch (rename_error)
+	{
+		deal_attach.put("deal_renamed","no");
+	}
+}
+result.put("deal_attach",deal_attach);
+if(ifnull(deal_attach.get("status"),"") != "ok")
+{
+	result.put("status","failed");
+	result.put("reason",ifnull(deal_attach.get("reason"),"deal_attach_failed"));
+	return result;
+}
+result.put("deal_attachment",deal_attach);
+try
+{
+	snap = snapshot_creator_revision(ifnull(quote_request_id,"").trim(),quote_number,merge_data,folders);
+	result.put("creator_revision",snap);
+}
+catch (snap_error)
+{
+	result.put("creator_revision_error","skipped");
+}
+if(send_email)
+{
+	quote_res = Map();
+	quote_res.put("status","skipped");
+	quote_res.put("quote_record_id","");
+	quote_res.put("quote_action","");
+	quote_res.put("attached_to_quote","no");
+	safe_deal_id = ifnull(deal_id,"").trim();
+	safe_qno = ifnull(quote_number,"").trim();
+	if(safe_deal_id == "" || safe_qno == "")
+	{
+		quote_res.put("status","failed");
+		quote_res.put("reason","deal_or_quote_number_missing");
+		result.put("quote_res",quote_res);
+	}
+	quoted_items = List();
+	deal_account_id = "";
+	try
+	{
+		deal = deal_record;
+		if(deal == null || deal.isEmpty())
+		{
+			deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+		}
+		if(deal != null)
+		{
+			account_ref_q = deal.get("Account_Name");
+			if(account_ref_q != null)
+			{
+				deal_account_id = ifnull(account_ref_q.get("id"),"").toString().trim();
+			}
+			products = ifnull(deal.get("Associated_Products"),List());
+			for each item in products
+			{
+				quantity = ifnull(item.get("Quantity"),0).toDecimal();
+				if(quantity > 0)
+				{
+					product = item.get("Product");
+					if(product != null && ifnull(product.get("id"),"").toString() != "")
+					{
+						product_lookup = Map();
+						product_lookup.put("id",ifnull(product.get("id"),"").toString());
+						quoted_item = Map();
+						quoted_item.put("Product_Name",product_lookup);
+						quoted_item.put("Quantity",quantity);
+						quoted_item.put("List_Price",ifnull(item.get("List_Price"),0).toDecimal());
+						quoted_items.add(quoted_item);
+					}
+				}
+			}
+		}
+	}
+	catch (deal_read_error)
+	{
+		quoted_items = List();
+	}
+	if(ifnull(quote_res.get("status"),"") != "failed" && quoted_items.size() == 0)
+	{
+		quote_res.put("status","failed");
+		quote_res.put("reason","associated_products_empty");
+		result.put("quote_res",quote_res);
+	}
+	quote_subject = "Kinetic Bridge Quote " + safe_qno;
+	quote_map = Map();
+	quote_map.put("Subject",quote_subject.trim());
+	deal_lookup = Map();
+	deal_lookup.put("id",safe_deal_id);
+	quote_map.put("Deal_Name",deal_lookup);
+	if(deal_account_id != "")
+	{
+		quote_account_lookup = Map();
+		quote_account_lookup.put("id",deal_account_id);
+		quote_map.put("Account_Name",quote_account_lookup);
+	}
+	safe_contact_id = ifnull(contact_id,"").trim();
+	if(safe_contact_id != "")
+	{
+		quote_contact_lookup = Map();
+		quote_contact_lookup.put("id",safe_contact_id);
+		quote_map.put("Contact_Name",quote_contact_lookup);
+	}
+	valid_till_value = "";
+	if(merge_data != null)
+	{
+		valid_till_value = ifnull(merge_data.get("valid_till"),"").toString().trim();
+	}
+	if(valid_till_value != "")
+	{
+		try
+		{
+			quote_map.put("Valid_Till",valid_till_value.toDate().toString("yyyy-MM-dd"));
+		}
+		catch (valid_till_error)
+		{
+		}
+	}
+	safe_quote_request_id = ifnull(quote_request_id,"").trim();
+	if(safe_quote_request_id != "")
+	{
+		quote_map.put("Description","QTS Quote_Request ID: " + safe_quote_request_id);
+	}
+	quote_map.put("Quoted_Items",quoted_items);
+	quote_record_id = "";
+	existing_quote_id = "";
+	quote_response = Map();
+	if(ifnull(quote_res.get("status"),"") != "failed")
+	{
+		try
+		{
+			existing_quotes = zoho.crm.searchRecords("Quotes","(Subject:equals:" + quote_subject.trim() + ")",1,10,"zoho_crm_to_zoho_flow");
+			if(existing_quotes != null && existing_quotes.size() > 0)
+			{
+				existing_quote_id = ifnull(existing_quotes.get(0).get("id"),"").toString().trim();
+			}
+		}
+		catch (quote_search_error)
+		{
+			quote_res.put("status","failed");
+			quote_res.put("reason","quote_search_failed");
+		}
+	}
+	if(ifnull(quote_res.get("status"),"") != "failed")
+	{
+		if(existing_quote_id != "")
+		{
+			try
+			{
+				quote_response = zoho.crm.updateRecord("Quotes",existing_quote_id.toLong(),quote_map,"zoho_crm_to_zoho_flow");
+				if(quote_response != null && ifnull(quote_response.get("status"),"") != "error")
+				{
+					quote_record_id = existing_quote_id;
+					quote_res.put("quote_action","updated");
+				}
+				else
+				{
+					quote_res.put("crm_message",ifnull(quote_response.get("message"),"").toString());
+					quote_res.put("crm_code",ifnull(quote_response.get("code"),"").toString());
+				}
+			}
+			catch (quote_update_error)
+			{
+				quote_record_id = "";
+				quote_res.put("crm_message","quote_update_exception");
+			}
+		}
+		else
+		{
+			try
+			{
+				quote_response = zoho.crm.createRecord("Quotes",quote_map,"zoho_crm_to_zoho_flow");
+				if(quote_response != null)
+				{
+					quote_record_id = ifnull(quote_response.get("id"),"").toString().trim();
+					if(quote_record_id != "")
+					{
+						quote_res.put("quote_action","created");
+					}
+					else
+					{
+						quote_res.put("crm_message",ifnull(quote_response.get("message"),"").toString());
+						quote_res.put("crm_code",ifnull(quote_response.get("code"),"").toString());
+					}
+				}
+			}
+			catch (quote_create_error)
+			{
+				quote_record_id = "";
+				quote_res.put("crm_message","quote_create_exception");
+			}
+		}
+	}
+	if(ifnull(quote_res.get("status"),"") != "failed" && quote_record_id == "")
+	{
+		quote_res.put("status","failed");
+		quote_res.put("reason","quote_upsert_failed");
+	}
+	quote_res.put("quote_record_id",quote_record_id);
+	if(quote_record_id != "" && merged_file != null)
+	{
+		try
+		{
+			quote_attach = zoho.crm.attachFile("Quotes",quote_record_id.toLong(),merged_file,"zoho_crm_to_zoho_flow");
+			if(quote_attach != null && ifnull(quote_attach.get("status"),"") != "error")
+			{
+				quote_res.put("attached_to_quote","yes");
+			}
+		}
+		catch (quote_attach_error)
+		{
+			quote_res.put("attached_to_quote","no");
+		}
+	}
+	if(quote_record_id != "")
+	{
+		quote_res.put("status","ok");
+	}
+	result.put("quote_res",quote_res);
+	result.put("crm_quote",quote_res);
+	quote_action = ifnull(quote_res.get("quote_action"),"");
+	mail_res = Map();
+	mail_res.put("status","skipped");
+	mail_res.put("email_sent","no");
+	mail_res.put("email_associated","no");
+	mail_res.put("email_associated_account","no");
+	safe_contact_email = ifnull(contact_email,"").trim();
+	safe_qno = ifnull(quote_number,"").trim();
+	if(safe_contact_email == "" || merged_file == null)
+	{
+		mail_res.put("status","failed");
+		mail_res.put("reason","contact_email_or_file_missing");
+		result.put("mail_res",mail_res);
+		if(ifnull(mail_res.get("status"),"") != "ok")
+		{
+			result.put("status","failed");
+			result.put("reason",ifnull(mail_res.get("reason"),"email_send_failed"));
+			return result;
+		}
+	}
+	deal_owner_email = "";
+	account_id_text = "";
+	safe_deal_id = ifnull(deal_id,"").trim();
+	if(safe_deal_id != "")
+	{
+		try
+		{
+			deal = deal_record;
+			if(deal == null || deal.isEmpty())
+			{
+				deal = zoho.crm.getRecordById("Deals",safe_deal_id.toLong());
+			}
+			if(deal != null)
+			{
+				owner_ref = deal.get("Owner");
+				if(owner_ref != null)
+				{
+					deal_owner_email = ifnull(owner_ref.get("email"),"").toString().trim();
+				}
+				account_ref = deal.get("Account_Name");
+				if(account_ref != null)
+				{
+					account_id_text = ifnull(account_ref.get("id"),"").toString().trim();
+				}
+			}
+		}
+		catch (deal_ref_error)
+		{
+		}
+	}
+	is_revision = ifnull(quote_action,"") == "updated";
+	email_subject = "Your Kinetic Bridge quote " + safe_qno;
+	intro_line = "Thank you for your interest in Kinetic Bridge. Please find your quote " + safe_qno + " attached.";
+	if(is_revision)
+	{
+		email_subject = "Your updated Kinetic Bridge quote " + safe_qno;
+		intro_line = "Please find the updated version of your quote " + safe_qno + " attached. This replaces the previous version.";
+	}
+	email_body = "Hello,<br><br>";
+	email_body = email_body + intro_line + "<br><br>";
+	email_body = email_body + "The quote is valid until the date shown on the document. Reply to this email with any questions and we will be glad to help.<br><br>";
+	email_body = email_body + "Best regards,<br>The Kinetic Bridge Team<br>a BEVCO company";
+	mail_from = zoho.adminuserid;
+	if(deal_owner_email != "")
+	{
+		mail_from = deal_owner_email;
+	}
+	quote_cc = ifnull(cc_email,"").trim();
+	if(quote_cc == "")
+	{
+		quote_cc = "info@kinetic-bridge.com";
+	}
+	try
+	{
+		sendmail
+		[
+			from : mail_from
+			to : safe_contact_email
+			cc : quote_cc
+			subject : email_subject
+			message : email_body
+			Attachments : file:merged_file
+		]
+		mail_res.put("email_sent","yes");
+		mail_res.put("email_from",mail_from);
+	}
+	catch (owner_send_error)
+	{
+		try
+		{
+			sendmail
+			[
+				from : zoho.adminuserid
+				to : safe_contact_email
+				cc : quote_cc
+				subject : email_subject
+				message : email_body
+				Attachments : file:merged_file
+			]
+			mail_res.put("email_sent","yes");
+			mail_res.put("email_from","admin_fallback");
+			mail_from = zoho.adminuserid;
+		}
+		catch (admin_send_error)
+		{
+			mail_res.put("status","failed");
+			mail_res.put("reason","email_send_failed");
+			result.put("mail_res",mail_res);
+			if(ifnull(mail_res.get("status"),"") != "ok")
+			{
+				result.put("status","failed");
+				result.put("reason",ifnull(mail_res.get("reason"),"email_send_failed"));
+				return result;
+			}
+		}
+	}
+	if(mail_res.get("email_sent") == "yes")
+	{
+		assoc_message_id = "qts-quote-" + safe_qno + "-" + zoho.currenttime.toString("yyyyMMddHHmmss");
+		assoc_date_time = zoho.currenttime.toString("yyyy-MM-dd'T'HH:mm:ssXXX","America/Los_Angeles");
+		from_item = Map();
+		from_item.put("user_name",mail_from);
+		from_item.put("email",mail_from.toString().trim().toLowerCase());
+		to_item = Map();
+		to_item.put("user_name",safe_contact_email);
+		to_item.put("email",safe_contact_email.toLowerCase());
+		to_list = List();
+		to_list.add(to_item);
+		email_item = Map();
+		email_item.put("from",from_item);
+		email_item.put("to",to_list);
+		email_item.put("subject",email_subject);
+		email_item.put("content",email_body);
+		email_item.put("mail_format","html");
+		email_item.put("date_time",assoc_date_time);
+		email_item.put("sent",true);
+		email_item.put("original_message_id",assoc_message_id);
+		if(quote_cc != "")
+		{
+			cc_list = List();
+			cc_item = Map();
+			cc_item.put("user_name",quote_cc);
+			cc_item.put("email",quote_cc.toLowerCase());
+			cc_list.add(cc_item);
+			email_item.put("cc",cc_list);
+		}
+		emails = List();
+		emails.add(email_item);
+		request_body = Map();
+		request_body.put("Emails",emails);
+		safe_contact_id = ifnull(contact_id,"").trim();
+		if(safe_contact_id != "")
+		{
+			try
+			{
+				assoc_response = invokeurl
+				[
+					url :"https://www.zohoapis.com/crm/v8/Contacts/" + safe_contact_id + "/actions/associate_email"
+					type :POST
+					parameters:request_body.toString()
+					connection:"zoho_crm_to_zoho_flow"
+				];
+				assoc_code = "";
+				assoc_status = "";
+				assoc_items = assoc_response.get("Emails");
+				if(assoc_items != null && assoc_items.size() > 0)
+				{
+					assoc_row = assoc_items.get(0);
+					assoc_code = ifnull(assoc_row.get("code"),"").toString();
+					assoc_status = ifnull(assoc_row.get("status"),"").toString();
+				}
+				if(assoc_code == "SUCCESS" || assoc_code == "DUPLICATE_DATA" || assoc_status == "success")
+				{
+					mail_res.put("email_associated","yes");
+				}
+			}
+			catch (assoc_contact_error)
+			{
+				mail_res.put("email_associated","no");
+			}
+		}
+		if(account_id_text != "")
+		{
+			try
+			{
+				assoc_account_response = invokeurl
+				[
+					url :"https://www.zohoapis.com/crm/v8/Accounts/" + account_id_text + "/actions/associate_email"
+					type :POST
+					parameters:request_body.toString()
+					connection:"zoho_crm_to_zoho_flow"
+				];
+				acct_code = "";
+				acct_items = assoc_account_response.get("Emails");
+				if(acct_items != null && acct_items.size() > 0)
+				{
+					acct_row = acct_items.get(0);
+					acct_code = ifnull(acct_row.get("code"),"").toString();
+				}
+				if(acct_code == "SUCCESS" || acct_code == "DUPLICATE_DATA")
+				{
+					mail_res.put("email_associated_account","yes");
+				}
+			}
+			catch (assoc_account_error)
+			{
+				mail_res.put("email_associated_account","no");
+			}
+		}
+	}
+	mail_res.put("status","ok");
+	result.put("mail_res",mail_res);
+	if(ifnull(mail_res.get("status"),"") != "ok")
+	{
+		result.put("status","failed");
+		result.put("reason",ifnull(mail_res.get("reason"),"email_send_failed"));
+		return result;
+	}
+	result.put("email",mail_res);
+	stage_res = advance_deal_stage(safe_deal_id,deal_record);
+	result.put("deal_stage",stage_res);
+	if(ifnull(quote_res.get("status"),"") == "failed")
+	{
+		result.put("status","filed");
+		result.put("reason","quote_upsert_failed_email_continued");
+		return result;
+	}
+}
+result.put("status","filed");
+result.put("reason","");
+return result;
+}

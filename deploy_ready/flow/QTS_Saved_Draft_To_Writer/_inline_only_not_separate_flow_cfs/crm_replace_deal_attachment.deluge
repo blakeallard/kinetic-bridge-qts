@@ -1,4 +1,4 @@
-map crm_replace_deal_attachment(string deal_id, file merged_file, string quote_number, map deal_record)
+map crm_replace_deal_attachment(string deal_id, merged_file, string quote_number, map deal_record)
 {
 result = Map();
 result.put("status","skipped");
@@ -12,7 +12,6 @@ if(safe_deal_id == "" || merged_file == null)
 	result.put("reason","deal_or_file_missing");
 	return result;
 }
-// Delete prior Kinetic Bridge quote PDFs on the Deal so only one current attach remains.
 try
 {
 	att_resp = invokeurl

@@ -1,0 +1,35 @@
+if(ifnull(input.Quote_Number,"") == "")
+{
+	doc_num = thisapp.fn_get_next_number("QUOTE");
+	for each  rec in Quote_Request[ID == input.ID.toLong()]
+	{
+		rec.Quote_Number=doc_num;
+		break;
+	}
+}
+if(ifnull(input.Recipient_Email,"") == "")
+{
+	rep_email = zoho.loginuser;
+	rep_name = rep_email;
+	for each  u in App_Users[User_Email == rep_email]
+	{
+		rep_name = u.User_Name;
+		break;
+	}
+	for each  rec in Quote_Request[ID == input.ID.toLong()]
+	{
+		rec.Recipient_Email=rep_email;
+		rec.Recipient_Name=rep_name;
+		break;
+	}
+}
+thisapp.fn_calc_quote_lines(input.ID.toString());
+if(ifnull(input.Status,"Draft") != "Draft")
+{
+	thisapp.fn_sync_to_crm(input.ID.toString());
+	thisapp.fn_sync_to_sheet(input.ID.toString());
+}
+if(input.Status == "Send for Signature")
+{
+	thisapp.fn_generate_pdf(input.ID.toString());
+}

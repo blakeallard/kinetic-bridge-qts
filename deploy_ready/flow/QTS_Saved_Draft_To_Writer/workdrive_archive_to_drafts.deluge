@@ -5,7 +5,6 @@ result.put("status","skipped");
 result.put("archived_current","no");
 result.put("archived_confirmed","no");
 result.put("draft_filename","");
-wd_connection = "zoho_crm_to_zoho_flow";
 safe_current = ifnull(current_folder_id,"").trim();
 safe_drafts = ifnull(drafts_folder_id,"").trim();
 safe_name = ifnull(stable_filename,"").trim();
@@ -38,7 +37,7 @@ if(safe_current != "")
 		[
 			url :"https://workdrive.zoho.com/api/v1/files/" + safe_current + "/files?page%5Blimit%5D=50"
 			type :GET
-			connection:wd_connection
+			connection:"flow_to_workdrive_full_access"
 		];
 		rows = ifnull(listing.get("data"),List());
 		moved_any = false;
@@ -62,7 +61,7 @@ if(safe_current != "")
 					url :"https://workdrive.zoho.com/api/v1/files/" + file_id
 					type :PATCH
 					parameters:move_body.toString()
-					connection:wd_connection
+					connection:"flow_to_workdrive_full_access"
 					content-type:"application/json"
 				];
 				moved_any = true;
@@ -94,7 +93,7 @@ if(archive_confirmed && safe_confirmed != "")
 		[
 			url :"https://workdrive.zoho.com/api/v1/files/" + safe_confirmed + "/files?page%5Blimit%5D=50"
 			type :GET
-			connection:wd_connection
+			connection:"flow_to_workdrive_full_access"
 		];
 		c_rows = ifnull(c_listing.get("data"),List());
 		for each crow in c_rows
@@ -118,7 +117,7 @@ if(archive_confirmed && safe_confirmed != "")
 					url :"https://workdrive.zoho.com/api/v1/files/" + c_file_id
 					type :PATCH
 					parameters:c_move.toString()
-					connection:wd_connection
+					connection:"flow_to_workdrive_full_access"
 					content-type:"application/json"
 				];
 				result.put("archived_confirmed","yes");

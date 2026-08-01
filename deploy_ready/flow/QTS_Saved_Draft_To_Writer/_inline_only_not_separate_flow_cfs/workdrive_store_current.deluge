@@ -1,13 +1,18 @@
-map workdrive_store_confirmed(string confirmed_folder_id, file merged_file, string stable_filename)
+map workdrive_store_current(string current_folder_id, merged_file, string stable_filename)
 {
 result = Map();
 result.put("status","skipped");
 result.put("workdrive_file_id","");
-result.put("folder","CONFIRMED");
-wd_connection = "zoho_crm_to_zoho_flow";
-safe_folder = ifnull(confirmed_folder_id,"").trim();
+result.put("folder","CURRENT");
+safe_folder = ifnull(current_folder_id,"").trim();
 safe_name = ifnull(stable_filename,"").trim();
-if(safe_folder == "" || merged_file == null)
+if(safe_folder == "")
+{
+	result.put("status","failed");
+	result.put("reason","folder_or_file_missing");
+	return result;
+}
+if(merged_file == null)
 {
 	result.put("status","failed");
 	result.put("reason","folder_or_file_missing");
@@ -24,17 +29,20 @@ try
 		url :"https://workdrive.zoho.com/api/v1/upload?parent_id=" + safe_folder + "&override-name-exist=true"
 		type :POST
 		files:merged_file
-		connection:wd_connection
+		connection:"flow_to_workdrive_full_access"
 	];
 	udata = ifnull(upload.get("data"),List());
 	file_id = "";
-	if(udata != null && udata.size() > 0)
+	if(udata != null)
 	{
-		first = udata.get(0);
-		attrs = ifnull(first.get("attributes"),Map());
-		file_id = ifnull(attrs.get("resource_id"),ifnull(first.get("id"),"")).toString();
+		if(udata.size() > 0)
+		{
+			first = udata.get(0);
+			attrs = ifnull(first.get("attributes"),Map());
+			file_id = ifnull(attrs.get("resource_id"),ifnull(first.get("id"),"")).toString();
+		}
 	}
-	else
+	if(file_id == "")
 	{
 		d = ifnull(upload.get("data"),Map());
 		file_id = ifnull(d.get("id"),"").toString();
@@ -46,7 +54,7 @@ try
 catch (store_error)
 {
 	result.put("status","failed");
-	result.put("reason","workdrive_store_confirmed_failed");
+	result.put("reason","workdrive_store_current_failed");
 }
 return result;
 }

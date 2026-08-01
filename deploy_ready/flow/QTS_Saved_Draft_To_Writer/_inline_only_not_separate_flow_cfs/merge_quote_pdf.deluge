@@ -4,7 +4,7 @@ result = Map();
 result.put("status","skipped");
 result.put("reason","");
 result.put("merged_file",null);
-template_document_id = "h5zhu2051759ecefd4148816cf61ad65a9cbc";
+template_document_id = "9lfq58fb17882291d452b9ef8b0e0234189ac";
 if(merge_data == null || merge_data.isEmpty())
 {
 	result.put("status","failed");
@@ -37,7 +37,6 @@ if(merged_file == null)
 	result.put("reason","merge_failed");
 	return result;
 }
-// Writer error payloads arrive as maps with error/code — reject before filing/emailing.
 try
 {
 	err_msg = ifnull(merged_file.get("error"),"").toString().trim();

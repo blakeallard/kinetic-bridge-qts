@@ -1,4 +1,4 @@
-map upsert_crm_quote(string deal_id, string contact_id, string quote_number, string quote_request_id, map merge_data, file merged_file, map deal_record)
+map upsert_crm_quote(string deal_id, string contact_id, string quote_number, string quote_request_id, map merge_data, merged_file, map deal_record)
 {
 result = Map();
 result.put("status","skipped");

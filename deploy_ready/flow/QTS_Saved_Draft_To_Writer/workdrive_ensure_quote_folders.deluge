@@ -1,0 +1,264 @@
+map workdrive_ensure_quote_folders(string quote_number, string parent_folder_id)
+{
+result = Map();
+result.put("status","skipped");
+result.put("reason","");
+result.put("root_id","");
+result.put("quote_folder_id","");
+result.put("current_id","");
+result.put("confirmed_id","");
+result.put("drafts_id","");
+qts_quotes_root_folder_id = "wctzef9e0b057e781406896d8866994e93156";
+qts_quotes_root_folder_name = "QTS Quotes";
+safe_qno = ifnull(quote_number,"").trim();
+if(safe_qno == "")
+{
+	result.put("status","failed");
+	result.put("reason","quote_number_missing");
+	return result;
+}
+safe_parent = ifnull(parent_folder_id,"").trim();
+root_id = qts_quotes_root_folder_id;
+if(root_id == "")
+{
+	if(safe_parent != "")
+	{
+		try
+		{
+			listing = invokeurl
+			[
+				url :"https://workdrive.zoho.com/api/v1/files/" + safe_parent + "/files?filter[type]=folder&page%5Blimit%5D=50"
+				type :GET
+				connection:"flow_to_workdrive_full_access"
+			];
+			rows = ifnull(listing.get("data"),List());
+			for each row in rows
+			{
+				attrs = ifnull(row.get("attributes"),Map());
+				fname = ifnull(attrs.get("name"),"").toString();
+				if(fname == qts_quotes_root_folder_name)
+				{
+					root_id = ifnull(row.get("id"),"").toString();
+				}
+			}
+		}
+		catch (root_lookup_error)
+		{
+			root_id = "";
+		}
+	}
+}
+if(root_id == "")
+{
+	result.put("status","failed");
+	result.put("reason","qts_quotes_root_not_found_set_QTS_QUOTES_ROOT_FOLDER_ID");
+	return result;
+}
+result.put("root_id",root_id);
+quote_folder_id = "";
+current_id = "";
+confirmed_id = "";
+drafts_id = "";
+try
+{
+	page_limit = 100;
+	page_offsets = List();
+	page_offsets.add(0);
+	page_offsets.add(100);
+	page_offsets.add(200);
+	page_offsets.add(300);
+	page_offsets.add(400);
+	for each page_offset in page_offsets
+	{
+		if(quote_folder_id == "")
+		{
+			q_listing = invokeurl
+			[
+				url :"https://workdrive.zoho.com/api/v1/files/" + root_id + "/files?filter[type]=folder&page%5Blimit%5D=" + page_limit.toString() + "&page%5Boffset%5D=" + page_offset.toString()
+				type :GET
+				connection:"flow_to_workdrive_full_access"
+			];
+			q_rows = ifnull(q_listing.get("data"),List());
+			q_count = 0;
+			if(q_rows != null)
+			{
+				q_count = q_rows.size();
+				for each qrow in q_rows
+				{
+					qattrs = ifnull(qrow.get("attributes"),Map());
+					qname = ifnull(qattrs.get("name"),"").toString();
+					if(qname == safe_qno)
+					{
+						quote_folder_id = ifnull(qrow.get("id"),"").toString();
+						if(quote_folder_id == "")
+						{
+							quote_folder_id = ifnull(qattrs.get("resource_id"),"").toString();
+						}
+					}
+				}
+			}
+			if(q_count < page_limit)
+			{
+				break;
+			}
+		}
+	}
+	if(quote_folder_id == "")
+	{
+		create_body = Map();
+		data_map = Map();
+		data_map.put("type","files");
+		attrs = Map();
+		attrs.put("name",safe_qno);
+		attrs.put("parent_id",root_id);
+		data_map.put("attributes",attrs);
+		create_body.put("data",data_map);
+		wd_headers = Map();
+		wd_headers.put("Accept","application/vnd.api+json");
+		wd_headers.put("Content-Type","application/json");
+		created = invokeurl
+		[
+			url :"https://www.zohoapis.com/workdrive/api/v1/files"
+			type :POST
+			parameters:create_body.toString()
+			headers:wd_headers
+			connection:"flow_to_workdrive_full_access"
+		];
+		cdata = ifnull(created.get("data"),Map());
+		quote_folder_id = ifnull(cdata.get("id"),"").toString();
+		if(quote_folder_id == "")
+		{
+			cattrs = ifnull(cdata.get("attributes"),Map());
+			quote_folder_id = ifnull(cattrs.get("resource_id"),"").toString();
+		}
+		if(quote_folder_id == "")
+		{
+			quote_folder_id = ifnull(created.get("id"),"").toString();
+		}
+		if(quote_folder_id == "")
+		{
+			result.put("wd_create_errors",ifnull(created.get("errors"),"").toString());
+			result.put("wd_create_message",ifnull(created.get("message"),"").toString());
+		}
+	}
+}
+catch (quote_folder_error)
+{
+	result.put("status","failed");
+	result.put("reason","quote_folder_ensure_failed");
+	return result;
+}
+if(quote_folder_id == "")
+{
+	result.put("status","failed");
+	result.put("reason","quote_folder_id_blank");
+	return result;
+}
+result.put("quote_folder_id",quote_folder_id);
+sub_names = List();
+sub_names.add("CURRENT");
+sub_names.add("CONFIRMED");
+sub_names.add("DRAFTS");
+existing_subs = Map();
+try
+{
+	s_listing = invokeurl
+	[
+		url :"https://workdrive.zoho.com/api/v1/files/" + quote_folder_id + "/files?filter[type]=folder&page%5Blimit%5D=50"
+		type :GET
+		connection:"flow_to_workdrive_full_access"
+	];
+	s_rows = ifnull(s_listing.get("data"),List());
+	for each srow in s_rows
+	{
+		sattrs = ifnull(srow.get("attributes"),Map());
+		existing_subs.put(ifnull(sattrs.get("name"),"").toString(),ifnull(srow.get("id"),"").toString());
+	}
+}
+catch (sub_list_error)
+{
+}
+for each sub_name in sub_names
+{
+	sid = ifnull(existing_subs.get(sub_name),"").toString();
+	if(sid == "")
+	{
+		try
+		{
+			cbody = Map();
+			dmap = Map();
+			dmap.put("type","files");
+			cattrs = Map();
+			cattrs.put("name",sub_name);
+			cattrs.put("parent_id",quote_folder_id);
+			dmap.put("attributes",cattrs);
+			cbody.put("data",dmap);
+			sub_headers = Map();
+			sub_headers.put("Accept","application/vnd.api+json");
+			sub_headers.put("Content-Type","application/json");
+			cresp = invokeurl
+			[
+				url :"https://www.zohoapis.com/workdrive/api/v1/files"
+				type :POST
+				parameters:cbody.toString()
+				headers:sub_headers
+				connection:"flow_to_workdrive_full_access"
+			];
+			cd = ifnull(cresp.get("data"),Map());
+			sid = ifnull(cd.get("id"),"").toString();
+			if(sid == "")
+			{
+				sattrs2 = ifnull(cd.get("attributes"),Map());
+				sid = ifnull(sattrs2.get("resource_id"),"").toString();
+			}
+			if(sid == "")
+			{
+				sid = ifnull(cresp.get("id"),"").toString();
+			}
+		}
+		catch (sub_create_error)
+		{
+			sid = "";
+		}
+	}
+	if(sub_name == "CURRENT")
+	{
+		current_id = sid;
+	}
+	if(sub_name == "CONFIRMED")
+	{
+		confirmed_id = sid;
+	}
+	if(sub_name == "DRAFTS")
+	{
+		drafts_id = sid;
+	}
+}
+result.put("current_id",current_id);
+result.put("confirmed_id",confirmed_id);
+result.put("drafts_id",drafts_id);
+missing_current = false;
+if(current_id == "")
+{
+	missing_current = true;
+}
+missing_drafts = false;
+if(drafts_id == "")
+{
+	missing_drafts = true;
+}
+if(missing_current)
+{
+	result.put("status","failed");
+	result.put("reason","current_or_drafts_folder_missing");
+	return result;
+}
+if(missing_drafts)
+{
+	result.put("status","failed");
+	result.put("reason","current_or_drafts_folder_missing");
+	return result;
+}
+result.put("status","ok");
+return result;
+}

@@ -1,0 +1,3 @@
+// Schedule: "Daily FX refresh" — Creator → QTS (Dev) → Workflow → Schedules
+// Repeat: Daily, 6:00 AM America/Los_Angeles. Action type: Deluge script.
+fn_refresh_fx_rates();
