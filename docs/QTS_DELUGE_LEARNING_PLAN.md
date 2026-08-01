@@ -21,7 +21,7 @@
 | ---- | ------ | ------- |
 | Canonical source | `functions/`, `workflows/` | What we edit in git |
 | Paste twin | `deploy_ready/*.creator.deluge` | Exact text to paste into Creator |
-| Flow CFs | `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` | Paste into **Flow** custom functions |
+| Flow CFs | `deploy_ready/flow/QTS_Saved_Draft_To_Writer/` | Paste into **Flow** custom functions |
 | Live-only | `build_quote_merge_payload` | Exists in Flow UI only — **not in this repo** |
 
 ---
@@ -231,7 +231,7 @@ string fn_get_next_number(string p_type_code)
 
 1. [`functions/fn_get_tier_price.deluge`](../functions/fn_get_tier_price.deluge)  
 2. [`functions/fn_get_discount.deluge`](../functions/fn_get_discount.deluge)  
-3. [`functions/fn_calc_quote_lines.deluge`](../functions/fn_calc_quote_lines.deluge) (+ [`deploy_ready/fn_calc_quote_lines.creator.deluge`](../deploy_ready/fn_calc_quote_lines.creator.deluge))  
+3. [`functions/fn_calc_quote_lines.deluge`](../functions/fn_calc_quote_lines.deluge) (+ [`deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge`](../deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge))  
 4. Skim [`functions/fn_calc_line_price_draft.deluge`](../functions/fn_calc_line_price_draft.deluge)  
 5. Then the **Deep dive** section at the end of this lesson  
 
@@ -399,8 +399,8 @@ Study cheapest → riskiest:
 | - | ------ | ---- | ---- |
 | 1 | `get_quote_lines` | No | monolith block |
 | 2 | `get_quote_by_number` | No | **live-only gap** |
-| 3 | `search_customers` | Yes — 1 OR search | [`deploy_ready/crm_bridge_actions/search_customers.creator.deluge`](../deploy_ready/crm_bridge_actions/search_customers.creator.deluge) |
-| 4 | `search_leads` | Yes — batched | [`deploy_ready/crm_bridge_actions/search_leads.creator.deluge`](../deploy_ready/crm_bridge_actions/search_leads.creator.deluge) |
+| 3 | `search_customers` | Yes — 1 OR search | [`deploy_ready/creator/workflow/form_workflows/crm_bridge/search_customers.creator.deluge`](../deploy_ready/creator/workflow/form_workflows/crm_bridge/search_customers.creator.deluge) |
+| 4 | `search_leads` | Yes — batched | [`deploy_ready/creator/workflow/form_workflows/crm_bridge/search_leads.creator.deluge`](../deploy_ready/creator/workflow/form_workflows/crm_bridge/search_leads.creator.deluge) |
 | 5 | `get_customer` / `get_lead` | getRecordById | monolith |
 | 6 | `search_deals` / `get_deal` | related / id | monolith |
 
@@ -410,7 +410,7 @@ Study cheapest → riskiest:
 
 # Lesson 7 — Bridge write path + Deal sync
 
-### Thin workflow [`deploy_ready/crm_bridge_actions/sync_quote_to_crm.creator.deluge`](../deploy_ready/crm_bridge_actions/sync_quote_to_crm.creator.deluge)
+### Thin workflow [`deploy_ready/creator/workflow/form_workflows/crm_bridge/sync_quote_to_crm.creator.deluge`](../deploy_ready/creator/workflow/form_workflows/crm_bridge/sync_quote_to_crm.creator.deluge)
 
 ```deluge
 thisapp.fn_calc_quote_lines(quote_id_text);
@@ -452,7 +452,7 @@ Flow owns live Save/Email publish. Read for merge-field ideas; don’t paste as 
 # Lesson 10 — Flow canvas + `build_quote_merge_payload`
 
 **Flow:** `QTS Saved Draft To Writer`  
-**Repo README:** [`scripts/zoho_flow/QTS_Saved_Draft_To_Writer/README.md`](../scripts/zoho_flow/QTS_Saved_Draft_To_Writer/README.md)
+**Repo README:** [`deploy_ready/flow/QTS_Saved_Draft_To_Writer/README.md`](../deploy_ready/flow/QTS_Saved_Draft_To_Writer/README.md)
 
 ```
 Creator Status (PDF Filed | Package Requested)
@@ -476,7 +476,7 @@ Sample JSON shape: [`artifacts/qts_writer_fields_sample_v2.json`](../artifacts/q
 
 # Lesson 11 — Flow helpers
 
-Folder: [`scripts/zoho_flow/QTS_Saved_Draft_To_Writer/`](../scripts/zoho_flow/QTS_Saved_Draft_To_Writer/)
+Folder: [`deploy_ready/flow/QTS_Saved_Draft_To_Writer/`](../deploy_ready/flow/QTS_Saved_Draft_To_Writer/)
 
 | # | Function | Job |
 | - | -------- | --- |
@@ -506,7 +506,7 @@ Do **not** paste `_inline_only_not_separate_flow_cfs/` as separate CFs (no File 
 
 # Lesson 12 — `publish_quote_package`
 
-**File:** [`scripts/zoho_flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge`](../scripts/zoho_flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge)
+**File:** [`deploy_ready/flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge`](../deploy_ready/flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge)
 
 ```deluge
 map publish_quote_package(
@@ -614,9 +614,9 @@ validate → dedupe lock note
 
 ### Creator workflows
 
-`crm_bridge_on_create` (+ `deploy_ready/crm_bridge_actions/*`), `on_user_input_quote_lines_part_select`, `on_user_input_quote_lines_qty`, `on_user_input_quote_currency_fx`, `expand_kit_button`
+`crm_bridge_on_create` (+ `deploy_ready/creator/workflow/form_workflows/crm_bridge/*`), `on_user_input_quote_lines_part_select`, `on_user_input_quote_lines_qty`, `on_user_input_quote_currency_fx`, `expand_kit_button`
 
-### Flow (`scripts/zoho_flow/QTS_Saved_Draft_To_Writer/`)
+### Flow (`deploy_ready/flow/QTS_Saved_Draft_To_Writer/`)
 
 `assert_deal_has_products`, `ensure_deal_contact_link`, `workdrive_ensure_quote_folders`, `workdrive_archive_to_drafts`, `snapshot_creator_revision`, `advance_deal_stage`, `publish_quote_package`  
 Live-only: `build_quote_merge_payload`  

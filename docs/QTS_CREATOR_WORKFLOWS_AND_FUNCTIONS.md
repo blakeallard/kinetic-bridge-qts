@@ -22,8 +22,8 @@ Originally one monolith workflow **CRM Bridge**. Live is **split: one workflow p
 | Workflow name (live UI) | Status | Created | Action_field | Repo paste target |
 | ----------------------- | ------ | ------- | ------------ | ----------------- |
 | **CRM Bridge** | **Disabled** | 09-Jul-2026 | (old monolith — leave off) | Do not paste unless consolidating |
-| CRM Bridge - search_customers | Enabled | 28-Jul-2026 | `search_customers` | `deploy_ready/crm_bridge_actions/search_customers.creator.deluge` |
-| search_leads | Enabled | 28-Jul-2026 | `search_leads` | `deploy_ready/crm_bridge_actions/search_leads.creator.deluge` |
+| CRM Bridge - search_customers | Enabled | 28-Jul-2026 | `search_customers` | `deploy_ready/creator/workflow/form_workflows/crm_bridge/search_customers.creator.deluge` |
+| search_leads | Enabled | 28-Jul-2026 | `search_leads` | `deploy_ready/creator/workflow/form_workflows/crm_bridge/search_leads.creator.deluge` |
 | get_customer | Enabled | 28-Jul-2026 | `get_customer` | block in `crm_bridge_on_create.creator.deluge` |
 | get_lead | Enabled | 28-Jul-2026 | `get_lead` | same |
 | create_customer | Enabled | 28-Jul-2026 | `create_customer` | same |
@@ -35,7 +35,7 @@ Originally one monolith workflow **CRM Bridge**. Live is **split: one workflow p
 | expand_kit | Enabled | 28-Jul-2026 | `expand_kit` | calls `thisapp.fn_get_kit_components` |
 | get_tax | Enabled | 28-Jul-2026 | `get_tax` | Books `invokeurl` |
 | books_diag | Enabled | 28-Jul-2026 | `books_diag` | Books `invokeurl` |
-| sync_quote_to_crm | Enabled | 29-Jul-2026 | `sync_quote_to_crm` | `deploy_ready/crm_bridge_actions/sync_quote_to_crm.creator.deluge` |
+| sync_quote_to_crm | Enabled | 29-Jul-2026 | `sync_quote_to_crm` | `deploy_ready/creator/workflow/form_workflows/crm_bridge/sync_quote_to_crm.creator.deluge` |
 
 Full monolith (all actions in one script): `deploy_ready/crm_bridge_on_create.creator.deluge`  
 Mirror: `workflows/crm_bridge_on_create.deluge`
@@ -67,16 +67,16 @@ Mirror: `workflows/crm_bridge_on_create.deluge`
 
 | Function | Role | Deploy paste |
 | -------- | ---- | ------------ |
-| `fn_sync_to_crm` | Deal Associated Products + stage/amount; **no CRM Quotes** (email path owns Quotes) | `deploy_ready/fn_sync_to_crm.creator.deluge` |
-| `fn_calc_quote_lines` | Recalc quote lines / totals | `deploy_ready/fn_calc_quote_lines.creator.deluge` |
+| `fn_sync_to_crm` | Deal Associated Products + stage/amount; **no CRM Quotes** (email path owns Quotes) | `deploy_ready/creator/workflow/functions/fn_sync_to_crm.creator.deluge` |
+| `fn_calc_quote_lines` | Recalc quote lines / totals | `deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge` |
 | `fn_calc_line_price_draft` | Draft line price | `functions/fn_calc_line_price_draft.deluge` |
 | `fn_get_tier_price` | Tier pricing | `functions/fn_get_tier_price.deluge` |
 | `fn_get_discount` | Discount helper | `functions/fn_get_discount.deluge` |
-| `fn_get_kit_components` | Kit expansion | `deploy_ready/fn_get_kit_components.creator.deluge` |
+| `fn_get_kit_components` | Kit expansion | `deploy_ready/creator/workflow/functions/fn_get_kit_components.creator.deluge` |
 | `fn_get_next_number` | Quote numbering | `functions/fn_get_next_number.deluge` |
 | `fn_refresh_fx_rates` | FX cache | `functions/fn_refresh_fx_rates.deluge` |
-| `fn_sync_to_sheet` | Sheet sync | `deploy_ready/fn_sync_to_sheet.creator.deluge` |
-| `fn_generate_pdf` | Writer merge / Sign / Deal attach (legacy send path) | `deploy_ready/fn_generate_pdf.debug.deluge` / `functions/fn_generate_pdf.deluge` |
+| `fn_sync_to_sheet` | Sheet sync | `deploy_ready/creator/workflow/functions/fn_sync_to_sheet.creator.deluge` |
+| `fn_generate_pdf` | Writer merge / Sign / Deal attach (legacy send path) | `deploy_ready/creator/workflow/functions/fn_generate_pdf.debug.deluge` / `functions/fn_generate_pdf.deluge` |
 | `fn_send_to_sign` | Sign helper | `functions/fn_send_to_sign.deluge` |
 
 ---
@@ -90,7 +90,7 @@ Mirror: `workflows/crm_bridge_on_create.deluge`
 | `on_user_input_quote_lines_qty` | Quote_Lines | User input Qty | `deploy_ready/on_user_input_quote_lines_qty.creator.deluge` |
 | `on_user_input_quote_currency_fx` | Quote_Request Currency | User input | `workflows/on_user_input_quote_currency_fx.deluge` |
 
-Quote_Request Status → Zoho **Flow** (not Creator workflow) runs `generate_and_file_quote_document` for `PDF Filed` / `Package Requested` — see `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/`.
+Quote_Request Status → Zoho **Flow** (not Creator workflow) runs `generate_and_file_quote_document` for `PDF Filed` / `Package Requested` — see `deploy_ready/flow/QTS_Saved_Draft_To_Writer/`.
 
 ---
 

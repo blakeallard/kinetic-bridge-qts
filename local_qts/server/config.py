@@ -21,5 +21,6 @@ KIT_BOM_CSV = Path(
     )
 )
 FRONTEND_DIR = ROOT / "frontend"
+WIDGET_APP_DIR = ROOT.parent / "widget" / "app"
 STATIC_DIR = ROOT / "static"
 LOCAL_ID_PREFIX = "LOCAL"

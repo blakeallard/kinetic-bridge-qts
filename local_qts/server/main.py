@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import bridge_store, catalog, quotes
-from .config import FRONTEND_DIR, PORT, STATIC_DIR
+from .config import FRONTEND_DIR, PORT, STATIC_DIR, WIDGET_APP_DIR
 from .criteria import parse_criteria
 
 app = FastAPI(title="Local QTS", version="0.1.0")
@@ -166,11 +166,12 @@ def index() -> FileResponse:
 def frontend_asset(asset_path: str) -> FileResponse:
     if asset_path.startswith("api/") or asset_path.startswith("static/"):
         raise HTTPException(404)
-    candidate = (FRONTEND_DIR / asset_path).resolve()
-    root = FRONTEND_DIR.resolve()
-    if not str(candidate).startswith(str(root)) or not candidate.is_file():
-        raise HTTPException(404, asset_path)
-    return FileResponse(candidate)
+    for base in (FRONTEND_DIR, WIDGET_APP_DIR):
+        candidate = (base / asset_path).resolve()
+        root = base.resolve()
+        if str(candidate).startswith(str(root)) and candidate.is_file():
+            return FileResponse(candidate)
+    raise HTTPException(404, asset_path)
 
 
 def run() -> None:

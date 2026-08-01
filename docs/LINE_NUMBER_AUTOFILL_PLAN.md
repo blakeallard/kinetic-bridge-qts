@@ -45,7 +45,7 @@ for each line in quote.Quote_Lines
 
 Nothing below that point in the loop body was touched. No pricing variable (`qty`, `part`, `eur_price`, `discount`, `markup`, `unit_price_usd`, FX fields, etc.) is read or written by these two new lines, and `line_seq` is not read anywhere else in the function.
 
-- **`deploy_ready/fn_calc_quote_lines.creator.deluge`** was updated identically, keeping it byte-for-byte identical to `functions/fn_calc_quote_lines.deluge`, per the existing convention recorded in `docs/CREATOR_DELUGE_PARSER_COMPATIBILITY_NOTES.md` (Incident 2).
+- **`deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge`** was updated identically, keeping it byte-for-byte identical to `functions/fn_calc_quote_lines.deluge`, per the existing convention recorded in `docs/CREATOR_DELUGE_PARSER_COMPATIBILITY_NOTES.md` (Incident 2).
 
 ---
 
@@ -76,7 +76,7 @@ The two added lines execute before any pricing variable in the loop is read (`qt
 | File | Change |
 |---|---|
 | `functions/fn_calc_quote_lines.deluge` | Patched: added `line_seq` counter + `line.Line_Number` write, as shown above. |
-| `deploy_ready/fn_calc_quote_lines.creator.deluge` | Same patch applied, kept byte-identical to `functions/fn_calc_quote_lines.deluge` per existing convention. |
+| `deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge` | Same patch applied, kept byte-identical to `functions/fn_calc_quote_lines.deluge` per existing convention. |
 | `scripts/line_number_autofill_check.py` | New. Local dry-run of the numbering behavior (no Deluge interpreter exists locally, so this is a faithful reimplementation of just the counter logic, run against synthetic line lists). |
 | `docs/LINE_NUMBER_AUTOFILL_PLAN.md` | New. This file. |
 
@@ -89,14 +89,14 @@ No field was added or removed. `Line_Number` already exists as a field on the li
 1. `python3 scripts/line_number_autofill_check.py` — 6 scenarios, 6/6 pass: plain sequential numbering, stale/out-of-order pre-existing values getting overwritten, single-line quotes, zero-line (empty subform) quotes, blank/incomplete draft rows still getting numbered, and a simulated mid-quote row deletion proving numbering is gap-free and recomputed fresh every save (not preserved from a prior save).
 2. `python3 scripts/tier_price_logic_dryrun.py` — re-run, 12/12 pass, unaffected (this patch does not touch `fn_get_tier_price.deluge` or anything it depends on).
 3. `python3 scripts/quote_line_calc_equivalence_check.py` — re-run, 11/11 pass, unaffected (pricing math fixture, proves the patch introduced no pricing regression).
-4. `diff functions/fn_calc_quote_lines.deluge deploy_ready/fn_calc_quote_lines.creator.deluge` — identical.
+4. `diff functions/fn_calc_quote_lines.deluge deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge` — identical.
 5. `grep -noP '[^\x00-\x7F]' functions/fn_calc_quote_lines.deluge` — zero matches (ASCII-only preserved).
 
 ---
 
 ## Deployment notes (not performed — for when a human approves deployment)
 
-1. **This redeploys an already-live function.** `fn_calc_quote_lines.deluge` is the same function documented as deployed and working in `QTS_PROJECT_STATUS.md` (Tier_Scheme pricing patch). Deploying this change means pasting the updated `functions/fn_calc_quote_lines.deluge` (or `deploy_ready/fn_calc_quote_lines.creator.deluge` — identical) over the current live version in Creator dev, replacing it in place. This is not a new function creation.
+1. **This redeploys an already-live function.** `fn_calc_quote_lines.deluge` is the same function documented as deployed and working in `QTS_PROJECT_STATUS.md` (Tier_Scheme pricing patch). Deploying this change means pasting the updated `functions/fn_calc_quote_lines.deluge` (or `deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge` — identical) over the current live version in Creator dev, replacing it in place. This is not a new function creation.
 2. **Attempt the save first; do not preemptively rewrite.** Per Incident 4 in `docs/CREATOR_DELUGE_PARSER_COMPATIBILITY_NOTES.md`, pattern-matching against past "Improper Statement" failures is not a reliable predictor — the file already passed Creator's parser once with this same structural style (unfiltered `Quote_Request` loop, decomposed arithmetic, no ternaries/compound conditions). Paste and attempt to save as-is; only fall back to further rewrites if Creator actually rejects it.
 3. **Test order once deployed** (mirrors the existing autofill plan's test-case structure):
    - Save a quote with 3+ line items; confirm `Line_Number` populates as `1, 2, 3, ...` in row order.

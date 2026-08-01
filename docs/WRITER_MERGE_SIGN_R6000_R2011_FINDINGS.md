@@ -65,7 +65,7 @@ what triggered the first R2011. Do not "fix" the shape back to that.
 
 - `functions/fn_generate_pdf.deluge` — canonical, synced from the verified
   working deploy (payload-dump debug logs removed; abort + response logs kept).
-- `deploy_ready/fn_generate_pdf.debug.deluge` — the exact version pasted into
+- `deploy_ready/creator/workflow/functions/fn_generate_pdf.debug.deluge` — the exact version pasted into
   Creator during debugging, with three extra `info` payload-dump lines. The
   copy currently saved in Creator is this debug version; on the next Creator
   touch, paste the canonical version to drop the noisy logs.

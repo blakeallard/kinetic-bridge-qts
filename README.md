@@ -63,7 +63,7 @@ Operational detail: [`STATUS.md`](STATUS.md), [`QTS_PROJECT_STATUS.md`](QTS_PROJ
 
 1. This README + architecture diagram.
 2. `widget/` — front-end quote builder.
-3. `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` + `deploy_ready/` — publish / Creator paste sources.
+3. `deploy_ready/flow/QTS_Saved_Draft_To_Writer/` + `deploy_ready/` — publish / Creator paste sources.
 4. `docs/QTS_TWO_BUTTON_CRM_PLAN.md` — package semantics.
 5. `local_qts/` — offline CRM/quote sandbox.
 
@@ -72,7 +72,7 @@ Operational detail: [`STATUS.md`](STATUS.md), [`QTS_PROJECT_STATUS.md`](QTS_PROJ
 | Path | Role |
 | --- | --- |
 | `widget/` | Quote builder UI + dist ZIP |
-| `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` | Modular publish Flow modules |
+| `deploy_ready/flow/QTS_Saved_Draft_To_Writer/` | Modular publish Flow modules |
 | `deploy_ready/` | Creator-paste Deluge (prefer over raw `workflows/`) |
 | `functions/` | Shared Creator functions |
 | `local_qts/` | Local FastAPI + widget sandbox |

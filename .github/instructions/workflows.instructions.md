@@ -1,5 +1,5 @@
 ---
-applyTo: "workflows/**/*.deluge,functions/**/*.deluge"
+applyTo: "deploy_ready/creator/workflow/**/*.deluge"
 ---
 
 # Workflows Instructions

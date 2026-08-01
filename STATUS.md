@@ -21,7 +21,7 @@ Last updated: 2026-07-31 (active: Stage 7 Discountable X + catalog Disc % auto-f
 | ----- | ------ |
 | Stage 0 — Spec lock | **done** |
 | Stage 1 — Widget UX | **done** (`publishQuotePackage`, two buttons) |
-| Stage 2 — Flow modularization | **done** (`scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` + T110 Quotes gated on `send_email`) |
+| Stage 2 — Flow modularization | **done** (`deploy_ready/flow/QTS_Saved_Draft_To_Writer/` + T110 Quotes gated on `send_email`) |
 | Stage 3 — WorkDrive | **done** (CURRENT/CONFIRMED/DRAFTS Deluge; root folder ID placeholder) |
 | Stage 4 — Creator rev | **done** (`snapshot_creator_revision` + field notes; non-blocking) |
 | Stage 5 — Verify | **resume when External Calls headroom** — was blocked 2026-07-29 on daily quota |
@@ -31,7 +31,7 @@ Last updated: 2026-07-31 (active: Stage 7 Discountable X + catalog Disc % auto-f
 
 **Local sandbox (quota bypass):** [`local_qts/`](local_qts/) — widget + FastAPI against kinetic-quote Postgres (`zoho_crm` + QTS tables). Zero Zoho External Calls. Run: `cd local_qts && ./run.sh` → http://127.0.0.1:8789
 
-**Blake next:** (1) Re-import Item_Master Discountable from `import_preview/item_master_import_preview.csv` (X→Y). (2) Upload `widget/dist/qts-quote-builder.zip`; paste `deploy_ready/fn_calc_quote_lines.creator.deluge`. (3) Confirm Price_Rules seeded for Distributor/Partner. See `docs/CURRENT_HANDOFF.md`.
+**Blake next:** (1) Re-import Item_Master Discountable from `import_preview/item_master_import_preview.csv` (X→Y). (2) Upload `widget/dist/qts-quote-builder.zip`; paste `deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge`. (3) Confirm Price_Rules seeded for Distributor/Partner. See `docs/CURRENT_HANDOFF.md`.
 
 ---
 

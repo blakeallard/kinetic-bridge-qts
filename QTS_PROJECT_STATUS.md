@@ -263,7 +263,7 @@ On success: writes `sign_request_id` back to Creator `Sign_Request_ID` field.
 - `Customer_Phone` came through as empty string in the Writer merge data
 - Root cause: Creator phone field stores value as a structured object with country code — doesn't serialize as plain string
 - Fix applied in `fn_generate_pdf.deluge`: normalize via `toString()` + string parsing (extracts `phone_number=` / `number=` if present, otherwise uses the trimmed string) — never calls `.get()` on the field, so plain-string values are also safe
-- Redeploy confirmed 2026-07-07 by repo evidence: the source pasted to Creator on 2026-07-06 for the R6000/R2011 fix (`deploy_ready/fn_generate_pdf.debug.deluge` at commit `b7b8dbf`) contains the phone normalization, and `docs/WRITER_MERGE_SIGN_R6000_R2011_FINDINGS.md` records the live merge/sign verification (QUOTE0005, sign request `504457000000209234`)
+- Redeploy confirmed 2026-07-07 by repo evidence: the source pasted to Creator on 2026-07-06 for the R6000/R2011 fix (`deploy_ready/creator/workflow/functions/fn_generate_pdf.debug.deluge` at commit `b7b8dbf`) contains the phone normalization, and `docs/WRITER_MERGE_SIGN_R6000_R2011_FINDINGS.md` records the live merge/sign verification (QUOTE0005, sign request `504457000000209234`)
 - Remaining: generate one test quote PDF and visually confirm the phone number renders in the Writer output
 
 **7. Cancelled Status CRM Mapping**
@@ -338,5 +338,5 @@ On success: writes `sign_request_id` back to Creator `Sign_Request_ID` field.
 4. Build Phase 4 intake flow (Zoho Form → Zoho Flow → Creator)
 5. ~~Fix Customer_Phone serialization in `fn_generate_pdf`~~ ✅ DONE + REDEPLOYED (2026-07-06, see §6) — next: generate/sign-test one quote to confirm the phone number appears in the Writer PDF
 6. Map Cancelled → Closed Lost in `fn_sync_to_crm`
-7. Keep `deploy_ready/fn_generate_pdf.debug.deluge` in sync with the canonical `functions/fn_generate_pdf.deluge` so the next manual Creator paste does not reintroduce payload-dump debug logs.
+7. Keep `deploy_ready/creator/workflow/functions/fn_generate_pdf.debug.deluge` in sync with the canonical `functions/fn_generate_pdf.deluge` so the next manual Creator paste does not reintroduce payload-dump debug logs.
 8. BMS kit auto-population (meeting 2026-07-07, `docs/MEETING_REQUIREMENTS_2026-07-07.md` §R3/§R4): next pass builds the kit component mapping + validation script (deferred by Blake pending review of this pass); Deluge autofill after that. Quote-time warning UX for `Item_Status`/`Quote_Warning` items (§R2) also pending Creator-side design.
