@@ -4,32 +4,32 @@ Ordered checklist. All Creator edits happen in the **Development** environment f
 step 6 publishes everything to Production in one shot. Zoho Flow (step 7) is separate
 from Creator environments and is pasted directly.
 
-**Repo root:** `/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations`
+**Repo root:** `/Users/blakeallard/bevco/repos/kinetic-bridge-qts`
 
 ---
 
 ## Step 1 — Paste: search_customers (Creator, Development)
 
-- **File:** `/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/deploy_ready/creator/workflows/crm_bridge/search_customers.creator.deluge`
+- **File:** `/Users/blakeallard/bevco/repos/kinetic-bridge-qts/deploy_ready/creator/workflows/crm_bridge/search_customers.creator.deluge`
 - **Where in Zoho:** Creator → QTS (Edit, Development) → **Workflow** tab → Form workflows → CRM_Bridge form → workflow **"CRM Bridge - search_customers"** → open its 1 Action → select-all, replace entire script → Save.
 
 ## Step 2 — Paste: search_leads (Creator, Development)
 
-- **File:** `/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/deploy_ready/creator/workflows/crm_bridge/search_leads.creator.deluge`
+- **File:** `/Users/blakeallard/bevco/repos/kinetic-bridge-qts/deploy_ready/creator/workflows/crm_bridge/search_leads.creator.deluge`
 - **Where in Zoho:** same Workflow tab → workflow **"search_leads"** → open its 1 Action → replace entire script → Save.
 
 ## Step 3 — Upload: widget ZIP (Creator, Development)
 
-- **File:** `/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/widget/dist/qts-quote-builder.zip`
+- **File:** `/Users/blakeallard/bevco/repos/kinetic-bridge-qts/widget/dist/qts-quote-builder.zip`
 - **Where in Zoho:** Creator → QTS (Edit, Development) → the QTS Quote Builder **widget** component → replace/re-upload ZIP.
 
 ## Step 4 (optional, recommended) — Item_Master fields + re-import
 
 - **Where in Zoho:** Creator → QTS (Edit, Development) → Design → **Item_Master** form → drag in three **Single Line** fields named exactly `Active`, `Item_Status`, `Quote_Warning` → Save.
 - **Then import:** Item_Master report → Import →
-  `/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/deploy_ready/creator/imports/item_master_import_FULL.csv`
+  `/Users/blakeallard/bevco/repos/kinetic-bridge-qts/deploy_ready/creator/imports/item_master_import_FULL.csv`
 - **If skipping the new fields**, import instead:
-  `/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/deploy_ready/creator/imports/item_master_import_CORRECTED.csv`
+  `/Users/blakeallard/bevco/repos/kinetic-bridge-qts/deploy_ready/creator/imports/item_master_import_CORRECTED.csv`
 - Note: `Tier_Scheme` values must be exactly `Hardware` / `License` (both files already are).
 
 ## Step 5 — Quick smoke test in Development
@@ -47,7 +47,7 @@ from Creator environments and is pasted directly.
 
 ## Step 7 — Paste: publish_quote_package (Zoho Flow — separate from Creator)
 
-- **File:** `/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/deploy_ready/flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge`
+- **File:** `/Users/blakeallard/bevco/repos/kinetic-bridge-qts/deploy_ready/flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge`
 - **Where in Zoho:** flow.zoho.com → flow **"QTS Saved Draft To Writer"** → custom function **`publish_quote_package`** → replace entire script → Save → re-enable flow if it toggled off.
 
 ## Step 8 — Already done (local machine, no Zoho action)
