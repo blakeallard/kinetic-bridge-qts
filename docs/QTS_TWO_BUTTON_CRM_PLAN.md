@@ -5,6 +5,9 @@
 
 External path pointers: [`QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](./QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md)
 
+**Bryan meeting backlog (Stages 6–10):** [`QTS_BRYAN_MEETING_BACKLOG_2026-07-30.md`](./QTS_BRYAN_MEETING_BACKLOG_2026-07-30.md)  
+**Stage 5 paste checklist:** [`QTS_TOMORROW_PASTE_CHECKLIST.md`](./QTS_TOMORROW_PASTE_CHECKLIST.md)
+
 ## Stage board
 
 | Stage | Status |
@@ -14,7 +17,12 @@ External path pointers: [`QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](./QTS_TWO_BUT
 | Stage 2 — Flow pipeline hardening | **repo complete** — live paste/verify pending |
 | Stage 3 — WorkDrive revision organization | **root folder created** (`QTS Quotes` ID locked); module wire pending |
 | Stage 4 — Creator revision history | **helper drafted** |
-| Stage 5 — Verify | **BLOCKED 2026-07-29 evening** — Creator external-call daily quota exhausted; resume after reset (~00:00 Super Admin TZ). See below. |
+| Stage 5 — Verify | **resume when External Calls headroom** — paste map in checklist; was blocked 2026-07-29 on daily quota |
+| Stage 6 — Margin % column (markup + Disc %) | **planned** — see Bryan backlog |
+| Stage 7 — Item Master X → Discountable polarity fix | **planned** — vendor legend: X = can discount |
+| Stage 8 — Search Leads/Deals/Contacts by company | **planned** |
+| Stage 9 — Daily FX_Rates_Cache refresh | **planned** — ~1 External Call/day via existing `fn_refresh_fx_rates` |
+| Stage 10 — Revamp vendor Item Master spreadsheet | **planned (above & beyond)** — Creator IM already improving; rebuild workbook for efficiency/intuition |
 
 ---
 
@@ -80,12 +88,15 @@ Not inside the QTS page:
 
 ### Deploy paste map (split workflows)
 
+Canonical Stage 5 order: [`QTS_TOMORROW_PASTE_CHECKLIST.md`](./QTS_TOMORROW_PASTE_CHECKLIST.md).
+
 | Repo file / block | Live Creator target |
 | ----------------- | ------------------- |
 | `deploy_ready/fn_sync_to_crm.creator.deluge` | Function `fn_sync_to_crm` (used by workflow **sync_quote_to_crm**) |
-| `search_customers` block in `crm_bridge_on_create.creator.deluge` | Workflow **CRM Bridge - search_customers** |
-| `search_leads` block (batch OR — still TODO if live has a loop) | Workflow **search_leads** |
+| `deploy_ready/crm_bridge_actions/search_customers.creator.deluge` | Workflow **CRM Bridge - search_customers** |
+| `deploy_ready/crm_bridge_actions/search_leads.creator.deluge` | Workflow **search_leads** (batched OR; company search for Leads already included) |
 | Disabled **CRM Bridge** (09-Jul) | Leave disabled unless deliberately consolidating |
+| Do **not** re-paste | `sync_quote_to_crm` workflow (already calls calc + `fn_sync_to_crm`) unless that action itself changes |
 
 ---
 
@@ -290,3 +301,19 @@ See **SPEC_LOCK** above. WorkDrive root ID remains a placeholder; name-based loo
 - Books invoicing
 - Native CRM inventory quote templates
 - Broad Creator schema redesign beyond revision snapshot fields needed for DRAFTS parity
+
+---
+
+## Post–Stage 5 backlog (Bryan meeting 2026-07-30)
+
+Canonical detail: [`QTS_BRYAN_MEETING_BACKLOG_2026-07-30.md`](./QTS_BRYAN_MEETING_BACKLOG_2026-07-30.md).
+
+**Order after Stage 5 E2E:** Stage 7 (Discountable polarity) + Stage 9 (daily FX) → Stage 6 (Margin UI) → Stage 8 (company search) → Stage 10 (spreadsheet revamp, above & beyond).
+
+| Stage | Summary |
+| ----- | ------- |
+| **6 — Margin** | New **Margin %** column (company profit markup). Header input applies % to all lines from list; per-line override. **Disc % stays.** Formula: `Sale_USD = List_EUR × usdPerEur × (1 − Disc%/100) × (1 + Margin%/100)`. |
+| **7 — Discountable X** | Flip import: workbook `X` → `Discountable=Y` (vendor `Distrib discount` legend). Re-seed Creator Item_Master. Runtime Deluge already gates on Y/N. |
+| **8 — Company search** | Main CRM bar: Contacts by Account/company; keep Leads `Company`; add Deals by company (and optionally Deal name). Batch CRM criteria — no loops. |
+| **9 — Daily FX** | Schedule existing `fn_refresh_fx_rates` once/day (~1 External Call). Optional manual run to unstick stale cache now. |
+| **10 — Spreadsheet revamp** | Above & beyond: rebuild Lithium Balance / Item Master workbook so it is clearer than today’s multi-sheet RSP file and aligns with Creator Item_Master + kit configs + correct X/discount bands. Creator IM remains system of record for quoting; workbook becomes a clean vendor/ops source. |

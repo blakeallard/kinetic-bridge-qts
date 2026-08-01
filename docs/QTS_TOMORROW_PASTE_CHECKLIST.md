@@ -18,23 +18,23 @@ Goal: paste review fixes → smoke once → Stage 5 E2E (Save ×2, Email ×1)
 
 ### Zoho Flow — custom functions
 
-Paste from `scripts/qts_publish/` (prefer modular path; update **all** — helper signatures changed, trailing `map deal_record`):
+**Flow name:** `QTS Saved Draft To Writer` only.  
+Repo folder: [`scripts/zoho_flow/QTS_Saved_Draft_To_Writer/`](../scripts/zoho_flow/QTS_Saved_Draft_To_Writer/)  
+Canvas stays ~2 blocks: keep `build_quote_merge_payload`; swap `generate_and_file_quote…` → `publish_quote_package`.
 
-| Repo file | Flow function name (suggested) | Notes |
-| --------- | ------------------------------ | ----- |
+**Flow has no File parameter type** — do not create separate CFs for merge/store/attach/email. Those are inlined inside `publish_quote_package`. See that folder’s README.
+
+Paste only these Custom functions:
+
+| Repo file | Flow function name | Notes |
+| --------- | ------------------ | ----- |
 | `assert_deal_has_products.deluge` | `assert_deal_has_products` | Gate: Deal has products |
 | `ensure_deal_contact_link.deluge` | `ensure_deal_contact_link` | Deal ↔ Contact |
-| `merge_quote_pdf.deluge` | `merge_quote_pdf` | Writer → PDF |
 | `workdrive_ensure_quote_folders.deluge` | `workdrive_ensure_quote_folders` | Folder tree |
 | `workdrive_archive_to_drafts.deluge` | `workdrive_archive_to_drafts` | Archive prior PDFs |
-| `workdrive_store_current.deluge` | `workdrive_store_current` | CURRENT upload |
-| `workdrive_store_confirmed.deluge` | `workdrive_store_confirmed` | CONFIRMED (Email only) |
-| `crm_replace_deal_attachment.deluge` | `crm_replace_deal_attachment` | Deal PDF replace (deletes prior) |
 | `snapshot_creator_revision.deluge` | `snapshot_creator_revision` | Best-effort; never blocks |
-| `upsert_crm_quote.deluge` | `upsert_crm_quote` | CRM Quotes (Email only) |
-| `send_quote_email.deluge` | `send_quote_email` | Email (Email only) |
 | `advance_deal_stage.deluge` | `advance_deal_stage` | → Negotiation/Review (Email only) |
-| **`publish_quote_package.deluge`** | **`publish_quote_package`** | **Orchestrator — paste last** |
+| **`publish_quote_package.deluge`** | **`publish_quote_package`** | **Orchestrator (includes PDF merge/upload/attach/email) — paste last** |
 
 **Flow wiring**
 
@@ -70,7 +70,7 @@ Live is **one workflow per Action**. Leave disabled monolith **CRM Bridge** off.
 | --------- | --------------------- | --------------- |
 | `deploy_ready/crm_bridge_actions/search_customers.creator.deluge` | **CRM Bridge - search_customers** | **Yes** |
 | `deploy_ready/crm_bridge_actions/search_leads.creator.deluge` | **search_leads** | **Yes** |
-| `deploy_ready/crm_bridge_actions/sync_quote_to_crm.creator.deluge` | **sync_quote_to_crm** | **No** (already calls calc + `fn_sync_to_crm`) |
+| `deploy_ready/crm_bridge_actions/sync_quote_to_crm.creator.deluge` | **sync_quote_to_crm** | **Yes (2026-07-31)** — stamps `QTS_SAVE_ONLY\|{qno}` Deal note so Save can ride Package Requested Flow without emailing |
 
 Other bridge actions (`get_customer`, `get_deal`, `create_deal`, `get_quote_lines`, etc.) are separate live workflows. Source blocks live in `deploy_ready/crm_bridge_on_create.creator.deluge` — **only paste if that specific action needs an update**.
 
@@ -93,12 +93,18 @@ Creator → Usage Details → External Calls → proceed only if headroom exists
 ### 2. Paste Creator (3 items)
 1. `deploy_ready/crm_bridge_actions/search_customers.creator.deluge` → **CRM Bridge - search_customers**
 2. `deploy_ready/crm_bridge_actions/search_leads.creator.deluge` → **search_leads**
-3. `deploy_ready/fn_sync_to_crm.creator.deluge` → function **`fn_sync_to_crm`**
+3. `deploy_ready/fn_sync_to_crm.creator.deluge` → function **`fn_sync_to_crm`**  
+   **Required after 2026-07-31:** empty converted-Lead search was throwing `Invalid JSON Format String` at line 165 and blocking Save. Re-paste this function before retrying a real quote Save.
 
-Do **not** re-paste `sync_quote_to_crm` or the disabled monolith.
+**Also paste (Save PDF fix 2026-07-31):**
+4. `deploy_ready/crm_bridge_actions/sync_quote_to_crm.creator.deluge` → CRM Bridge **sync_quote_to_crm**
+5. `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge` → Flow CF **publish_quote_package**
+6. Upload `widget/dist/qts-quote-builder.zip`
+
+Do **not** paste the disabled monolith.
 
 ### 3. Paste Flow modules
-Paste every `scripts/qts_publish/*.deluge` helper above, then **`publish_quote_package` last**.  
+Paste every `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/*.deluge` helper above, then **`publish_quote_package` last**.  
 Confirm Flow still calls the modular orchestrator (not COMPAT/monolith).
 
 ### 4. Smoke once (cheap)

@@ -10,7 +10,7 @@ Repo: BI1-T71
 | Widget exposes `publishQuotePackage` | Code present in `widget/app/widget.js` |
 | Two buttons only (Save / Email); no Update CRM deal | `widget.html` + packbay mirrors |
 | Unit tests `node tests/widget_state_test.js` | **ALL TESTS PASS** (2026-07-29) |
-| Modular Deluge under `scripts/qts_publish/` | 13 step/orchestrator files + COMPAT + README |
+| Modular Deluge under `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` | 13 step/orchestrator files + COMPAT + README |
 | T110 `generate_and_file_quote_document.deluge` | Quotes gated on `send_email`; Deal attach always; empty products fail loud |
 | Save path skips Quotes/email/stage/CONFIRMED | Documented in orchestrator + COMPAT gating |
 
@@ -33,7 +33,7 @@ Do **not** burn live client email unless intentional. Prefer internal contact + 
 
 1. Creator Status trigger includes both `PDF Filed` and `Package Requested`.
 2. Decision: `Package Requested` → `send_email=true`; `PDF Filed` → `false`.
-3. Prefer T71 modules in `scripts/qts_publish/` OR re-paste COMPAT / updated T110 function.
+3. Prefer T71 modules in `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` OR re-paste COMPAT / updated T110 function.
 4. Set `QTS_QUOTES_ROOT_FOLDER_ID` in `workdrive_ensure_quote_folders` when known (name `QTS Quotes` until then).
 5. Confirm WorkDrive connection on Flow can create folders + upload (may need dedicated WD connection if `zoho_crm_to_zoho_flow` lacks scopes — **do not add secrets in repo**; configure in Zoho UI).
 6. Creator fields for revision snapshot: see `QTS_TWO_BUTTON_CRM_CREATOR_REVISION.md` (optional; non-blocking).
@@ -57,7 +57,7 @@ Pack Bay mirror: T71 `artifacts/qts-widget-ui-packbay/`
 ## Known limitations
 
 - WorkDrive root folder ID is locked: `wctzef9e0b057e781406896d8866994e93156` (`My Folders/QTS Quotes`) in `workdrive_ensure_quote_folders.deluge`.
-- Prefer modular Flow modules from `scripts/qts_publish/` (`publish_quote_package` orchestrator). COMPAT lacks WorkDrive; monolith `generate_and_file_quote_document.deluge` also lacks WorkDrive.
+- Prefer modular Flow modules from `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` (`publish_quote_package` orchestrator). COMPAT lacks WorkDrive; monolith `generate_and_file_quote_document.deluge` also lacks WorkDrive.
 - After 2026-07-30 review fixes: Deal is fetched once per publish; prior Deal quote PDFs are deleted before attach; product search is batched (≤8 ORs); empty product lookup no longer wipes Deal Associated Products.
 - Creator `Prior_Revision_Snapshot` / WD ID fields may not exist yet — snapshot is best-effort.
 - Zoho Flow may require pasting each module as a separate custom function (orchestrator uses `thisapp.*` calls).

@@ -90,7 +90,7 @@ Mirror: `workflows/crm_bridge_on_create.deluge`
 | `on_user_input_quote_lines_qty` | Quote_Lines | User input Qty | `deploy_ready/on_user_input_quote_lines_qty.creator.deluge` |
 | `on_user_input_quote_currency_fx` | Quote_Request Currency | User input | `workflows/on_user_input_quote_currency_fx.deluge` |
 
-Quote_Request Status → Zoho **Flow** (not Creator workflow) runs `generate_and_file_quote_document` for `PDF Filed` / `Package Requested` — see `scripts/qts_publish/`.
+Quote_Request Status → Zoho **Flow** (not Creator workflow) runs `generate_and_file_quote_document` for `PDF Filed` / `Package Requested` — see `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/`.
 
 ---
 

@@ -114,7 +114,7 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 	{
 		discountable = ifnull(item.Discountable,"N");
 		is_discountable = false;
-		if(discountable == "Y")
+		if(discountable == "Y" || discountable == "X")
 		{
 			is_discountable = true;
 		}

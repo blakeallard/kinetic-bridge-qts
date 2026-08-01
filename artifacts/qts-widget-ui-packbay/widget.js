@@ -61,9 +61,40 @@
     sendConfirmOpen: false,    // in-widget send-for-signature confirmation panel visibility
   };
 
+  // Normalize SKU strings so kit bridge values ("100916") match Item_Master rows.
+  function normalizeSku(sku) {
+    var s = fieldText(sku);
+    if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, '');
+    return s;
+  }
+
   function itemBySku(sku) {
-    for (var i = 0; i < DATA.items.length; i++) if (DATA.items[i].sku === sku) return DATA.items[i];
+    var want = normalizeSku(sku);
+    if (!want) return null;
+    for (var i = 0; i < DATA.items.length; i++) {
+      if (normalizeSku(DATA.items[i].sku) === want) return DATA.items[i];
+    }
     return null;
+  }
+
+  // Kit helper contents (from Kit_Components) — name fallback when Item_Master misses.
+  function kitComponentBySku(sku) {
+    var want = normalizeSku(sku);
+    if (!want) return null;
+    for (var k = 0; k < DATA.bmsKits.length; k++) {
+      var contents = DATA.bmsKits[k].contents || [];
+      for (var i = 0; i < contents.length; i++) {
+        if (normalizeSku(contents[i].sku) === want) return contents[i];
+      }
+    }
+    return null;
+  }
+
+  function kitRowField(row, snake, pascal) {
+    if (!row || typeof row !== 'object') return '';
+    if (row[snake] !== undefined && row[snake] !== null && row[snake] !== '') return row[snake];
+    if (row[pascal] !== undefined && row[pascal] !== null && row[pascal] !== '') return row[pascal];
+    return row[snake] != null ? row[snake] : row[pascal];
   }
   function money(n) {
     if (n === null || n === undefined || isNaN(n)) return null;
@@ -78,19 +109,226 @@
   // Item_Master tiers are EUR list. FX_Rates_Cache.Rate for EUR = EUR per 1 USD
   // (same as fn_calc_quote_lines). usdPerEur = 1 / Rate.
   var PRICE_LOCKED_MARK = 'PRICE_LOCKED';
+  var DISC_MARK_RE = /\u00abDISC:([-\d.]+)\u00bb/;
+  var MARGIN_MARK_RE = /\u00abMARGIN:([-\d.]+)\u00bb/;
   var DATA_FX = { eurPerUsd: null, usdPerEur: null };
+  // Header Margin % bulk-applies to unlocked lines (Stage 6).
+  var headerMarginPct = 0;
 
-  function stripPriceLockMark(warn) {
-    return str(warn).replace(/\s*PRICE_LOCKED/g, '').replace(/\s*\u00abPRICE_LOCKED\u00bb/g, '').trim();
+  // Distrib discount sheet (workbook page 2) → Price_Rules bands.
+  // Percents match functions/fn_get_discount.deluge (returned there as fractions).
+  var PRICE_RULES = {
+    Partner: {
+      Hardware: [
+        { min: 1, max: 9, pct: 20 },
+        { min: 10, max: 99, pct: 15 },
+        { min: 100, max: 249, pct: 12 },
+        { min: 250, max: 499, pct: 9 },
+        { min: 500, max: 999, pct: 7 },
+        { min: 1000, max: 2499, pct: 5 },
+        { min: 2500, max: 25000, pct: 3.5 },
+      ],
+      Software: [{ min: 1, max: 999999, pct: 33 }],
+    },
+    Distributor: {
+      Hardware: [
+        { min: 1, max: 9, pct: 10 },
+        { min: 10, max: 99, pct: 7.5 },
+        { min: 100, max: 249, pct: 6 },
+        { min: 250, max: 499, pct: 4.5 },
+        { min: 500, max: 999, pct: 3.5 },
+      ],
+      Software: [{ min: 1, max: 999999, pct: 16.5 }],
+    },
+  };
+  // Default matches distributor quote builder; End Customer → 0% catalog disc.
+  var customerType = 'Distributor';
+  // Live Creator Price_Rules rows (when report loads); else embedded PRICE_RULES.
+  var DATA_PRICE_RULES = null;
+
+  function clampPct(pct, max) {
+    var n = parseFloat(pct);
+    if (!isFinite(n) || n < 0) n = 0;
+    if (n > max) n = max;
+    return n;
+  }
+
+  // Creator choice/lookup fields often arrive as { display_value, value }.
+  function fieldText(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'boolean') return v ? 'Y' : 'N';
+    if (typeof v === 'number' && isFinite(v)) return String(v);
+    if (typeof v === 'object') {
+      if (Array.isArray(v) && v.length) return fieldText(v[0]);
+      if (v.display_value !== undefined && v.display_value !== null) return fieldText(v.display_value);
+      if (v.zc_display_value !== undefined && v.zc_display_value !== null) return fieldText(v.zc_display_value);
+      if (v.value !== undefined && v.value !== null && typeof v.value !== 'object') return fieldText(v.value);
+    }
+    return String(v).trim();
+  }
+
+  // Item_Master: vendor X / Creator Y = discountable; blank/N = not.
+  function isDiscountableFlag(val) {
+    if (val === true || val === 1) return true;
+    if (val === false || val === 0) return false;
+    var v = fieldText(val).toUpperCase();
+    return v === 'Y' || v === 'X' || v === 'YES' || v === 'TRUE' || v === '1';
+  }
+
+  // Round-80 import stored polarity inverted (X→N). Correct CSV has accessories
+  // all N. If live data still shows accessories as discountable, flip the catalog.
+  function fixDiscountablePolarityIfInverted(items) {
+    var accessories = (items || []).filter(function (it) {
+      return it && (it.category === 'part' || /accessor/i.test(str(it.type)));
+    });
+    if (accessories.length < 3) return false;
+    var accYes = 0;
+    accessories.forEach(function (it) { if (it.discountable) accYes++; });
+    if (accYes < accessories.length * 0.5) return false;
+    items.forEach(function (it) {
+      if (!it || it.custom) return;
+      it.discountable = !it.discountable;
+    });
+    try {
+      console.warn('[QTS] Item_Master.Discountable looked inverted (accessories marked discountable) — flipped for Disc % preload. Re-import from import_preview CSV to fix Creator data.');
+    } catch (e) { /* ignore */ }
+    return true;
+  }
+
+  function getCustomerType() {
+    var el = typeof document !== 'undefined' ? $('#f-customer-type') : null;
+    var v = el ? fieldText(el.value).trim() : '';
+    if (v) customerType = v;
+    return customerType || 'Distributor';
+  }
+
+  function setCustomerType(type) {
+    var v = str(type).trim() || 'Distributor';
+    customerType = v;
+    var el = typeof document !== 'undefined' ? $('#f-customer-type') : null;
+    if (el) el.value = v;
+  }
+
+  function lineIsSoftware(l) {
+    if (!l) return false;
+    var scheme = str(l.scheme).toLowerCase();
+    if (scheme === 'license') return true;
+    var type = str(l.type).toLowerCase();
+    if (type.indexOf('software') !== -1 || type.indexOf('license') !== -1) return true;
+    var cat = str(l.category).toLowerCase();
+    return cat === 'software' || cat === 'service';
+  }
+
+  function activePriceRules() {
+    return DATA_PRICE_RULES || PRICE_RULES;
+  }
+
+  // Catalog Disc % from Item_Master discountable gate + Distrib discount / Price_Rules
+  // (hardware vs software × qty band × customer type). Returns percent, not fraction.
+  function catalogDiscountPct(opts) {
+    opts = opts || {};
+    if (!opts.discountable) return 0;
+    var ctype = str(opts.customerType || getCustomerType());
+    var table = activePriceRules();
+    var rules = table[ctype];
+    if (!rules) return 0; // End Customer and unknown types → 0%
+    var bands = opts.isSoftware ? rules.Software : rules.Hardware;
+    if (!bands || !bands.length) return 0;
+    var qty = Math.max(0, Math.round(parseFloat(opts.qty) || 0));
+    for (var i = 0; i < bands.length; i++) {
+      var b = bands[i];
+      if (qty >= b.min && qty <= b.max) return b.pct;
+    }
+    return 0;
+  }
+
+  // Fill Disc % from catalog rules unless the user overrode the field.
+  function applyCatalogDiscountToLine(l, force) {
+    if (!l || l.custom) return false;
+    if (!force && l.discountManual) return false;
+    var next = catalogDiscountPct({
+      discountable: !!l.discountable,
+      qty: l.qty,
+      isSoftware: lineIsSoftware(l),
+      customerType: getCustomerType(),
+    });
+    if (!l.discountable) next = 0;
+    if (l.discountPct === next) return false;
+    l.discountPct = next;
+    return true;
+  }
+
+  // On SKU select: re-read Item_Master discountable + preload Disc % (HW/SW × qty).
+  function preloadLineDiscountFromItemMaster(line, item) {
+    if (!line || line.custom) return 0;
+    var src = item || itemBySku(line.sku);
+    if (src) {
+      line.discountable = !!src.discountable;
+      if (src.scheme) line.scheme = src.scheme;
+      if (src.type) line.type = src.type;
+      if (src.category) line.category = src.category;
+      if (src.tiers) line.tiers = src.tiers;
+    } else {
+      line.discountable = false;
+    }
+    line.discountManual = false;
+    applyCatalogDiscountToLine(line, true);
+    return clampPct(line.discountPct, 100);
+  }
+
+  function applyCatalogDiscountToAllLines(force) {
+    var changed = false;
+    state.lines.forEach(function (l) {
+      if (applyCatalogDiscountToLine(l, force)) {
+        if (!l.priceLocked && (l.priceSource === 'eur_ref' || l.priceSource === 'stored')) {
+          l.priceSource = 'eur_ref';
+          refreshLineSale(l);
+        }
+        changed = true;
+      } else if (!l.priceLocked && l.priceSource === 'eur_ref') {
+        if (refreshLineSale(l)) changed = true;
+      }
+    });
+    return changed;
+  }
+
+  function stripPriceMetaMarks(warn) {
+    return str(warn)
+      .replace(/\s*PRICE_LOCKED/g, '')
+      .replace(/\s*\u00abPRICE_LOCKED\u00bb/g, '')
+      .replace(/\s*\u00abDISC:[-\d.]+\u00bb/g, '')
+      .replace(/\s*\u00abMARGIN:[-\d.]+\u00bb/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  // Back-compat alias used elsewhere in this file.
+  function stripPriceLockMark(warn) { return stripPriceMetaMarks(warn); }
+
+  function withPriceMetaMarks(warn, locked, discountPct, marginPct) {
+    var base = stripPriceMetaMarks(warn);
+    var parts = [];
+    if (base) parts.push(base);
+    var d = clampPct(discountPct, 100);
+    var m = clampPct(marginPct, 1000);
+    if (d > 0) parts.push('\u00abDISC:' + d + '\u00bb');
+    if (m > 0) parts.push('\u00abMARGIN:' + m + '\u00bb');
+    if (locked) parts.push(PRICE_LOCKED_MARK);
+    return parts.join(' ');
   }
   function withPriceLockMark(warn, locked) {
-    var base = stripPriceLockMark(warn);
-    if (!locked) return base;
-    return base ? (base + ' ' + PRICE_LOCKED_MARK) : PRICE_LOCKED_MARK;
+    return withPriceMetaMarks(warn, locked, 0, 0);
   }
   function warnIsPriceLocked(warn) {
     var w = str(warn);
     return w.indexOf(PRICE_LOCKED_MARK) !== -1 || w.indexOf('\u00abPRICE_LOCKED\u00bb') !== -1;
+  }
+  function parseDiscPctFromWarn(warn) {
+    var m = DISC_MARK_RE.exec(str(warn));
+    return m ? clampPct(m[1], 100) : null;
+  }
+  function parseMarginPctFromWarn(warn) {
+    var m = MARGIN_MARK_RE.exec(str(warn));
+    return m ? clampPct(m[1], 1000) : null;
   }
 
   function eurListToUsd(eur) {
@@ -100,13 +338,14 @@
   }
 
   function lineDiscountFrac(l) {
-    var pct = parseFloat(l && l.discountPct);
-    if (!isFinite(pct) || pct < 0) pct = 0;
-    if (pct > 100) pct = 100;
-    return pct / 100;
+    return clampPct(l && l.discountPct, 100) / 100;
+  }
+  function lineMarginFrac(l) {
+    return clampPct(l && l.marginPct, 1000) / 100;
   }
 
-  // Sale USD from EUR list × FX × (1 − disc%). Locked / manual / stored lines keep unit.
+  // Sale USD = List_EUR × FX × (1 − Disc%/100) × (1 + Margin%/100).
+  // Locked / manual / stored lines keep unit.
   function computeSaleUsd(l) {
     if (!l) return null;
     if (l.priceLocked || l.priceSource === 'manual' || l.custom || l.priceSource === 'stored') {
@@ -116,7 +355,21 @@
     if (listEur === null || listEur === undefined || isNaN(listEur)) return null;
     var usd = eurListToUsd(listEur);
     if (usd === null) return null;
-    return Math.round(usd * (1 - lineDiscountFrac(l)) * 100) / 100;
+    return Math.round(usd * (1 - lineDiscountFrac(l)) * (1 + lineMarginFrac(l)) * 100) / 100;
+  }
+
+  function applyHeaderMarginToLines(pct) {
+    headerMarginPct = clampPct(pct, 1000);
+    var changed = false;
+    state.lines.forEach(function (l) {
+      if (!l || l.priceLocked || l.custom || l.priceSource === 'manual') return;
+      l.marginPct = headerMarginPct;
+      if (l.priceSource === 'eur_ref' || l.priceSource === 'stored') {
+        l.priceSource = 'eur_ref';
+        if (refreshLineSale(l)) changed = true;
+      }
+    });
+    return changed;
   }
 
   function refreshLineSale(l) {
@@ -333,21 +586,66 @@
   }
 
   function mapItems(records) {
-    return records.map(function (rec) {
-      var unit = firstTierPrice(rec);
+    var items = records.map(function (rec) {
+      // Normalize Creator choice wrappers so Discountable/Category always parse.
+      var norm = {
+        Part_Number: fieldText(rec.Part_Number),
+        Description: fieldText(rec.Description),
+        Category: fieldText(rec.Category),
+        Tier_Scheme: fieldText(rec.Tier_Scheme),
+        Discountable: fieldText(rec.Discountable),
+        Price_T1: rec.Price_T1, Price_T2: rec.Price_T2, Price_T3: rec.Price_T3,
+        Price_T4: rec.Price_T4, Price_T5: rec.Price_T5, Price_T6: rec.Price_T6,
+        Price_T7: rec.Price_T7, Price_T8: rec.Price_T8, Price_T9: rec.Price_T9,
+      };
+      var unit = firstTierPrice(norm);
       return {
-        sku: str(rec.Part_Number),
-        name: str(rec.Description),
-        category: deriveCategory(rec),
-        type: deriveTypeLabel(rec),
+        sku: norm.Part_Number,
+        name: norm.Description,
+        category: deriveCategory(norm),
+        type: deriveTypeLabel(norm),
         unit: unit, // EUR list (first tier) — NOT USD sale
         listEur: unit,
-        discountable: str(rec.Discountable).toUpperCase() === 'Y',
-        tiers: tierPricesFromRecord(rec),
-        scheme: tierSchemeFromRecord(rec),
+        discountable: isDiscountableFlag(norm.Discountable),
+        rawDiscountable: norm.Discountable,
+        tiers: tierPricesFromRecord(norm),
+        scheme: tierSchemeFromRecord(norm),
         flags: unit === null ? ['unpriced'] : [],
       };
     }).filter(function (it) { return it.sku !== ''; });
+    fixDiscountablePolarityIfInverted(items);
+    return items;
+  }
+
+  function ingestPriceRules(records) {
+    var built = {};
+    var count = 0;
+    (records || []).forEach(function (rec) {
+      var ct = fieldText(rec.Customer_Type);
+      var pt = fieldText(rec.Product_Type);
+      if (!ct || (pt !== 'Hardware' && pt !== 'Software')) return;
+      var min = parseInt(fieldText(rec.Qty_Min), 10);
+      var max = parseInt(fieldText(rec.Qty_Max), 10);
+      var pct = parseFloat(fieldText(rec.Discount_Pct));
+      if (!isFinite(min) || !isFinite(max) || !isFinite(pct)) return;
+      if (pct > 0 && pct < 1) pct = Math.round(pct * 1000) / 10; // 0.10 → 10
+      if (!built[ct]) built[ct] = { Hardware: [], Software: [] };
+      built[ct][pt].push({ min: min, max: max, pct: pct });
+      count++;
+    });
+    Object.keys(built).forEach(function (ct) {
+      ['Hardware', 'Software'].forEach(function (pt) {
+        built[ct][pt].sort(function (a, b) { return a.min - b.min; });
+      });
+    });
+    if (count > 0) DATA_PRICE_RULES = built;
+    return count;
+  }
+
+  function loadPriceRulesSafe() {
+    return fetchAllRecords('Price_Rules_Report').catch(function () {
+      return fetchAllRecords('Price_Rules').catch(function () { return []; });
+    });
   }
 
   // Display labels only — the two n3 kits share main SKU 100816 ("n3-BMS MCU"),
@@ -447,18 +745,30 @@
       fetchAllRecords('Item_Master_Report'),
       fetchAllRecords('Kit_Components_Report'),
       loadFxRatesSafe(),
+      loadPriceRulesSafe(),
     ]).then(function (results) {
       var itemRecords = results[0];
       var kitRecords = results[1];
       var fxRecords = results[2] || [];
+      var priceRuleRecords = results[3] || [];
       if (!itemRecords.length) throw new Error('Item_Master_Report returned 0 records — cannot build the picker.');
       DATA.items = mapItems(itemRecords);
       DATA.bmsKits = mapKits(kitRecords);
       DATA.pendingReferenced = mapPendingReferenced(kitRecords);
       applyFxRates(fxRecords);
+      var ruleCount = ingestPriceRules(priceRuleRecords);
+      if (!ruleCount) {
+        try { console.warn('[QTS] Price_Rules report empty/missing — using embedded Distrib discount bands for Disc %'); } catch (e) { /* ignore */ }
+      }
       if (!DATA_FX.usdPerEur) {
         try { console.warn('[QTS] FX_Rates_Cache EUR rate missing — sale USD cannot convert until rates load'); } catch (e) { /* ignore */ }
       }
+      var discCount = 0;
+      DATA.items.forEach(function (it) { if (it.discountable) discCount++; });
+      try {
+        console.info('[QTS] Item_Master loaded: ' + DATA.items.length + ' SKUs, ' + discCount +
+          ' discountable; Price_Rules bands: ' + (ruleCount || 'embedded'));
+      } catch (e) { /* ignore */ }
       if (!DATA.items.length) {
         throw new Error('Item_Master_Report returned ' + itemRecords.length + ' records but none mapped ' +
           '(Part_Number missing/empty on every row — the report response shape may have changed).');
@@ -471,40 +781,53 @@
   // does NOT use this — kit multiplicity follows the stored kit quantities.
   function addOrIncrementLine(item) {
     if (!item) return;
-    var sku = str(item.sku);
+    // Always resolve from the loaded Item_Master catalog (source of Discountable).
+    var catalog = itemBySku(item.sku) || item;
+    var sku = str(catalog.sku);
     if (sku !== '') {
       for (var i = 0; i < state.lines.length; i++) {
         var l = state.lines[i];
         if (!l.custom && str(l.sku) === sku) {
           l.qty = (parseFloat(l.qty) || 0) + 1;
+          var discBump = preloadLineDiscountFromItemMaster(l, catalog);
+          repriceEurRefLine(l);
           render();
           markDirty();
-          toast(sku + ' quantity increased to ' + l.qty);
+          toast(sku + ' qty ' + l.qty + (catalog.discountable ? (' · Disc ' + discBump + '%') : ' · not discountable'));
           return;
         }
       }
     }
-    addLineFromItem(item, 1);
+    addLineFromItem(catalog, 1);
     render();
     markDirty();
-    toast('Added ' + item.sku);
+    var added = state.lines[state.lines.length - 1];
+    var discMsg = added && added.discountable
+      ? (' · Disc ' + clampPct(added.discountPct, 100) + '% preloaded')
+      : ' · not discountable (Item_Master)';
+    toast('Added ' + catalog.sku + discMsg);
   }
 
   function addLineFromItem(item, qty) {
     if (!item) return;
     // Enforce the critical rule: pending-business SKUs are never added to the quote.
-    if (item.flags.indexOf('pending_business') !== -1) {
+    if (item.flags && item.flags.indexOf('pending_business') !== -1) {
       toast('“' + item.sku + '” needs confirmation — see the Needs confirmation panel', 'warn');
       return;
     }
-    var listEur = item.listEur != null ? item.listEur : item.unit;
+    // Prefer live Item_Master row so Discountable / scheme always match the catalog.
+    var catalog = itemBySku(item.sku) || item;
+    var listEur = catalog.listEur != null ? catalog.listEur : catalog.unit;
     var line = {
-      id: 'L' + state.seq++, sku: item.sku, name: item.name, type: item.type,
-      qty: qty || 1, listEur: listEur, discountPct: 0, unit: null,
-      flags: item.flags.slice(), custom: false,
-      tiers: item.tiers || null, scheme: item.scheme || 'hardware',
-      priceSource: 'eur_ref', priceLocked: false, discountable: !!item.discountable,
+      id: 'L' + state.seq++, sku: catalog.sku, name: catalog.name, type: catalog.type,
+      qty: qty || 1, listEur: listEur, discountPct: 0, marginPct: headerMarginPct || 0, unit: null,
+      flags: (catalog.flags || []).slice(), custom: false,
+      tiers: catalog.tiers || null, scheme: catalog.scheme || 'hardware',
+      category: catalog.category || '',
+      priceSource: 'eur_ref', priceLocked: false, discountable: !!catalog.discountable,
+      discountManual: false,
     };
+    preloadLineDiscountFromItemMaster(line, catalog);
     repriceEurRefLine(line);
     if (line.unit === null && listEur !== null) {
       // FX missing — show EUR list as unavailable USD rather than lying with $EUR
@@ -652,6 +975,38 @@
       if (status !== 'done') throw new Error('CRM bridge error: ' + (result.error || 'Request_Status=' + (status || 'blank')));
       return result;
     });
+  }
+
+  // CRM search cache — repeated SEARCH CRM for the same query must not burn
+  // Creator External Calls. TTL covers a sales session; clear on new search miss.
+  var CRM_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+  var crmSearchCache = Object.create(null);
+  function crmSearchCacheKey(q) {
+    return str(q).trim().toLowerCase();
+  }
+  function getCachedCrmSearch(q) {
+    var k = crmSearchCacheKey(q);
+    if (!k) return null;
+    var hit = crmSearchCache[k];
+    if (!hit) return null;
+    if ((Date.now() - hit.at) > CRM_SEARCH_CACHE_TTL_MS) {
+      delete crmSearchCache[k];
+      return null;
+    }
+    return hit;
+  }
+  function putCachedCrmSearch(q, contacts, leads) {
+    var k = crmSearchCacheKey(q);
+    if (!k) return;
+    crmSearchCache[k] = {
+      at: Date.now(),
+      contacts: Array.isArray(contacts) ? contacts : [],
+      leads: Array.isArray(leads) ? leads : [],
+    };
+  }
+  function clearCrmSearchCache() {
+    crmSearchCache = Object.create(null);
+    dealSearchCache = Object.create(null);
   }
 
   function crmStatus(msg, isErr) {
@@ -810,9 +1165,82 @@
     return { ok: true };
   }
 
+  // Unconverted Lead: quoting is the conversion moment (fn_sync_to_crm).
+  function isLeadPendingConversion() {
+    var c = state.customer;
+    return !!(c && str(c.leadId) && !str(c.contactId));
+  }
+
+  // After sync converts a Lead (or restores IDs), update chip + Deal in place —
+  // do not force the user to re-search the Contact.
+  function applyConvertedCrmIds(opts) {
+    opts = opts || {};
+    var contactId = str(opts.contactId);
+    var accountId = str(opts.accountId);
+    var dealId = str(opts.dealId);
+    var dealName = str(opts.dealName);
+    var stage = str(opts.stage);
+    if (state.customer && contactId) {
+      state.customer.contactId = contactId;
+      if (accountId) state.customer.accountId = accountId;
+    }
+    if (dealId) {
+      state.deal = {
+        dealId: dealId,
+        dealName: dealName || (state.deal && state.deal.dealName) || '',
+        stage: stage || (state.deal && state.deal.stage) || 'Proposal/Price Quote',
+      };
+      state.dealChoiceMade = true;
+    }
+    try { renderSelectedCustomer(); } catch (e1) { /* headless */ }
+    try { renderDealPanel(); } catch (e2) { /* headless */ }
+  }
+
+  function hydrateCrmIdsAfterSync(syncRes) {
+    var dealFromSync = str(syncRes && (syncRes.crm_deal_id || syncRes.CRM_Deal_ID));
+    var contactFromSync = str(syncRes && (syncRes.crm_contact_id || syncRes.CRM_Contact_ID));
+    var accountFromSync = str(syncRes && (syncRes.crm_account_id || syncRes.CRM_Account_ID));
+    if (!state.quoteRecordId) {
+      applyConvertedCrmIds({
+        contactId: contactFromSync,
+        accountId: accountFromSync,
+        dealId: dealFromSync,
+      });
+      return Promise.resolve(syncRes);
+    }
+    return getRecordById(QUOTE_REPORT, state.quoteRecordId).then(function (rec) {
+      applyConvertedCrmIds({
+        contactId: str(rec && rec.CRM_Contact_ID) || contactFromSync,
+        accountId: str(rec && rec.CRM_Account_ID) || accountFromSync,
+        dealId: str(rec && rec.CRM_Deal_ID) || dealFromSync,
+      });
+      return syncRes;
+    }).catch(function () {
+      applyConvertedCrmIds({
+        contactId: contactFromSync,
+        accountId: accountFromSync,
+        dealId: dealFromSync,
+      });
+      return syncRes;
+    });
+  }
+
+  var dealSearchCache = Object.create(null);
+  function dealSearchCacheKey(c) {
+    if (!c) return '';
+    return 'c:' + str(c.contactId) + '|a:' + str(c.accountId);
+  }
   function searchDeals() {
     var c = state.customer;
     if (!c || (!c.contactId && !c.accountId)) return Promise.resolve();
+    var cacheKey = dealSearchCacheKey(c);
+    var cached = cacheKey ? dealSearchCache[cacheKey] : null;
+    if (cached && (Date.now() - cached.at) <= CRM_SEARCH_CACHE_TTL_MS) {
+      state.dealCandidates = cached.deals.slice();
+      renderDealPanel();
+      crmStatus('Deal list (cached)');
+      return Promise.resolve();
+    }
     crmStatus('Finding existing CRM Deals…');
     var payload = {};
     if (c.contactId) payload.contact_id = c.contactId;
@@ -824,6 +1252,9 @@
         if (!!a.is_closed !== !!b.is_closed) return a.is_closed ? 1 : -1;
         return String(b.modified_time || '').localeCompare(String(a.modified_time || ''));
       });
+      if (cacheKey) {
+        dealSearchCache[cacheKey] = { at: Date.now(), deals: deals.slice() };
+      }
       state.dealCandidates = deals;
       renderDealPanel();
       crmStatus('');
@@ -1108,16 +1539,21 @@
       Quote_Lines: state.lines.map(function (l) {
         var row = { Part_Number: l.sku === 'CUSTOM' ? '' : l.sku, Qty: l.qty };
         if (l.custom) row.Description = l.name;
-        var warn = withPriceLockMark(l.kitWarning, !!l.priceLocked);
+        // Disc/Margin sidecar in Kit_Warning (no Creator line field required yet).
+        // PRICE_LOCKED + «DISC:»/«MARGIN:» tell fn_calc not to wipe widget sale math.
+        var warn = withPriceMetaMarks(l.kitWarning, !!l.priceLocked, l.discountPct, l.marginPct);
         if (warn) row.Kit_Warning = warn;
         // Always send sale USD when known so Creator + CRM see the same number.
-        // PRICE_LOCKED marks prevent fn_calc from overwriting manual edits.
         if (l.unit !== null && l.unit !== undefined && !isNaN(l.unit)) {
           row.Unit_Price = Number(l.unit);
           row.Line_Total_USD = Math.round(Number(l.unit) * (parseFloat(l.qty) || 0) * 100) / 100;
         }
         return row;
       }),
+      // Header Margin % → quote-level Markup_Rate_Pct (existing Creator field).
+      Markup_Rate_Pct: clampPct(headerMarginPct, 1000),
+      // Drives Creator fn_get_discount / Price_Rules (Distributor / Partner / End Customer).
+      Customer_Type: getCustomerType(),
     };
     var curEl = $('#f-currency');
     if (curEl && str(curEl.value)) data.Currency = str(curEl.value);
@@ -1182,6 +1618,7 @@
         unit: l.unit,
         listEur: l.listEur,
         discountPct: l.discountPct,
+        marginPct: l.marginPct,
         priceLocked: !!l.priceLocked,
         priceSource: l.priceSource,
         tiers: l.tiers || null,
@@ -1348,7 +1785,12 @@
         Quote_Lines: state.lines.map(function (l) {
           var row = { Part_Number: l.sku === 'CUSTOM' ? '' : l.sku, Qty: l.qty };
           if (l.custom) row.Description = l.name;
-          if (l.kitWarning) row.Kit_Warning = l.kitWarning;
+          var warn = withPriceMetaMarks(l.kitWarning, !!l.priceLocked, l.discountPct, l.marginPct);
+          if (warn) row.Kit_Warning = warn;
+          if (l.unit !== null && l.unit !== undefined && !isNaN(l.unit)) {
+            row.Unit_Price = Number(l.unit);
+            row.Line_Total_USD = Math.round(Number(l.unit) * (parseFloat(l.qty) || 0) * 100) / 100;
+          }
           return row;
         }),
       };
@@ -1505,6 +1947,13 @@
         }
         if (payEl) payEl.value = savedTerms || DEFAULT_PAYMENT_TERMS;
       }
+      // Restore header Margin % from quote Markup_Rate_Pct when present.
+      if (rec.Markup_Rate_Pct !== undefined && rec.Markup_Rate_Pct !== null && str(rec.Markup_Rate_Pct) !== '') {
+        headerMarginPct = clampPct(rec.Markup_Rate_Pct, 1000);
+        var hdrEl = $('#hdr-margin');
+        if (hdrEl) hdrEl.value = String(headerMarginPct);
+      }
+      if (str(rec.Customer_Type)) setCustomerType(rec.Customer_Type);
       // Restore the persisted Deal linkage BEFORE selectCustomer so the
       // post-select deal search is skipped (dealChoiceMade) and the loaded
       // quote keeps its exact CRM Deal record ID. restoreDealById renders the
@@ -1567,20 +2016,32 @@
       }
       var locked = warnIsPriceLocked(row.warning) || (kept && prev && prev.priceLocked);
       var listEur = item && item.listEur != null ? item.listEur : (kept && prev ? prev.listEur : null);
+      var discFromWarn = parseDiscPctFromWarn(row.warning);
+      var marginFromWarn = parseMarginPctFromWarn(row.warning);
+      var hadPersistedDisc = discFromWarn != null
+        || (kept && prev && prev.discountPct != null);
+      var discPct = discFromWarn != null ? discFromWarn
+        : (kept && prev && prev.discountPct != null ? prev.discountPct : 0);
+      var margPct = marginFromWarn != null ? marginFromWarn
+        : (kept && prev && prev.marginPct != null ? prev.marginPct
+          : (headerMarginPct || 0));
       var line = {
         id: 'L' + state.seq++, sku: sku || 'CUSTOM',
         name: row.name || (item ? item.name : '') || (prev && prev.name) || '',
         type: (item || {}).type || (prev && prev.type) || 'Product',
         qty: parseFloat(String(row.qty).replace(/,/g, '')) || 0,
         listEur: listEur,
-        discountPct: kept && prev && prev.discountPct != null ? prev.discountPct : 0,
+        discountPct: discPct,
+        marginPct: margPct,
         unit: isNaN(unit) ? null : unit,
         flags: (isNaN(unit) ? ['unpriced'] : (kept && prev.flags ? prev.flags.filter(function (f) { return f !== 'unpriced'; }) : [])),
         custom: sku === '',
-        kitWarning: stripPriceLockMark(row.warning),
+        kitWarning: stripPriceMetaMarks(row.warning),
         priceSource: locked ? 'manual' : (kept ? (prev.priceSource || 'stored') : 'stored'),
         priceLocked: !!locked,
-        discountable: item ? !!item.discountable : true,
+        discountable: item ? !!item.discountable : false,
+        // Persisted Disc % (sidecar / prior UI) counts as a manual keep.
+        discountManual: !!hadPersistedDisc || !!(kept && prev && prev.discountManual),
       };
       if (kept) {
         if (prev.tiers) line.tiers = prev.tiers;
@@ -1588,6 +2049,10 @@
       } else if (item) {
         line.tiers = item.tiers || null;
         line.scheme = item.scheme || 'hardware';
+      }
+      if (!hadPersistedDisc && !line.custom) {
+        applyCatalogDiscountToLine(line, true);
+        line.discountManual = false;
       }
       if (!line.priceLocked && line.priceSource === 'eur_ref') repriceEurRefLine(line);
       state.lines.push(line);
@@ -1620,6 +2085,10 @@
     state.quoteRecordId = null;
     state.quoteStatus = null;
     state.discount = 0;
+    headerMarginPct = 0;
+    var hdrM = typeof document !== 'undefined' ? $('#hdr-margin') : null;
+    if (hdrM) hdrM.value = '0';
+    setCustomerType('Distributor');
     state.kitQty = 1;
     state.kitCells = '';
     state.kitId = DATA.bmsKits.length ? DATA.bmsKits[0].id : null;
@@ -2012,40 +2481,50 @@
   // rows with different warnings stay separate (preserves Q1/Q2 hold + warning
   // variants as distinct lines). Otherwise the row is appended as before.
   function applyKitRows(rows, kitQty) {
-    var added = 0, merged = 0;
+    var added = 0, merged = 0, catalogMiss = 0;
     rows.forEach(function (row) {
-      var sku = str(row.part_number);
+      // Bridge emits snake_case; fn_get_kit_components uses Part_Number — accept both.
+      var sku = normalizeSku(kitRowField(row, 'part_number', 'Part_Number'));
       if (sku === '') return; // never add a blank-SKU row
-      var qty = (parseFloat(row.qty) || 0) * kitQty;
+      var qtyRaw = kitRowField(row, 'qty', 'Qty');
+      var qty = (parseFloat(qtyRaw) || 0) * kitQty;
       if (qty < 0) return;
-      var warn = str(row.kit_warning);
+      var warn = fieldText(kitRowField(row, 'kit_warning', 'Kit_Warning'));
+      var it = itemBySku(sku);
+      var kitComp = !it ? kitComponentBySku(sku) : null;
+      if (!it) catalogMiss++;
       var target = null;
       for (var i = 0; i < state.lines.length; i++) {
         var l = state.lines[i];
-        if (!l.custom && str(l.sku) === sku && str(l.kitWarning || '') === warn) { target = l; break; }
+        if (!l.custom && normalizeSku(l.sku) === sku && str(l.kitWarning || '') === warn) { target = l; break; }
       }
       if (target) {
         target.qty = (parseFloat(target.qty) || 0) + qty;
+        preloadLineDiscountFromItemMaster(target, it);
         repriceEurRefLine(target); // merged qty may cross a tier band
         merged++;
         return;
       }
-      var it = itemBySku(sku);
       var listEur = it ? (it.listEur != null ? it.listEur : it.unit) : null;
       var line = {
         id: 'L' + state.seq++, sku: sku,
-        name: it ? it.name : sku, type: (it || {}).type || 'Product',
-        qty: qty, listEur: listEur, discountPct: 0, unit: null,
+        name: it ? it.name : (kitComp && kitComp.name ? kitComp.name : sku),
+        type: it ? it.type : 'Product',
+        qty: qty, listEur: listEur, discountPct: 0, marginPct: headerMarginPct || 0, unit: null,
         flags: it ? it.flags.slice() : ['unpriced'], custom: false,
         tiers: it ? (it.tiers || null) : null, scheme: it ? (it.scheme || 'hardware') : 'hardware',
+        category: it ? (it.category || '') : '',
         kitWarning: warn, priceSource: 'eur_ref', priceLocked: false,
-        discountable: it ? !!it.discountable : true,
+        discountable: it ? !!it.discountable : false,
+        discountManual: false,
       };
+      // Disc % + sale only when Item_Master has the SKU (Discountable + Price_T*).
+      preloadLineDiscountFromItemMaster(line, it);
       repriceEurRefLine(line); // kit quantities routinely land past the first band
       state.lines.push(line);
       added++;
     });
-    return { added: added, merged: merged };
+    return { added: added, merged: merged, catalogMiss: catalogMiss };
   }
 
   // Backend-authoritative kit expansion. Quantities, rules, holds and blocks are
@@ -2071,7 +2550,7 @@
         throw new Error('expand_kit returned no lines and no notices for ' + kit.id);
       }
       var counts = applyKitRows(lines, state.kitQty);
-      var added = counts.added, merged = counts.merged;
+      var added = counts.added, merged = counts.merged, catalogMiss = counts.catalogMiss || 0;
       render();
       if (notices.length) {
         noticesBox.innerHTML = '<b>Kit notices:</b><ul>' + notices.map(function (n) {
@@ -2084,7 +2563,9 @@
       var msg = (parts.length ? parts.join(', ') : 'no lines changed') + ' from ' + kit.name +
         (state.kitQty > 1 ? ' × ' + state.kitQty : '');
       msg = msg.charAt(0).toUpperCase() + msg.slice(1);
-      if (notices.length) {
+      if (catalogMiss) {
+        toast(msg + ' — ' + catalogMiss + ' SKU(s) not in Item_Master (no List/Disc %). Import Item_Master or check Item_Master_Report.', 'warn');
+      } else if (notices.length) {
         toast(msg + ' · ' + notices.length + ' notice' + (notices.length === 1 ? '' : 's') +
           ' to review below the kit helper', 'warn');
       } else {
@@ -2103,7 +2584,7 @@
   function addCustomLine() {
     state.lines.push({
       id: 'L' + state.seq++, sku: 'CUSTOM', name: '', type: 'Custom',
-      qty: 1, listEur: null, discountPct: 0, unit: 0, flags: [], custom: true,
+      qty: 1, listEur: null, discountPct: 0, marginPct: 0, unit: 0, flags: [], custom: true,
       priceSource: 'manual', priceLocked: true, discountable: true,
     });
     render();
@@ -2198,11 +2679,12 @@
       discIn.min = '0'; discIn.max = '100'; discIn.step = '0.1';
       discIn.value = l.discountPct != null ? l.discountPct : 0;
       discIn.title = l.discountable === false
-        ? 'Item_Master marks this SKU non-discountable — you can still override'
-        : 'Line discount % applied to EUR→USD list';
+        ? 'Item_Master: no X (not discountable) — catalog Disc % stays 0; override only for incentives'
+        : 'Auto-filled from Distrib discount (page 2) for ' + getCustomerType() + '; edit to override';
       discIn.addEventListener('input', function () {
         markDirty();
-        l.discountPct = Math.max(0, Math.min(100, parseFloat(discIn.value) || 0));
+        l.discountManual = true;
+        l.discountPct = clampPct(discIn.value, 100);
         if (!l.priceLocked) {
           l.priceSource = 'eur_ref';
           refreshLineSale(l);
@@ -2214,6 +2696,28 @@
         updateTotalsOnly();
       });
       tdDisc.appendChild(discIn);
+
+      // Margin % (editable markup; independent of Disc %)
+      var tdMargin = document.createElement('td'); tdMargin.className = 'r';
+      var marginIn = document.createElement('input');
+      marginIn.className = 'line-cell-input margin-input num'; marginIn.type = 'number';
+      marginIn.min = '0'; marginIn.max = '1000'; marginIn.step = '0.1';
+      marginIn.value = l.marginPct != null ? l.marginPct : 0;
+      marginIn.title = 'Company profit markup % — Sale = List×FX×(1−Disc%)×(1+Margin%)';
+      marginIn.addEventListener('input', function () {
+        markDirty();
+        l.marginPct = clampPct(marginIn.value, 1000);
+        if (!l.priceLocked) {
+          l.priceSource = 'eur_ref';
+          refreshLineSale(l);
+          saleIn.value = (l.unit === null ? '' : l.unit);
+        }
+        var ltNow = lineTotal(l);
+        tdTotal.textContent = ltNow === null ? '—' : money(ltNow);
+        tdTotal.classList.toggle('none', ltNow === null);
+        updateTotalsOnly();
+      });
+      tdMargin.appendChild(marginIn);
 
       // Sale USD (always editable)
       var tdSale = document.createElement('td'); tdSale.className = 'r';
@@ -2238,6 +2742,7 @@
       qtyIn.addEventListener('input', function () {
         markDirty();
         l.qty = Math.max(0, parseInt(qtyIn.value, 10) || 0);
+        if (applyCatalogDiscountToLine(l)) discIn.value = l.discountPct != null ? l.discountPct : 0;
         if (!l.priceLocked) repriceEurRefLine(l);
         saleIn.value = (l.unit === null ? '' : l.unit);
         var ltNow = lineTotal(l);
@@ -2267,7 +2772,7 @@
       });
       tdRm.appendChild(rm);
 
-      [tdIdx, tdSku, tdName, tdType, tdQty, tdList, tdDisc, tdSale, tdTotal, tdRm].forEach(function (cell) { tr.appendChild(cell); });
+      [tdIdx, tdSku, tdName, tdType, tdQty, tdList, tdDisc, tdMargin, tdSale, tdTotal, tdRm].forEach(function (cell) { tr.appendChild(cell); });
       body.appendChild(tr);
     });
 
@@ -2276,7 +2781,7 @@
 
   function addCustomFooter(body) {
     var addTr = document.createElement('tr'); addTr.className = 'add-custom-row';
-    var addTd = document.createElement('td'); addTd.colSpan = 10;
+    var addTd = document.createElement('td'); addTd.colSpan = 11;
     var addBtn = document.createElement('button');
     addBtn.className = 'add-custom-btn'; addBtn.type = 'button';
     addBtn.textContent = '+ Add custom / manual line';
@@ -2398,10 +2903,19 @@
   // then persists Status (PDF Filed | Package Requested) to trigger Flow.
   // email true  → Package Requested → Flow: shared + CONFIRMED + Quotes + sendmail + stage
   // email false → PDF Filed → Flow: shared only (NO Quotes / email / stage APIs)
+  var publishInFlight = false;
   function publishQuotePackage(opts) {
     opts = opts || {};
     var emailClient = !!opts.email;
-    var targetStatus = emailClient ? PACKAGE_STATUS : PDF_FILE_STATUS;
+    // Both buttons write Package Requested so the live Flow trigger fires.
+    // Save stamps a Deal note (publish_mode=save) that publish_quote_package
+    // reads to suppress client email / CRM Quotes / stage. PDF Filed alone
+    // often never reaches Flow on the live canvas.
+    var targetStatus = PACKAGE_STATUS;
+    if (publishInFlight) {
+      toast('Publish already in progress — wait for it to finish', 'warn');
+      return null;
+    }
     var w = warningTally();
     if (w.total > 0) {
       toast(w.total + ' warning' + (w.total === 1 ? '' : 's') + ' unresolved — review before publishing', 'warn');
@@ -2415,30 +2929,45 @@
     }
     var gate = dealSaveGate();
     if (!gate.ok) { toast(gate.reason || 'Cannot publish — resolve the Deal selection first', 'warn'); return null; }
-    if (!state.deal || !str(state.deal.dealId)) {
+    var leadPending = isLeadPendingConversion();
+    if (!leadPending && (!state.deal || !str(state.deal.dealId))) {
       toast('Select a CRM Deal first — publish always syncs Associated Products', 'warn');
       return null;
     }
-    toast(emailClient
-      ? 'Publishing quote package (email client)…'
-      : 'Saving quote package (no email)…');
+    publishInFlight = true;
+    toast(leadPending
+      ? (emailClient
+        ? 'Converting lead + emailing quote package…'
+        : 'Converting lead + saving quote package…')
+      : (emailClient
+        ? 'Publishing quote package (email client)…'
+        : 'Saving quote package (no email)…'));
 
     try {
       // Step 1 — Deal sync (always). Persist lines first if needed, then bridge sync.
+      // Lead path: CRM_Lead_ID is saved on the quote; fn_sync_to_crm converts
+      // Lead → Contact + Account + Deal, then Associated Products sync runs.
       var prep;
       if (!state.quoteRecordId) {
         prep = saveDraft({ silent: true });
-        if (!prep) { toast('Cannot save draft — resolve Deal / customer first', 'warn'); return null; }
+        if (!prep) { toast('Cannot save draft — resolve Deal / customer first', 'warn'); publishInFlight = false; return null; }
       } else if (isPostDraftStatus(state.quoteStatus)) {
         var lineOnly = {
           Quote_Lines: state.lines.map(function (l) {
             var row = { Part_Number: l.sku === 'CUSTOM' ? '' : l.sku, Qty: l.qty };
             if (l.custom) row.Description = l.name;
-            if (l.kitWarning) row.Kit_Warning = l.kitWarning;
+            var warn = withPriceMetaMarks(l.kitWarning, !!l.priceLocked, l.discountPct, l.marginPct);
+            if (warn) row.Kit_Warning = warn;
+            if (l.unit !== null && l.unit !== undefined && !isNaN(l.unit)) {
+              row.Unit_Price = Number(l.unit);
+              row.Line_Total_USD = Math.round(Number(l.unit) * (parseFloat(l.qty) || 0) * 100) / 100;
+            }
             return row;
           }),
         };
-        if (CRM_ID_FIELDS_READY) lineOnly.CRM_Deal_ID = str(state.deal.dealId);
+        if (CRM_ID_FIELDS_READY && state.deal && state.deal.dealId) {
+          lineOnly.CRM_Deal_ID = str(state.deal.dealId);
+        }
         prep = updateRecord(QUOTE_REPORT, state.quoteRecordId, lineOnly);
       } else {
         prep = saveDraft({ silent: true }) || Promise.resolve(state.quoteRecordId);
@@ -2446,18 +2975,40 @@
 
       return Promise.resolve(prep).then(function () {
         if (!state.quoteRecordId) throw new Error('Quote was not saved before Deal sync');
-        return bridgeCall('sync_quote_to_crm', String(state.quoteRecordId));
-      }).then(function () {
-        // Step 2 — Status write triggers Flow Decision (Save vs Email branch).
-        var payload = buildQuotePayload();
-        payload.Status = targetStatus;
-        var op = state.quoteRecordId
-          ? updateRecord(QUOTE_REPORT, state.quoteRecordId, payload)
-          : addRecord(QUOTE_FORM, payload);
-        return op;
+        return bridgeCall('sync_quote_to_crm', String(state.quoteRecordId), {
+          publish_mode: emailClient ? 'email' : 'save',
+        });
+      }).then(function (syncRes) {
+        return Promise.resolve(hydrateCrmIdsAfterSync(syncRes)).then(function () {
+          return syncRes;
+        });
+      }).then(function (syncRes) {
+        if (!state.deal || !str(state.deal.dealId)) {
+          throw new Error(leadPending
+            ? 'Lead convert did not produce a CRM Deal — check Creator fn_sync_to_crm logs'
+            : 'CRM Deal missing after sync');
+        }
+        // Save must have stamped QTS_SAVE_ONLY|{qno} or Package Requested would email the client.
+        if (!emailClient && str(syncRes && syncRes.save_only_marker) !== 'yes') {
+          throw new Error('Save marker missing — need a Quote_Number on this draft before Save Quote Package (load/email once to number it, then Save)');
+        }
+        // Step 2 — Status write triggers Flow. Both buttons use Package Requested
+        // (live trigger). Bounce off PDF Filed when already Package Requested so
+        // re-Save / re-Email still create a Status transition.
+        if (!state.quoteRecordId) {
+          throw new Error('Quote was not saved before Status write');
+        }
+        var prior = str(state.quoteStatus);
+        var arm = Promise.resolve();
+        if (prior === PACKAGE_STATUS) {
+          arm = updateRecord(QUOTE_REPORT, state.quoteRecordId, { Status: PDF_FILE_STATUS });
+        }
+        return arm.then(function () {
+          return updateRecord(QUOTE_REPORT, state.quoteRecordId, { Status: targetStatus });
+        });
       }).then(function (id) {
         if (!state.quoteRecordId) state.quoteRecordId = String(id);
-        state.quoteStatus = targetStatus;
+        state.quoteStatus = emailClient ? PACKAGE_STATUS : PDF_FILE_STATUS;
         state.revision = nextRevision();
         if (emailClient) {
           toast('Email Quote Package requested — PDF + CONFIRMED + CRM Quote + client email');
@@ -2473,10 +3024,18 @@
         DATA.meta.quoteNo = qno;
         var qEl = $('#quote-no');
         if (qEl) qEl.textContent = qno + revisionLabel();
+        // Keep UI label as PDF Filed for Save; Creator Status stays Package Requested
+        // so the live Flow trigger can fire.
+        if (!emailClient) {
+          state.quoteStatus = PDF_FILE_STATUS;
+        }
       }).catch(function (err) {
         toast('Publish failed: ' + (err && err.message ? err.message : err), 'warn');
+      }).then(function () {
+        publishInFlight = false;
       });
     } catch (e) {
+      publishInFlight = false;
       toast('Publish failed: ' + (e && e.message ? e.message : e), 'warn');
       return null;
     }
@@ -2697,6 +3256,20 @@
       recalculate();
     });
 
+    var ctypeEl = $('#f-customer-type');
+    if (ctypeEl) {
+      ctypeEl.addEventListener('change', function (e) {
+        markDirty();
+        setCustomerType(e.target.value);
+        // Customer type change reloads catalog Disc % for every catalog line.
+        state.lines.forEach(function (l) {
+          if (!l.custom) l.discountManual = false;
+        });
+        applyCatalogDiscountToAllLines(true);
+        render();
+      });
+    }
+
     $('#kit-select').addEventListener('change', function (e) { state.kitId = e.target.value; renderKits(); });
     $('#kit-qty').addEventListener('input', function (e) { state.kitQty = Math.max(1, parseInt(e.target.value, 10) || 1); renderKits(); });
     $('#kit-cells').addEventListener('input', function (e) { state.kitCells = e.target.value; });
@@ -2704,6 +3277,15 @@
 
     var discEl = $('#discount');
     if (discEl) discEl.addEventListener('input', function (e) { state.discount = parseFloat(e.target.value) || 0; renderTotals(); markDirty(); });
+
+    var hdrMargin = $('#hdr-margin');
+    if (hdrMargin) {
+      hdrMargin.addEventListener('input', function (e) {
+        markDirty();
+        applyHeaderMarginToLines(e.target.value);
+        render();
+      });
+    }
 
     // Save-draft button removed 2026-07-28 (Blake): auto-save owns persistence;
     // saveDraft() stays — autoSave and generatePackage call it directly.
@@ -2716,7 +3298,14 @@
 
     var doCrmSearch = function () {
       var q = str($('#crm-search').value);
-      if (q.length < 2) { crmStatus('Type at least 2 characters to search CRM.', true); return; }
+      // Minimum 3 chars reduces API load (server also enforces this)
+      if (q.length < 3) { crmStatus('Type at least 3 characters to search CRM.', true); return; }
+      var cached = getCachedCrmSearch(q);
+      if (cached) {
+        crmStatus('CRM results (cached) — ' + (cached.contacts.length + cached.leads.length) + ' match(es)');
+        renderCrmResults(cached.contacts.concat(cached.leads));
+        return;
+      }
       crmStatus('Searching CRM…');
       Promise.all([
         bridgeCall('search_customers', q),
@@ -2724,6 +3313,7 @@
       ]).then(function (results) {
         var contacts = Array.isArray(results[0].matches) ? results[0].matches : [];
         var leads = Array.isArray(results[1].lead_matches) ? results[1].lead_matches : [];
+        putCachedCrmSearch(q, contacts, leads);
         renderCrmResults(contacts.concat(leads));
       }).catch(bridgeUnavailable);
     };
@@ -2803,7 +3393,7 @@
       return r + '</div>';
     };
     $('#results').innerHTML = sk(3) + sk(3) + sk(3);
-    $('#lines-body').innerHTML = '<tr><td colspan="8" style="padding:0">' + sk(3) + sk(3) + '</td></tr>';
+    $('#lines-body').innerHTML = '<tr><td colspan="11" style="padding:0">' + sk(3) + sk(3) + '</td></tr>';
     $('#pending-card').style.display = 'none';
   }
 
@@ -2812,7 +3402,7 @@
   function renderError(msg) {
     var body = $('#lines-body');
     body.innerHTML =
-      '<tr><td colspan="8"><div class="state error">' +
+      '<tr><td colspan="11"><div class="state error">' +
         '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 16H3L12 3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 10v4M12 16.5v.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>' +
         '<div class="state-title">Couldn’t load item data</div>' +
         '<div>' + (msg || 'The Item_Master source is unavailable.') + '</div>' +
@@ -2867,6 +3457,22 @@
       },
       moneyEur: moneyEur,
       computeSaleUsd: computeSaleUsd,
+      applyHeaderMarginToLines: applyHeaderMarginToLines,
+      getHeaderMarginPct: function () { return headerMarginPct; },
+      setHeaderMarginPct: function (pct) { headerMarginPct = clampPct(pct, 1000); },
+      catalogDiscountPct: catalogDiscountPct,
+      applyCatalogDiscountToLine: applyCatalogDiscountToLine,
+      applyCatalogDiscountToAllLines: applyCatalogDiscountToAllLines,
+      preloadLineDiscountFromItemMaster: preloadLineDiscountFromItemMaster,
+      fixDiscountablePolarityIfInverted: fixDiscountablePolarityIfInverted,
+      ingestPriceRules: ingestPriceRules,
+      fieldText: fieldText,
+      getCustomerType: getCustomerType,
+      setCustomerType: setCustomerType,
+      isDiscountableFlag: isDiscountableFlag,
+      withPriceMetaMarks: withPriceMetaMarks,
+      parseDiscPctFromWarn: parseDiscPctFromWarn,
+      parseMarginPctFromWarn: parseMarginPctFromWarn,
       applyKitRows: applyKitRows,
       addLineFromItem: addLineFromItem,
       mapItems: mapItems,
@@ -2890,6 +3496,8 @@
       paymentTermsLabel: paymentTermsLabel,
       paymentTermsText: paymentTermsText,
       dealSaveGate: dealSaveGate,
+      isLeadPendingConversion: isLeadPendingConversion,
+      applyConvertedCrmIds: applyConvertedCrmIds,
       selectDeal: selectDeal,
       clearDealSelection: clearDealSelection,
       clearQuoteContextForDealSwitch: clearQuoteContextForDealSwitch,
@@ -2901,6 +3509,10 @@
       publishQuotePackage: publishQuotePackage,
       saveQuotePackage: saveQuotePackage,
       emailQuotePackage: emailQuotePackage,
+      getCachedCrmSearch: getCachedCrmSearch,
+      putCachedCrmSearch: putCachedCrmSearch,
+      clearCrmSearchCache: clearCrmSearchCache,
+      CRM_SEARCH_CACHE_TTL_MS: CRM_SEARCH_CACHE_TTL_MS,
       generatePackage: generatePackage,
       filePdfToDeal: filePdfToDeal,
       requestQuoteDocument: requestQuoteDocument,

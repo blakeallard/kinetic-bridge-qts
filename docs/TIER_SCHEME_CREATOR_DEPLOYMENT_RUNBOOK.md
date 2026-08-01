@@ -166,7 +166,7 @@ These items remain relevant after the local patch. Only the duplicate-SKU assump
 - Vendor-marked discontinued SKUs `102100`, `103005`, `200400`, and `300400` are documented as **excluded from live import/quoting by vendor discontinued status**. Bill/Bryan visibility/override only; approval is not required to keep them excluded. Caveat: the classifier's yellow "Delivery STOP" hits on `Changes_Log` are likely color reuse as a batch highlight and must not be treated as delivery-stop proof without eyeballing the sheet.
 - [ ] **Partner exposure as `Customer_Type`** — whether `Partner` becomes a selectable value on live quotes (discount rules for it already exist in `fn_get_discount.deluge`, but exposing it on the form is a separate approval).
 - [ ] **Inquiry_Type / Quote_Type** — no such field exists in any deployed function today; needed to satisfy the original task's "route inquiries by type (BMS vs battery products)" requirement, separate from the pricing-tier `Customer_Type` field.
-- [ ] **DKK FX support** — `fn_refresh_fx_rates.deluge` does not cache DKK; either add it or remove `DKK` from the `Currency` dropdown before any DKK quote is possible.
+- [x] **DKK FX support** — `fn_refresh_fx_rates.deluge` already caches DKK (with EUR/GBP/CAD/AUD/JPY/CNY/KRW). Schedule that function daily (Bryan backlog Stage 9) so the cache stays fresh.
 
 ---
 

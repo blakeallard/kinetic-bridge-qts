@@ -4,28 +4,34 @@
 
 # BI1-T71 Status
 
-Last updated: 2026-07-29 (active: QTS two-button CRM)
+Last updated: 2026-07-31 (active: Stage 7 Discountable X + catalog Disc % auto-fill)
 
 ## Active: QTS two-button CRM package
 
 **Execution home is this repo (BI1-T71).** This is **not** Supabase→Databricks work and **not** BI1-T110 product ownership.
 
 - Plan: [`docs/QTS_TWO_BUTTON_CRM_PLAN.md`](docs/QTS_TWO_BUTTON_CRM_PLAN.md)
+- Bryan backlog (6–10): [`docs/QTS_BRYAN_MEETING_BACKLOG_2026-07-30.md`](docs/QTS_BRYAN_MEETING_BACKLOG_2026-07-30.md)
+- Stage 5 paste: [`docs/QTS_TOMORROW_PASTE_CHECKLIST.md`](docs/QTS_TOMORROW_PASTE_CHECKLIST.md)
 - External anchors: [`docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md`](docs/QTS_TWO_BUTTON_CRM_EXTERNAL_ANCHORS.md)
+- **Deluge learning:** [`docs/QTS_DELUGE_LEARNING_PLAN.md`](docs/QTS_DELUGE_LEARNING_PLAN.md) (single file; all lessons)
 - Session handoff: [`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)
 
 | Stage | Status |
 | ----- | ------ |
 | Stage 0 — Spec lock | **done** |
 | Stage 1 — Widget UX | **done** (`publishQuotePackage`, two buttons) |
-| Stage 2 — Flow modularization | **done** (`scripts/qts_publish/` + T110 Quotes gated on `send_email`) |
+| Stage 2 — Flow modularization | **done** (`scripts/zoho_flow/QTS_Saved_Draft_To_Writer/` + T110 Quotes gated on `send_email`) |
 | Stage 3 — WorkDrive | **done** (CURRENT/CONFIRMED/DRAFTS Deluge; root folder ID placeholder) |
 | Stage 4 — Creator rev | **done** (`snapshot_creator_revision` + field notes; non-blocking) |
-| Stage 5 — Verify | **BLOCKED live** — Creator External Calls daily quota (2026-07-29); resume after ~00:00 reset. See plan § external-call limits. |
+| Stage 5 — Verify | **resume when External Calls headroom** — was blocked 2026-07-29 on daily quota |
+| Stage 6 — Margin % | **coded** (widget + `fn_calc` preserve + tests/ZIP) — paste/upload pending |
+| Stage 7 — Discountable X + Disc % | **coded** (import polarity X→Y; widget auto-fills Distributor/Partner %; tests PASS) — Creator Item_Master re-import + widget ZIP upload pending |
+| Stages 8–10 | **planned** (company search, daily FX, Item Master spreadsheet revamp) — see Bryan backlog |
 
 **Local sandbox (quota bypass):** [`local_qts/`](local_qts/) — widget + FastAPI against kinetic-quote Postgres (`zoho_crm` + QTS tables). Zero Zoho External Calls. Run: `cd local_qts && ./run.sh` → http://127.0.0.1:8789
 
-**Blake next:** Use `local_qts` for CRM/quote UX testing while quota is blocked; after reset, upload widget ZIP + paste `scripts/qts_publish/*` into Flow and run Save×2 / Email matrix.
+**Blake next:** (1) Re-import Item_Master Discountable from `import_preview/item_master_import_preview.csv` (X→Y). (2) Upload `widget/dist/qts-quote-builder.zip`; paste `deploy_ready/fn_calc_quote_lines.creator.deluge`. (3) Confirm Price_Rules seeded for Distributor/Partner. See `docs/CURRENT_HANDOFF.md`.
 
 ---
 

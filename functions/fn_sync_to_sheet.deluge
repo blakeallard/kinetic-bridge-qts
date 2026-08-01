@@ -183,7 +183,7 @@ void fn_sync_to_sheet(string p_quote_id)
 			{
 				discountable_val = ifnull(item.Discountable,"N");
 				is_discountable = false;
-				if(discountable_val == "Y")
+				if(discountable_val == "Y" || discountable_val == "X")
 				{
 					is_discountable = true;
 				}
