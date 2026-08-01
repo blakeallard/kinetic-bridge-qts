@@ -1,4 +1,4 @@
-map send_quote_email(string deal_id, string contact_id, string contact_email, string quote_number, string quote_action, file merged_file, string cc_email, map deal_record)
+map send_quote_email(string deal_id, string contact_id, string contact_email, string quote_number, string quote_action, merged_file, string cc_email, map deal_record)
 {
 result = Map();
 result.put("status","skipped");

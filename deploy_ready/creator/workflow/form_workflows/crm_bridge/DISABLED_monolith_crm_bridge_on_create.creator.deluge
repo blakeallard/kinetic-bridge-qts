@@ -8,7 +8,8 @@ if(action_name == "search_customers")
 	query_text = ifnull(input.Query_Text,"").trim();
 	matches = List();
 	seen_ids = List();
-	if(query_text != "")
+	// Require minimum 3 characters to reduce API calls
+	if(query_text.len() >= 3)
 	{
 		contact_criteria = "(Email:starts_with:" + query_text + ")or(Last_Name:starts_with:" + query_text + ")or(First_Name:starts_with:" + query_text + ")";
 		has_space = query_text.contains(" ");
@@ -228,14 +229,59 @@ if(action_name == "sync_quote_to_crm")
 			thisapp.fn_calc_quote_lines(quote_id_text);
 			thisapp.fn_sync_to_crm(quote_id_text);
 			deal_id_out = "";
+			contact_id_out = "";
+			account_id_out = "";
+			quote_number_out = "";
 			for each  quote_hdr in Quote_Request[ID == quote_id_text.toLong()]
 			{
 				deal_id_out = ifnull(quote_hdr.CRM_Deal_ID,"").toString();
+				contact_id_out = ifnull(quote_hdr.CRM_Contact_ID,"").toString();
+				account_id_out = ifnull(quote_hdr.CRM_Account_ID,"").toString();
+				quote_number_out = ifnull(quote_hdr.Quote_Number,"").toString().trim();
 				break;
+			}
+			// Save Quote Package: stamp Deal note so Flow publish_quote_package
+			// files PDF without client email even when Decision only passes send_email=true.
+			publish_mode = "";
+			payload_text = ifnull(input.Payload_JSON,"").toString().trim();
+			if(payload_text.startsWith("{"))
+			{
+				try
+				{
+					payload_map = payload_text.toMap();
+					if(payload_map != null)
+					{
+						publish_mode = ifnull(payload_map.get("publish_mode"),"").toString().trim().toLowerCase();
+					}
+				}
+				catch (payload_parse_error)
+				{
+					publish_mode = "";
+				}
+			}
+			if(publish_mode == "save" && deal_id_out != "" && quote_number_out != "")
+			{
+				try
+				{
+					save_note = Map();
+					save_note.put("Note_Title","QTS_SAVE_ONLY|" + quote_number_out);
+					save_note.put("Note_Content","QTS Save Quote Package — file PDF only (no client email)");
+					save_note.put("Parent_Id",deal_id_out);
+					save_note.put("se_module","Deals");
+					zoho.crm.createRecord("Notes",save_note);
+					out.put("save_only_marker","yes");
+				}
+				catch (save_note_error)
+				{
+					out.put("save_only_marker","failed");
+					info "sync_quote_to_crm: save-only note failed: " + save_note_error.toString();
+				}
 			}
 			out.put("status","synced");
 			out.put("quote_id",quote_id_text);
 			out.put("crm_deal_id",deal_id_out);
+			out.put("crm_contact_id",contact_id_out);
+			out.put("crm_account_id",account_id_out);
 			input.Request_Status = "done";
 		}
 		catch (sync_err)
@@ -650,7 +696,8 @@ if(action_name == "search_leads")
 	query_text = ifnull(input.Query_Text,"").trim();
 	lead_matches = List();
 	seen_lead_ids = List();
-	if(query_text != "")
+	// Require minimum 3 characters to reduce API calls (was burning ~7k credits/day)
+	if(query_text.len() >= 3)
 	{
 		lead_criteria = "(Email:starts_with:" + query_text + ")or(Last_Name:starts_with:" + query_text + ")or(First_Name:starts_with:" + query_text + ")or(Company:starts_with:" + query_text + ")";
 		has_space = query_text.contains(" ");

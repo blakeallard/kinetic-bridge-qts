@@ -1,0 +1,44 @@
+void fn_refresh_fx_rates()
+{
+	response = invokeurl
+	[
+		url :"https://open.er-api.com/v6/latest/USD"
+		type :GET
+	];
+	result_map = response.toMap();
+	if(result_map.get("result") == "success")
+	{
+		rates = result_map.get("rates").toMap();
+		currencies = list();
+		currencies.add("EUR");
+		currencies.add("GBP");
+		currencies.add("CAD");
+		currencies.add("AUD");
+		currencies.add("JPY");
+		currencies.add("CNY");
+		currencies.add("KRW");
+		currencies.add("DKK");
+		for each  curr in currencies
+		{
+			rate = rates.get(curr).toDecimal();
+			found = false;
+			for each  rec in FX_Rates_Cache[Currency == curr]
+			{
+				rec.Rate=rate;
+				rec.Cached_At=zoho.currenttime;
+				found = true;
+				break;
+			}
+			if(found == false)
+			{
+				insert into FX_Rates_Cache
+				[
+					Currency=curr
+					Rate=rate
+					Cached_At=zoho.currenttime
+					Added_User=zoho.loginuser
+				]
+			}
+		}
+	}
+}

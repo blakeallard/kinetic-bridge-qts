@@ -1,0 +1,248 @@
+void fn_calc_quote_lines(string p_quote_id)
+{
+	quote_id_long = p_quote_id.toLong();
+	for each quote in Quote_Request
+	{
+		if(quote.ID == quote_id_long)
+		{
+			markup_raw = ifnull(quote.Markup_Rate_Pct,0);
+			markup = markup_raw / 100;
+			customer_type = ifnull(quote.Customer_Type,"End Customer");
+			currency = ifnull(quote.Currency,"USD");
+			fx_mode = ifnull(quote.FX_Charge_Mode,"non_usd_only");
+			fx_rate = 1.0;
+			eur_usd = 0.0;
+			eur_usd_found = false;
+			apply_fx = false;
+
+			for each rate_rec in FX_Rates_Cache[Currency == "EUR"]
+			{
+				raw_eur_per_usd = ifnull(rate_rec.Rate,0);
+				if(raw_eur_per_usd != 0)
+				{
+					eur_usd = 1 / raw_eur_per_usd;
+					eur_usd_found = true;
+				}
+				break;
+			}
+
+			quote.EUR_USD_Rate = eur_usd;
+
+			if(fx_mode == "always")
+			{
+				apply_fx = true;
+			}
+			if(fx_mode == "non_usd_only")
+			{
+				if(currency != "USD")
+				{
+					apply_fx = true;
+				}
+			}
+
+			fx_rate_found = false;
+			if(apply_fx)
+			{
+				for each rate_rec in FX_Rates_Cache[Currency == currency]
+				{
+					fx_rate = ifnull(rate_rec.Rate,0);
+					break;
+				}
+				if(fx_rate != 0)
+				{
+					fx_rate_found = true;
+				}
+			}
+
+			fx_missing = false;
+			if(apply_fx)
+			{
+				if(fx_rate_found == false)
+				{
+					fx_missing = true;
+				}
+			}
+
+			rate_missing = false;
+			if(fx_missing)
+			{
+				rate_missing = true;
+			}
+			if(eur_usd_found == false)
+			{
+				rate_missing = true;
+			}
+
+			missing_label = currency;
+			if(eur_usd_found == false)
+			{
+				missing_label = "EUR";
+			}
+
+			line_seq = 0;
+			for each line in quote.Quote_Lines
+			{
+				line_seq = line_seq + 1;
+				line.Line_Number = line_seq;
+
+				qty_raw = ifnull(line.Qty,0);
+				qty = qty_raw.toLong();
+				part = ifnull(line.Part_Number,"");
+				kit_warn = ifnull(line.Kit_Warning,"");
+
+				// Widget Stage 6: PRICE_LOCKED or «DISC:»/«MARGIN:» sidecars mean
+				// Unit_Price was set by the quote builder — do not wipe it.
+				preserve_widget_price = false;
+				if(kit_warn.contains("PRICE_LOCKED"))
+				{
+					preserve_widget_price = true;
+				}
+				if(kit_warn.contains("«DISC:"))
+				{
+					preserve_widget_price = true;
+				}
+				if(kit_warn.contains("«MARGIN:"))
+				{
+					preserve_widget_price = true;
+				}
+
+				part_is_blank = false;
+				if(part == "")
+				{
+					part_is_blank = true;
+				}
+				if(part == "null")
+				{
+					part_is_blank = true;
+				}
+
+				if(part_is_blank)
+				{
+					if(line.Part_Select != null)
+					{
+						select_part_raw = ifnull(line.Part_Select.Part_Number,"");
+						part = select_part_raw.toString();
+
+						part_is_usable = true;
+						if(part == "")
+						{
+							part_is_usable = false;
+						}
+						if(part == "null")
+						{
+							part_is_usable = false;
+						}
+
+						if(part_is_usable)
+						{
+							line.Part_Number = part;
+						}
+					}
+				}
+
+				if(preserve_widget_price)
+				{
+					kept_unit = ifnull(line.Unit_Price,0);
+					line.Unit_Price = kept_unit.round(2);
+					line.FX_Unit_Price = kept_unit.round(2);
+					line.Line_Total_USD = (kept_unit * qty).round(2);
+					line.Line_Total_FX = (kept_unit * qty).round(2);
+				}
+				else
+				{
+					eur_price = thisapp.fn_get_tier_price(part,qty);
+
+					price_found = true;
+					if(eur_price < 0)
+					{
+						price_found = false;
+					}
+
+					if(price_found == false)
+					{
+						eur_price = 0;
+					}
+
+					usd_cost = eur_price * eur_usd;
+					discount = 0.0;
+
+					for each item in Item_Master[Part_Number == part]
+					{
+						discountable_val = ifnull(item.Discountable,"N");
+
+						category_val = ifnull(item.Category,"");
+						is_software = false;
+						if(category_val == "Software")
+						{
+							is_software = true;
+						}
+
+						// Vendor X / Creator Y = discountable; blank/N = not.
+						if(discountable_val == "Y" || discountable_val == "X")
+						{
+							discount = thisapp.fn_get_discount(customer_type,qty,is_software);
+						}
+
+						line.Description = ifnull(item.Description,"");
+						break;
+					}
+
+					if(price_found == false)
+					{
+						old_description = ifnull(line.Description,"");
+						line.Description = "[NO PRICE ON FILE - DO NOT QUOTE] " + old_description;
+					}
+
+					discount_factor = 1 - discount;
+					markup_factor = 1 + markup;
+					unit_price_step1 = usd_cost * discount_factor;
+					unit_price_usd = unit_price_step1 * markup_factor;
+
+					line_total_usd = unit_price_usd * qty;
+					fx_unit_price = unit_price_usd;
+					line_total_fx = line_total_usd;
+
+					if(apply_fx)
+					{
+						if(fx_rate_found)
+						{
+							fx_unit_price = unit_price_usd * fx_rate;
+							line_total_fx = line_total_usd * fx_rate;
+						}
+					}
+
+					if(fx_missing)
+					{
+						fx_unit_price = 0;
+						line_total_fx = 0;
+					}
+
+					if(eur_usd_found == false)
+					{
+						unit_price_usd = 0;
+						line_total_usd = 0;
+						fx_unit_price = 0;
+						line_total_fx = 0;
+					}
+
+					if(rate_missing)
+					{
+						desc_now = ifnull(line.Description,"");
+						has_fx_marker = desc_now.contains("[FX RATE UNAVAILABLE");
+						if(has_fx_marker == false)
+						{
+							line.Description = "[FX RATE UNAVAILABLE FOR " + missing_label + " - DO NOT QUOTE] " + desc_now;
+						}
+					}
+
+					line.Unit_Price = unit_price_usd.round(2);
+					line.FX_Unit_Price = fx_unit_price.round(2);
+					line.Line_Total_USD = line_total_usd.round(2);
+					line.Line_Total_FX = line_total_fx.round(2);
+				}
+			}
+
+			break;
+		}
+	}
+}
