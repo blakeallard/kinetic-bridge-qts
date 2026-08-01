@@ -2,7 +2,7 @@
 
 Full path:
 
-`/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations/artifacts/qts_writer_merge_sample.json`
+`/Users/blakeallard/bevco/repos/kinetic-bridge-qts/artifacts/qts_writer_merge_sample.json`
 
 ## What this JSON is for
 
