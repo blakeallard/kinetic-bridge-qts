@@ -39,7 +39,7 @@ python3 scripts/creator_deploy.py fn_sync_to_crm --deploy   # real save to DEV
 - URL pinned to the dev appbuilder path — production is unreachable by
   construction.
 - Default is dry-run; `--deploy` required for any network write.
-- Refuses to deploy unless `deploy_ready/fn_sync_to_crm.creator.deluge` and
+- Refuses to deploy unless `deploy_ready/creator/workflow/functions/fn_sync_to_crm.creator.deluge` and
   `functions/fn_sync_to_crm.deluge` are byte-identical, non-empty, and
   brace-balanced.
 - Response parsing: `status=success` + `lineNumber=-1` → `[SUCCESS]`;

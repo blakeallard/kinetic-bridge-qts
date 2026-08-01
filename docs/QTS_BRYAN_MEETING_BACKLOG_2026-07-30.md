@@ -66,7 +66,7 @@ Stage 10 Item Master spreadsheet revamp (above & beyond)
 | Widget UI | `widget/app/widget.html` |
 | Widget logic | `widget/app/widget.js` |
 | Packbay mirror (if kept in sync) | `widget/app/widget.packbay.html`, `artifacts/qts-widget-ui-packbay/` |
-| Creator line calc | `deploy_ready/fn_calc_quote_lines.creator.deluge` ← paste to function `fn_calc_quote_lines` |
+| Creator line calc | `deploy_ready/creator/workflow/functions/fn_calc_quote_lines.creator.deluge` ← paste to function `fn_calc_quote_lines` |
 | Source twin | `functions/fn_calc_quote_lines.deluge` |
 
 ### Persist
@@ -119,8 +119,8 @@ Stage 10 Item Master spreadsheet revamp (above & beyond)
 
 | Piece | Path | Creator / CRM target |
 | ----- | ---- | -------------------- |
-| Contact/company search | `deploy_ready/crm_bridge_actions/search_customers.creator.deluge` | Workflow **CRM Bridge - search_customers** |
-| Leads (keep/extend) | `deploy_ready/crm_bridge_actions/search_leads.creator.deluge` | Workflow **search_leads** |
+| Contact/company search | `deploy_ready/creator/workflow/form_workflows/crm_bridge/search_customers.creator.deluge` | Workflow **CRM Bridge - search_customers** |
+| Leads (keep/extend) | `deploy_ready/creator/workflow/form_workflows/crm_bridge/search_leads.creator.deluge` | Workflow **search_leads** |
 | Deal text search | new bridge action or extend monolith blocks in `deploy_ready/crm_bridge_on_create.creator.deluge` | New/updated **search_deals** (or company deal search) workflow |
 | Widget merge/UI | `widget/app/widget.js`, `widget/app/widget.html` | Rebuild/upload widget ZIP |
 
@@ -173,11 +173,11 @@ See [`QTS_TOMORROW_PASTE_CHECKLIST.md`](./QTS_TOMORROW_PASTE_CHECKLIST.md).
 
 | Repo file | Paste into |
 | --------- | ---------- |
-| `deploy_ready/crm_bridge_actions/search_customers.creator.deluge` | Creator workflow **CRM Bridge - search_customers** |
-| `deploy_ready/crm_bridge_actions/search_leads.creator.deluge` | Creator workflow **search_leads** |
-| `deploy_ready/fn_sync_to_crm.creator.deluge` | Creator function **`fn_sync_to_crm`** |
-| `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/*.deluge` helpers | Zoho Flow custom functions (same names) |
-| `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge` | Flow **`publish_quote_package`** — paste **last** |
+| `deploy_ready/creator/workflow/form_workflows/crm_bridge/search_customers.creator.deluge` | Creator workflow **CRM Bridge - search_customers** |
+| `deploy_ready/creator/workflow/form_workflows/crm_bridge/search_leads.creator.deluge` | Creator workflow **search_leads** |
+| `deploy_ready/creator/workflow/functions/fn_sync_to_crm.creator.deluge` | Creator function **`fn_sync_to_crm`** |
+| `deploy_ready/flow/QTS_Saved_Draft_To_Writer/*.deluge` helpers | Zoho Flow custom functions (same names) |
+| `deploy_ready/flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge` | Flow **`publish_quote_package`** — paste **last** |
 
 Do **not** paste: `generate_and_file_quote_document.deluge` / `.COMPAT.deluge` for live WorkDrive; do **not** re-paste disabled monolith CRM Bridge or `sync_quote_to_crm` unless that action itself changes.
 

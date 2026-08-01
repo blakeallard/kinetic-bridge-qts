@@ -92,7 +92,7 @@ F. DONE (repo). fn_generate_pdf Notes blocks now use persisted
    Removed a leftover brace from the old if(cEmail) wrapper; verified brace
    delta vs git HEAD is +3 open/+3 close (raw counts are skewed by braces
    inside string literals in this file - pre-existing).
-   deploy_ready/fn_generate_pdf.debug.deluge re-synced byte-identical.
+   deploy_ready/creator/workflow/functions/fn_generate_pdf.debug.deluge re-synced byte-identical.
 
 B. STOPPED BEFORE FIELD CREATION, as required. getFormMetadata
    (Quote_Request, development) confirms NO Lifecycle_Stamped field exists.
@@ -152,7 +152,7 @@ ROUND 60c (2026-07-11) - Deployment gap CLOSED. A-F all live in Creator dev:
    Results: fn_sync_to_sheet = 4929688000000038346,
             fn_generate_pdf  = 4929688000000040014.
 2. creator_deploy.py allowlist extended to all three functions (fn_sync_to_crm
-   entry preserved). New mirror created: deploy_ready/fn_sync_to_sheet.creator
+   entry preserved). New mirror created: deploy_ready/creator/workflow/functions/fn_sync_to_sheet.creator
    .deluge. fn_generate_pdf uses the existing .debug mirror.
 3. CLI brace check upgraded to be string- and comment-aware (the old raw count
    false-failed fn_generate_pdf on braces inside JSON string literals and a
@@ -175,9 +175,9 @@ temporarily count on the new ordering - CRM sync now runs BEFORE sheet sync
 so the lifecycle stamp QA no longer depends on the Sheet quota at all),
 then strip temp diagnostics + final clean deploy.
 
-Files changed: deploy_ready/fn_sync_to_crm.creator.deluge,
+Files changed: deploy_ready/creator/workflow/functions/fn_sync_to_crm.creator.deluge,
 functions/fn_sync_to_crm.deluge, functions/fn_sync_to_sheet.deluge,
-functions/fn_generate_pdf.deluge, deploy_ready/fn_generate_pdf.debug.deluge,
+functions/fn_generate_pdf.deluge, deploy_ready/creator/workflow/functions/fn_generate_pdf.debug.deluge,
 docs/AI_RELAY.md, docs/CURRENT_HANDOFF.md.
 
 ## ChatGPT QC

@@ -28,7 +28,7 @@ Labels used throughout:
 
 ### 1.1 How fn_sync_to_crm finds/creates Deals — PROVEN CURRENT
 
-`functions/fn_sync_to_crm.deluge` (mirrored in `deploy_ready/fn_sync_to_crm.creator.deluge`):
+`functions/fn_sync_to_crm.deluge` (mirrored in `deploy_ready/creator/workflow/functions/fn_sync_to_crm.creator.deluge`):
 
 1. Reads `quote.CRM_Deal_ID` first (line 152). If non-empty → `zoho.crm.updateRecord("Deals", id, deal_data)` (line 174) — **update-in-place by record ID already exists once an ID is persisted.**
 2. If empty → **name-match fallback**: `zoho.crm.searchRecords("Deals","Deal_Name:equals:" + deal_name)` where `deal_name = Customer_Company + " — " + Quote_Number` (lines 5, 155). First hit wins.

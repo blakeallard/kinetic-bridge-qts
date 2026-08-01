@@ -27,7 +27,7 @@ Also read `CLAUDE.md` or `CODEX.md` only for tool-specific deltas.
 - Scope work to BI1-T71 and this repository.
 - Do not modify Zoho/Creator/CRM/Sheet/WorkDrive unless explicitly approved.
 - The Kinetic Bridge QTS widget lives in-repo at `widget/` (edit there; do not use a separate absolute checkout path).
-- Do not edit legacy folder: `/Users/blakeallard/bevco/apps/quote_app`.- Keep implementation in `scripts/`, durable docs in `docs/`, and approved artifacts in `artifacts/`.
+- Legacy folder apps/quote_app was retired to REVIEW_FOR_DELETE (2026-07-31).- Keep implementation in `scripts/`, durable docs in `docs/`, and approved artifacts in `artifacts/`.
 - Preserve Deluge as full-function files (no partial function fragments).
 - Do not invent business rules, field mappings, deployment status, or completion status without direct evidence from repo state, documented handoff, or explicit user confirmation.
 - Do not commit secrets, tokens, `.env` files, private customer data, or credential-bearing URLs.

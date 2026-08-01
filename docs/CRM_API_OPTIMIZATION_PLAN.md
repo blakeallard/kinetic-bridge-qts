@@ -55,7 +55,7 @@ leadInput.addEventListener('input', () => {
 
 ## Optimization 2: Eliminate Redundant Deal Fetches in `publish_quote_package`
 
-**File:** `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge`
+**File:** `deploy_ready/flow/QTS_Saved_Draft_To_Writer/publish_quote_package.deluge`
 
 **Problem:** Same Deal is fetched 4+ times:
 - Line 220: `deal_record = zoho.crm.getRecordById("Deals", ...)`

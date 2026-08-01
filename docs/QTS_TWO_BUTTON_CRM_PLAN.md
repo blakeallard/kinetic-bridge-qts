@@ -92,9 +92,9 @@ Canonical Stage 5 order: [`QTS_TOMORROW_PASTE_CHECKLIST.md`](./QTS_TOMORROW_PAST
 
 | Repo file / block | Live Creator target |
 | ----------------- | ------------------- |
-| `deploy_ready/fn_sync_to_crm.creator.deluge` | Function `fn_sync_to_crm` (used by workflow **sync_quote_to_crm**) |
-| `deploy_ready/crm_bridge_actions/search_customers.creator.deluge` | Workflow **CRM Bridge - search_customers** |
-| `deploy_ready/crm_bridge_actions/search_leads.creator.deluge` | Workflow **search_leads** (batched OR; company search for Leads already included) |
+| `deploy_ready/creator/workflow/functions/fn_sync_to_crm.creator.deluge` | Function `fn_sync_to_crm` (used by workflow **sync_quote_to_crm**) |
+| `deploy_ready/creator/workflow/form_workflows/crm_bridge/search_customers.creator.deluge` | Workflow **CRM Bridge - search_customers** |
+| `deploy_ready/creator/workflow/form_workflows/crm_bridge/search_leads.creator.deluge` | Workflow **search_leads** (batched OR; company search for Leads already included) |
 | Disabled **CRM Bridge** (09-Jul) | Leave disabled unless deliberately consolidating |
 | Do **not** re-paste | `sync_quote_to_crm` workflow (already calls calc + `fn_sync_to_crm`) unless that action itself changes |
 
@@ -255,7 +255,7 @@ Further lightweight rules:
 ## Current code anchors (what we will reshape)
 
 - Widget (primary edit surface): `widget/app/widget.js` + `widget.html` — Pack Bay mirror also under `artifacts/qts-widget-ui-packbay/`
-- Deal product sync (T71): `functions/fn_sync_to_crm.deluge` / `deploy_ready/fn_sync_to_crm.creator.deluge` + widget `sync_quote_to_crm` bridge
+- Deal product sync (T71): `functions/fn_sync_to_crm.deluge` / `deploy_ready/creator/workflow/functions/fn_sync_to_crm.creator.deluge` + widget `sync_quote_to_crm` bridge
 - PDF + email + conditional Quotes (external today): T110 `scripts/generate_and_file_quote_document.deluge` — see external anchors doc
 - Status → Flow mapping (external today): T110 `docs/PDF_FILE_NO_EMAIL.md`
 

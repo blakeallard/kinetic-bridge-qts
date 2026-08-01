@@ -27,6 +27,6 @@ Legacy checkout `~/bevco/qts-quote-builder` is **not** source of truth (see `MOV
 
 ## Related Deluge / Flow
 
-Publish pipeline: `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/`  
+Publish pipeline: `deploy_ready/flow/QTS_Saved_Draft_To_Writer/`  
 Creator sync: `functions/fn_sync_to_crm.deluge`  
 Tomorrow paste map: `docs/QTS_TOMORROW_PASTE_CHECKLIST.md`
