@@ -4,7 +4,7 @@
 into Zoho. Its folder path = the Zoho destination. If a file exists both here and anywhere
 else in the repo, **the `deploy_ready/` copy wins**; the others are legacy/working copies.
 
-**Repo root:** `/Users/blakeallard/bevco/repos/bi1-t71-implement-zoho-based-form-template-for-quotes-item-master-price-book-automated-calculations`
+**Repo root:** `/Users/blakeallard/bevco/repos/kinetic-bridge-qts`
 
 ---
 
