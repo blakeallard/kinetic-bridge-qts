@@ -18,13 +18,15 @@ From this directory (repo-relative — no machine home paths):
 
 ```bash
 cd widget
-# Rebuild ZIP from app/ per your Pack Bay process, then upload dist/qts-quote-builder.zip in Creator
+# Pack Bay layout: plugin-manifest.json + app/ at ZIP root (flattening app/ breaks the page)
+zip -r dist/qts-quote-builder.zip plugin-manifest.json app -x "*.DS_Store"
+# then upload dist/qts-quote-builder.zip in Creator
 ```
 
 Legacy checkout `~/bevco/qts-quote-builder` is **not** source of truth (see `MOVED_TO_T71.md` there).
 
 ## Related Deluge / Flow
 
-Publish pipeline: `scripts/qts_publish/`  
+Publish pipeline: `scripts/zoho_flow/QTS_Saved_Draft_To_Writer/`  
 Creator sync: `functions/fn_sync_to_crm.deluge`  
 Tomorrow paste map: `docs/QTS_TOMORROW_PASTE_CHECKLIST.md`
