@@ -19,6 +19,7 @@ def list_item_master() -> list[dict[str, Any]]:
     rows = db.fetch_all(
         """
         SELECT zoho_record_id, part_number, description, category, discountable,
+               item_status, quote_warning,
                price_t1, price_t2, price_t3, price_t4, price_t5,
                price_t6, price_t7, price_t8, price_t9
         FROM item_master
@@ -35,6 +36,11 @@ def list_item_master() -> list[dict[str, Any]]:
                 "Description": r["description"] or "",
                 "Category": r["category"] or "",
                 "Discountable": "Y" if r["discountable"] else "N",
+                # "Item" is the Creator internal link name for Item_Status; the widget
+                # reads Item first and falls back to Item_Status.
+                "Item": r["item_status"] or "Active",
+                "Item_Status": r["item_status"] or "Active",
+                "Quote_Warning": r["quote_warning"] or "",
                 "Price_T1": _price(r["price_t1"]),
                 "Price_T2": _price(r["price_t2"]),
                 "Price_T3": _price(r["price_t3"]),
@@ -92,6 +98,28 @@ def list_fx_rates() -> list[dict[str, Any]]:
     ]
 
 
+def list_pricelist_meta() -> list[dict[str, Any]]:
+    rows = db.fetch_all(
+        """
+        SELECT pricelist_version, valid_from, source_file, source_sha256, imported_on
+        FROM pricelist_meta
+        WHERE is_current
+        ORDER BY id DESC
+        """
+    )
+    return [
+        {
+            "ID": str(r["pricelist_version"]),
+            "Pricelist_Version": r["pricelist_version"] or "",
+            "Valid_From": r["valid_from"] or "",
+            "Source_File": r["source_file"] or "",
+            "Source_SHA256": r["source_sha256"] or "",
+            "Imported_On": str(r["imported_on"] or ""),
+        }
+        for r in rows
+    ]
+
+
 def get_all_records(report_name: str, criteria: str | None = None, page: int = 1, page_size: int = 200) -> dict[str, Any]:
     name = (report_name or "").strip()
     filters = parse_criteria(criteria)
@@ -102,6 +130,8 @@ def get_all_records(report_name: str, criteria: str | None = None, page: int = 1
         data = list_kit_components()
     elif name in ("FX_Rates_Cache_Report", "FX_Rates_Cache"):
         data = list_fx_rates()
+    elif name in ("Pricelist_Meta_Report", "Pricelist_Meta"):
+        data = list_pricelist_meta()
     elif name in ("Quote_Request_Report", "Quote_Request"):
         from . import quotes
 

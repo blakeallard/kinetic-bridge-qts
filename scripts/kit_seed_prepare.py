@@ -29,9 +29,12 @@ OUT = ROOT / "artifacts" / "kit_components_seed.json"
 BLOCKED_MARKER = "not_in_rsp_unquotable"
 WARNING_TEXT = {"101814": "Not_Released — confirm availability before quoting"}
 
+# blocked is empty as of pricelist v1.0 (2026-07-01): the vendor replaced the
+# unpriced 300A shunt 100683 with the priced 100684, clearing the only
+# not_in_rsp_unquotable hold. See docs/PRICELIST_UPDATE_2026-07-01_V1.0.md.
 EXPECTED = {
     "rows": 42,
-    "blocked": {("n3bms_cmu12", "100683")},
+    "blocked": set(),
     "q1": set(),
     "q2": set(),
     "warned": {("n3bms_cmu18", "101814")},

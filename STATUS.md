@@ -4,7 +4,7 @@
 
 # BI1-T71 Status
 
-Last updated: 2026-07-31 (active: Stage 7 Discountable X + catalog Disc % auto-fill)
+Last updated: 2026-08-03 (pricelist v1.0 DEPLOYED to Production and verified)
 
 ## Active: QTS two-button CRM package
 
@@ -49,6 +49,22 @@ Current source of truth:
 
 All items live-verified 2026-07-26 unless noted:
 
+- **Pricelist v1.0 (vendor batch 2026-07-01) DEPLOYED to Production 2026-08-03 and
+  live-verified.** New SKU `100985.2` (108.40/88.68) replaces the bare
+  `103006` harness on the n3 CMU18 kit; `103006` keeps its row as the first
+  `Item_Status=Bundled` item (no price, "Included in 100985.2"); shunt `100684` repriced
+  81.90/59.85 → **136.00/99.86**; `100683` → `100684` on n3bms_cmu12 clears the last
+  `pending_business` hold (**Q3 resolved**, blocked set now empty). Pricelist versioning
+  added end to end (new `Pricelist_Meta` form/table, widget masthead chip, quote PDF
+  footer). Item_Master import files go 44 → **45** rows. Verified in `local_qts` against
+  local Postgres: chip reads `v1.0 · July 2026`, `100985.2` prices at €108.40, `103006` is
+  out of the picker and renders a non-blocking `Bundled` badge, quote stays "All clear".
+  See `docs/PRICELIST_UPDATE_2026-07-01_V1.0.md`.
+- **Status-flag bug fixed 2026-08-03 (pre-existing, found during the v1.0 smoke test).**
+  The widget defined `not_released` / `discontinued` flags and counted them in
+  `warningTally()` but never assigned them, so a Not_Released SKU could quote as
+  "All clear". `mapItems` now assigns from `Item_Status`. Verified live in Dev on 101814.
+  Widget tests 258 -> 263. See D-P5 in `docs/PRICELIST_UPDATE_2026-07-01_V1.0.md`.
 - Vendor kit config 2026-07-25 DEPLOYED: repo BOM 49 -> 42 rows, Creator `Kit_Components`
   reconciled and read-back verified 42/42; Q1 (200300) and Q2 (103006) resolved; kit expansion
   live-QA'd on i-BMS15, c-BMS24, n3-CMU18@96. qty-0 optionals insert at qty 0 for the preparer
@@ -70,19 +86,33 @@ All items live-verified 2026-07-26 unless noted:
 
 Next actions:
 
+0. **Pricelist v1.0 — DONE.** Deployed Dev -> Stage -> Production 2026-08-03 and verified
+   live in both environments (chip `v1.0 · July 2026`; CMU18 kit @96 gives `100985.2` qty 6,
+   `100684` @ EUR136.00, no `103006`; `101814` raises a Not-released warning). `100985.2`
+   seeded into CRM Products. Follow-ups below.
+0a. **Production Kit_Components drift — investigate.** `Channels_Per_CMU` was missing on all
+   three `cmu_from_series_cells` rows in Production (n3bms_cmu18/101814=18,
+   n3bms_cmu12/100809=12, nbms_cmu12/100809=12), so all three CMU kits errored
+   ("Kit data error: Channels Per CMU missing") and had been broken there for some time.
+   Fixed by hand 2026-08-03. Other columns may have drifted too — reconcile Production
+   `Kit_Components` field-by-field against `kit_bom/kit_components.csv`.
+0b. **Widget env pill is hardcoded.** `widget.html` prints "Creator Dev · Live Data"
+   unconditionally, so Production mislabels itself as Dev. Needs a small widget change.
+0c. **CRM Products stale prices**: `100684` still 81.90 (should be 136.00); `103006` still
+   Active at 66.00 (now bundled). Flag D-P3 / D-P4 to Bryan.
 1. Retest Send for Signature end-to-end (Writer PDF -> Sign -> Sign_Request_ID -> Deal
    attachment) with TEST signer identities.
 2. Verify the CRM Quote's Quoted Items picked up the shunt 0 -> 2 edit (screenshot ambiguity).
 3. CRM test-data cleanup (Round 91 list) + today's Northgate Fleet Systems test records.
-4. Refresh the Supabase `kinetic-quote` mirror (still pre-update: kit_components 49, no quotes).
+4. ~~Refresh the Supabase `kinetic-quote` mirror~~ — **done 2026-08-03** (pricelist v1.0 migration + seed corrections; ingest run recorded in `item_master_ingest_runs`). The 2026-07-18 snapshots also carried the pre-07-25 `100985.1` kit row, which would have regressed Q2 on any `db reset`; corrected.
 5. Datasheet spec DB (Supabase) build in flight via background agent.
 6. Flag to Bill: Products seed (Tier 2) and record deletes (Tier 3) executed on Blake's direct
    instruction.
 
 Open decision points (unchanged):
 
-1. Review July RSP import preview / approve Item_Master import.
-2. Unpriced SKU behavior (100683 still `not_in_rsp_unquotable`).
+1. Review the July RSP import preview / approve Item_Master import (now **45 rows**, pricelist v1.0).
+2. ~~Unpriced SKU behavior (100683)~~ — **resolved by pricelist v1.0**: vendor replaced it with the priced 100684 (D-P4). New open item: confirm D-P3, the hidden-row `EXCLUDE_CANDIDATE` assumption for duplicate 300300/300500, now that those rows are back in the workbook.
 3. Whether license/service/software needs `Tier_Scheme`.
 4. Whether Partner is exposed as `Customer_Type`.
 5. `Inquiry_Type` / `Quote_Type` for Battery / BMS / Other.

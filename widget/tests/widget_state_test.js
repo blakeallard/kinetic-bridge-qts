@@ -52,7 +52,7 @@ function check(name, cond, detail) {
 const KIT7 = [
   { part_number: '100816', qty: '1', kit_warning: '' },
   { part_number: '100809', qty: '8', kit_warning: '' },   // calculated CMU qty
-  { part_number: '100985.1', qty: '8', kit_warning: '' }, // match_cmu
+  { part_number: '100985.2', qty: '8', kit_warning: '' }, // match_cmu (CMU18 harness bundle, pricelist v1.0)
   { part_number: '100777', qty: '1', kit_warning: '' },
   { part_number: '100778', qty: '1', kit_warning: '' },
   { part_number: '100779', qty: '1', kit_warning: '' },
@@ -70,7 +70,7 @@ const KIT7 = [
   t.state.lines.forEach(l => { bySku[l.sku + '|' + (l.kitWarning || '')] = l.qty; });
   check('fixed-qty component increments 1 -> 3', bySku['100816|'] === 3, String(bySku['100816|']));
   check('calculated CMU component increments 8 -> 24', bySku['100809|'] === 24, String(bySku['100809|']));
-  check('match_cmu component increments 8 -> 24', bySku['100985.1|'] === 24, String(bySku['100985.1|']));
+  check('match_cmu component increments 8 -> 24', bySku['100985.2|'] === 24, String(bySku['100985.2|']));
   check('warning text preserved on merged line',
     bySku['101814|QTY_UNCONFIRMED - verify harness count'] === 3);
 }
@@ -1242,6 +1242,78 @@ const KIT7 = [
     check('cache is case-insensitive', !!hit && hit.contacts.length === 1 && hit.leads.length === 1);
     t.clearCrmSearchCache();
     check('clearCrmSearchCache empties search cache', t.getCachedCrmSearch('rova') === null);
+  }
+
+  /* ---- Bundled SKUs (pricelist v1.0): unpriced by vendor intent, not a blocker ---- */
+  {
+    const t = freshWidget();
+    const items = t.mapItems([
+      { Part_Number: '100985.2', Description: 'n3-BMS CMU18 101814 wireharness kit', Category: 'BMS',
+        Tier_Scheme: 'Hardware', Discountable: 'N', Item: 'Active', Quote_Warning: '',
+        Price_T1: '108.40', Price_T2: '88.68' },
+      { Part_Number: '103006', Description: 'n3-BMS CMU18/4 101814 Wire harness kit', Category: 'BMS',
+        Tier_Scheme: 'Hardware', Discountable: 'N', Item: 'Bundled',
+        Quote_Warning: 'Included in 100985.2 - no separate charge' },
+    ]);
+    check('bundled SKU is kept out of the part picker',
+      items.length === 1 && items[0].sku === '100985.2', JSON.stringify(items.map(i => i.sku)));
+    check('bundled SKU is tracked for flagging', t.DATA.bundledSkus['103006'] !== undefined);
+    check('missingPriceFlag returns bundled for a bundled SKU', t.missingPriceFlag('103006') === 'bundled');
+    check('missingPriceFlag still returns unpriced for an unknown SKU', t.missingPriceFlag('999999') === 'unpriced');
+
+    // A kit/loaded quote line referencing the bundled SKU must not block Save/Send.
+    t.applyKitRows([{ part_number: '103006', qty: '2', kit_warning: '' }], 1);
+    const line = t.state.lines.filter(l => l.sku === '103006')[0];
+    check('bundled line carries the bundled flag, not unpriced',
+      !!line && line.flags.indexOf('bundled') !== -1 && line.flags.indexOf('unpriced') === -1,
+      line ? JSON.stringify(line.flags) : 'no line');
+    check('bundled line does not raise a blocking warning', t.warningTally().total === 0,
+      JSON.stringify(t.warningTally()));
+  }
+
+  /* ---- Item_Status flags actually reach the quote (was: labels defined, never assigned) ---- */
+  {
+    const t = freshWidget();
+    const items = t.mapItems([
+      { Part_Number: '101814', Description: 'n3-BMS CMU18/4 (RELEASE Q3/2026)', Category: 'BMS',
+        Tier_Scheme: 'Hardware', Discountable: 'Y', Item: 'Not_Released',
+        Quote_Warning: 'confirm availability before quoting', Price_T1: '210.00' },
+      { Part_Number: '102100', Description: 'c-BMS18', Category: 'BMS', Tier_Scheme: 'Hardware',
+        Discountable: 'N', Item: 'Discontinued', Quote_Warning: 'vendor discontinued' },
+      { Part_Number: '100924', Description: 'c-BMS24', Category: 'BMS', Tier_Scheme: 'Hardware',
+        Discountable: 'Y', Item: 'Active', Price_T1: '305.76' },
+    ]);
+    t.DATA.items = items; // loadLiveData() normally does this assignment
+    const bySku = {};
+    items.forEach(i => { bySku[i.sku] = i; });
+
+    check('not_released SKU stays quotable but carries the flag',
+      !!bySku['101814'] && bySku['101814'].flags.indexOf('not_released') !== -1,
+      bySku['101814'] ? JSON.stringify(bySku['101814'].flags) : 'missing');
+    check('active SKU carries no status flag',
+      !!bySku['100924'] && bySku['100924'].flags.length === 0);
+    check('discontinued SKU is excluded from the picker', bySku['102100'] === undefined);
+    check('discontinued SKU still resolves its reason for saved lines',
+      t.missingPriceFlag('102100') === 'discontinued');
+
+    // A not-released part on the quote must count as a warning, not "All clear".
+    t.applyKitRows([{ part_number: '101814', qty: '6', kit_warning: '' }], 1);
+    const w = t.warningTally();
+    check('not_released line raises a blocking warning', w.total === 1 && w.t.not_released === 1,
+      JSON.stringify(w));
+  }
+
+  /* ---- Pricelist version metadata ---- */
+  {
+    const t = freshWidget();
+    check('pricelist meta defaults empty', t.DATA.pricelist.version === '');
+    t.applyPricelistMeta([{ Pricelist_Version: '1.0', Valid_From: 'July 2026',
+                            Source_File: 'Acme BMS BMS_July 01_RSP_Distributor.xlsx',
+                            Source_SHA256: 'a239e3bc2242' }]);
+    check('pricelist meta ingested', t.DATA.pricelist.version === '1.0' && t.DATA.pricelist.validFrom === 'July 2026',
+      JSON.stringify(t.DATA.pricelist));
+    t.applyPricelistMeta([]);
+    check('missing Pricelist_Meta leaves prior value untouched (no crash)', t.DATA.pricelist.version === '1.0');
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASS' : '\n' + failures + ' FAILURE(S)');

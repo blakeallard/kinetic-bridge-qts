@@ -163,7 +163,21 @@ void fn_generate_pdf(string p_quote_id)
 		mergeFields.put("shipping_terms", "FOB Origin");
 		mergeFields.put("quote_validity", "30 days");
 		mergeFields.put("fx_notes", "All prices in USD. No FX conversion applied.");
-		mergeFields.put("additional_notes", "Pricing based on current distributor pricelist. Subject to change after expiration.");
+		pricelist_label = "current distributor pricelist";
+		for each meta_rec in Pricelist_Meta[ID != 0] range from 1 to 1
+		{
+			meta_ver = ifnull(meta_rec.Pricelist_Version,"").toString().trim();
+			meta_from = ifnull(meta_rec.Valid_From,"").toString().trim();
+			if(meta_ver != "")
+			{
+				pricelist_label = "Acme BMS pricelist v" + meta_ver;
+				if(meta_from != "")
+				{
+					pricelist_label = pricelist_label + " (valid from " + meta_from + ")";
+				}
+			}
+		}
+		mergeFields.put("additional_notes", "Pricing based on " + pricelist_label + ". Subject to change after expiration.");
 		mergeFields.put("item_no", item_no);
 		mergeFields.put("description", item_desc);
 		mergeFields.put("qty", item_qty);

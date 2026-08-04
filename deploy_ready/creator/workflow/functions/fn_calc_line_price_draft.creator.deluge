@@ -109,9 +109,13 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 	discountable = "N";
 	item_description = ifnull(p_description,"");
 	customer_type = ifnull(p_customer_type,"End Customer");
+	item_status = "";
+	item_bundle_note = "";
 
 	for each item in Item_Master[Part_Number == p_part_number]
 	{
+		item_status = ifnull(item.Item,"").toString().trim().toLowerCase();
+		item_bundle_note = ifnull(item.Quote_Warning,"").toString().trim();
 		discountable = ifnull(item.Discountable,"N");
 		is_discountable = false;
 		if(discountable == "Y" || discountable == "X")
@@ -172,10 +176,32 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 		line_total_fx = 0;
 	}
 
-	description = item_description;
+	is_bundled = false;
 	if(price_found == false)
 	{
-		description = "[NO PRICE ON FILE - DO NOT QUOTE] " + description;
+		if(item_status == "bundled")
+		{
+			is_bundled = true;
+		}
+	}
+
+	bundle_label = item_bundle_note;
+	if(bundle_label == "")
+	{
+		bundle_label = "included in a bundle kit - no separate charge";
+	}
+
+	description = item_description;
+	if(is_bundled)
+	{
+		description = "[" + bundle_label.toUpperCase() + "] " + description;
+	}
+	if(price_found == false)
+	{
+		if(is_bundled == false)
+		{
+			description = "[NO PRICE ON FILE - DO NOT QUOTE] " + description;
+		}
 	}
 
 	if(rate_missing)
@@ -195,5 +221,6 @@ Map fn_calc_line_price_draft(string p_part_number, decimal p_qty, string p_descr
 	result.put("discount", discount);
 	result.put("discountable", discountable);
 	result.put("price_found", price_found);
+	result.put("bundled", is_bundled);
 	return result;
 }
