@@ -788,17 +788,34 @@
     });
   }
 
-  // The Creator page URL carries /environment/<env>/ for Development and Stage;
-  // Production has no such segment. The widget runs cross-origin in an iframe, so
-  // document.referrer is the only readable handle on the parent URL. Returns ''
-  // when the host is not Creator at all (e.g. the local_qts sandbox), so callers
-  // can leave that page's own label alone.
+  // Creator hands the widget its own environment in initParams.envUrlFragment
+  // ('/environment/development', '/environment/stage', or empty for Production).
+  //
+  // Do NOT use document.referrer for this: inside the widget iframe it reflects
+  // navigation *history*, not the parent frame, so opening Prod from a Dev tab
+  // reports "development" and vice versa — it reads exactly backwards. Observed
+  // live 2026-08-03.
+  //
+  // Returns '' when initParams are unavailable (SDK not ready, or the local_qts
+  // sandbox, which is not Creator at all) so callers leave the page's own label alone.
+  function creatorInitParams() {
+    var z = null;
+    try {
+      if (typeof window !== 'undefined' && window.ZOHO) z = window.ZOHO;
+      else if (typeof ZOHO !== 'undefined') z = ZOHO;
+    } catch (e) { return null; }
+    if (!z || !z.CREATOR || !z.CREATOR.UTIL) return null;
+    if (typeof z.CREATOR.UTIL.getInitParams !== 'function') return null;
+    try { return z.CREATOR.UTIL.getInitParams() || null; } catch (e) { return null; }
+  }
+
   function detectCreatorEnvironment() {
-    var ref = '';
-    try { ref = str(document.referrer); } catch (e) { ref = ''; }
-    if (!/creator(app)?\.zoho/i.test(ref)) return '';
-    if (/\/environment\/development\//i.test(ref)) return 'development';
-    if (/\/environment\/stage\//i.test(ref)) return 'stage';
+    var params = creatorInitParams();
+    if (!params) return '';
+    var frag = str(params.envUrlFragment);
+    if (/development/i.test(frag)) return 'development';
+    if (/stage/i.test(frag)) return 'stage';
+    // Params present with no environment segment = Production.
     return 'production';
   }
 

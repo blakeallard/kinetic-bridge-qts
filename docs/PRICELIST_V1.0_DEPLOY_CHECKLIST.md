@@ -220,10 +220,15 @@ silently drift between environments. Reconcile Production `Kit_Components` again
 
 ### Follow-ups
 
-- **DONE** — widget env pill no longer hardcoded. `detectCreatorEnvironment()` reads the
-  parent Creator URL from `document.referrer` and prints Dev / Stage / Prod; a non-Creator
-  host (the `local_qts` sandbox) keeps its own label, and an unknown host stays neutral
-  rather than guessing. **Needs one more ZIP upload to Dev and Production.**
+- **DONE (second attempt)** — widget env pill no longer hardcoded.
+  `detectCreatorEnvironment()` reads `envUrlFragment` from
+  `ZOHO.CREATOR.UTIL.getInitParams()`; unknown/absent params stay neutral so the
+  `local_qts` sandbox keeps its own label. **Needs one more ZIP upload to Dev and Production.**
+
+  **First attempt was wrong and shipped briefly:** it used `document.referrer`, which inside
+  the widget iframe reflects navigation *history* rather than the parent frame. Opening
+  Production from a Development tab reported "development" and vice versa — the labels read
+  exactly backwards. Do not use `document.referrer` to identify the Creator environment.
 - **DONE** — CRM Products: `100684` -> 136.00; `103006` price cleared, renamed to the
   `n3-BMS` spelling, Description records the bundling. Left Active because existing quotes
   reference it.
