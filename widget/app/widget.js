@@ -22,6 +22,14 @@
     items: [],
     bmsKits: [],
     pendingReferenced: [],
+    // Item_Status=Bundled SKUs: sku -> vendor note. They carry no price because the
+    // vendor folded them into a parent kit, so they are kept out of the picker but
+    // must not read as an "Unpriced" blocker if an older quote still references one.
+    bundledSkus: {},
+    // sku -> lowercased Item_Status, for every catalog record including the
+    // discontinued ones filtered out of the picker.
+    statusBySku: {},
+    pricelist: { version: '', validFrom: '', sourceFile: '', sourceSha: '' },
     seedLines: [],
   };
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
@@ -31,12 +39,14 @@
     not_released:     'Not released',
     unpriced:         'Unpriced',
     pending_business: 'Pending business',
+    bundled:          'Bundled',
   };
   var FLAG_STRIPE = {
     discontinued: 'var(--sev-disc)',
     not_released: 'var(--sev-notrel)',
     unpriced: 'var(--sev-unpriced)',
     pending_business: 'var(--sev-pending)',
+    bundled: 'var(--sev-bundled)',
   };
 
   /* ---------------- State ---------------- */
@@ -585,10 +595,44 @@
     return 'Product';
   }
 
+  function itemStatusOf(rec) {
+    return str(fieldText(rec.Item !== undefined ? rec.Item : rec.Item_Status)).toLowerCase();
+  }
+
+  // A SKU with no price is normally a blocking "Unpriced" warning. Bundled SKUs are
+  // deliberately unpriced, so they get their own non-blocking flag instead. A line
+  // pointing at a discontinued SKU is dropped from the catalog, so it reaches here
+  // too — surface why rather than calling it unpriced.
+  function missingPriceFlag(sku) {
+    var status = DATA.statusBySku[str(sku)] || '';
+    if (status === 'bundled') return 'bundled';
+    if (status === 'discontinued') return 'discontinued';
+    return 'unpriced';
+  }
+
+  // Item_Status values that must warn at quote time per the 2026-07-07 meeting
+  // policy (docs/MEETING_REQUIREMENTS_2026-07-07.md R2). Without this the flags
+  // existed as labels but were never assigned, so a Not_Released part could go out
+  // on a quote reading "All clear".
+  function statusFlagsForSku(sku) {
+    var status = DATA.statusBySku[str(sku)] || '';
+    if (status === 'not_released') return ['not_released'];
+    if (status === 'discontinued') return ['discontinued'];
+    return [];
+  }
+
   function mapItems(records) {
+    DATA.bundledSkus = {};
+    DATA.statusBySku = {};
+    records.forEach(function (rec) {
+      var sku = str(fieldText(rec.Part_Number));
+      if (sku === '') return;
+      var status = itemStatusOf(rec);
+      DATA.statusBySku[sku] = status;
+      if (status === 'bundled') DATA.bundledSkus[sku] = str(fieldText(rec.Quote_Warning));
+    });
     records = records.filter(function (rec) {
-      var status = str(fieldText(rec.Item !== undefined ? rec.Item : rec.Item_Status)).toLowerCase();
-      return status !== 'discontinued';
+      return itemStatusOf(rec) !== 'discontinued';
     });
     var items = records.map(function (rec) {
       // Normalize Creator choice wrappers so Discountable/Category always parse.
@@ -614,7 +658,7 @@
         rawDiscountable: norm.Discountable,
         tiers: tierPricesFromRecord(norm),
         scheme: tierSchemeFromRecord(norm),
-        flags: unit === null ? ['unpriced'] : [],
+        flags: (unit === null ? ['unpriced'] : []).concat(statusFlagsForSku(norm.Part_Number)),
       };
     }).filter(function (it) { return it.sku !== '' && it.flags.indexOf('unpriced') === -1; });
     fixDiscountablePolarityIfInverted(items);
@@ -744,17 +788,51 @@
     });
   }
 
+  function loadPricelistMetaSafe() {
+    return fetchAllRecords('Pricelist_Meta_Report').catch(function () {
+      return fetchAllRecords('Pricelist_Meta').catch(function () { return []; });
+    });
+  }
+
+  function applyPricelistMeta(records) {
+    var rec = (records || [])[0];
+    if (!rec) return;
+    DATA.pricelist = {
+      version: str(fieldText(rec.Pricelist_Version)),
+      validFrom: str(fieldText(rec.Valid_From)),
+      sourceFile: str(fieldText(rec.Source_File)),
+      sourceSha: str(fieldText(rec.Source_SHA256)),
+    };
+  }
+
+  function renderPricelistMeta() {
+    var el = $('#pricelist-ver');
+    if (!el) return;
+    var p = DATA.pricelist || {};
+    if (!p.version) {
+      el.textContent = '—';
+      el.title = 'No Pricelist_Meta record found';
+      return;
+    }
+    el.textContent = 'v' + p.version + (p.validFrom ? ' · ' + p.validFrom : '');
+    el.title = (p.sourceFile || 'vendor pricelist')
+      + (p.sourceSha ? ' · sha256 ' + p.sourceSha.slice(0, 12) : '');
+  }
+
   function loadLiveData() {
     return Promise.all([
       fetchAllRecords('Item_Master_Report'),
       fetchAllRecords('Kit_Components_Report'),
       loadFxRatesSafe(),
       loadPriceRulesSafe(),
+      loadPricelistMetaSafe(),
     ]).then(function (results) {
       var itemRecords = results[0];
       var kitRecords = results[1];
       var fxRecords = results[2] || [];
       var priceRuleRecords = results[3] || [];
+      applyPricelistMeta(results[4] || []);
+      renderPricelistMeta();
       if (!itemRecords.length) throw new Error('Item_Master_Report returned 0 records — cannot build the picker.');
       DATA.items = mapItems(itemRecords);
       DATA.bmsKits = mapKits(kitRecords);
@@ -2038,7 +2116,7 @@
         discountPct: discPct,
         marginPct: margPct,
         unit: isNaN(unit) ? null : unit,
-        flags: (isNaN(unit) ? ['unpriced'] : (kept && prev.flags ? prev.flags.filter(function (f) { return f !== 'unpriced'; }) : [])),
+        flags: (isNaN(unit) ? [missingPriceFlag(sku)] : (kept && prev.flags ? prev.flags.filter(function (f) { return f !== 'unpriced'; }) : [])),
         custom: sku === '',
         kitWarning: stripPriceMetaMarks(row.warning),
         priceSource: locked ? 'manual' : (kept ? (prev.priceSource || 'stored') : 'stored'),
@@ -2515,7 +2593,7 @@
         name: it ? it.name : (kitComp && kitComp.name ? kitComp.name : sku),
         type: it ? it.type : 'Product',
         qty: qty, listEur: listEur, discountPct: 0, marginPct: headerMarginPct || 0, unit: null,
-        flags: it ? it.flags.slice() : ['unpriced'], custom: false,
+        flags: it ? it.flags.slice() : [missingPriceFlag(sku)], custom: false,
         tiers: it ? (it.tiers || null) : null, scheme: it ? (it.scheme || 'hardware') : 'hardware',
         category: it ? (it.category || '') : '',
         kitWarning: warn, priceSource: 'eur_ref', priceLocked: false,
@@ -3480,6 +3558,10 @@
       applyKitRows: applyKitRows,
       addLineFromItem: addLineFromItem,
       mapItems: mapItems,
+      missingPriceFlag: missingPriceFlag,
+      statusFlagsForSku: statusFlagsForSku,
+      warningTally: warningTally,
+      applyPricelistMeta: applyPricelistMeta,
       tierPriceForQty: tierPriceForQty,
       repriceEurRefLine: repriceEurRefLine,
       recalculate: recalculate,

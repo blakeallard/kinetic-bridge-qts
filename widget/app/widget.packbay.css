@@ -29,6 +29,7 @@
   --sev-notrel:  #e0b06a;  --sev-notrel-bg:  #2c2112;
   --sev-unpriced:#d4c06a;  --sev-unpriced-bg:#2a2614;
   --sev-pending: #8eabd0;  --sev-pending-bg: #172033;
+  --sev-bundled: #7fb2a6;  --sev-bundled-bg: #162724;
   --ok:          #8fbf9a;  --ok-bg:          #1a2a1e;
 
   /* aliases used across the app */
@@ -71,6 +72,7 @@
   --sev-notrel:  #96600f;  --sev-notrel-bg:  #f3ead7;
   --sev-unpriced:#7e6614;  --sev-unpriced-bg:#f0ead2;
   --sev-pending: #2f5591;  --sev-pending-bg: #e4eaf4;
+  --sev-bundled: #276b5d;  --sev-bundled-bg: #e0efeb;
   --ok:          #23705a;  --ok-bg:          #e1ede8;
   --ring: 0 0 0 2px var(--plate), 0 0 0 4px color-mix(in srgb, var(--volt) 40%, transparent);
 }
@@ -521,6 +523,7 @@ table.lines tbody td { vertical-align: top; }
 .badge.not_released     { color: var(--sev-notrel);   background: var(--sev-notrel-bg);   border-color: color-mix(in srgb, var(--sev-notrel) 34%, transparent); }
 .badge.unpriced         { color: var(--sev-unpriced); background: var(--sev-unpriced-bg); border-color: color-mix(in srgb, var(--sev-unpriced) 36%, transparent); }
 .badge.pending_business { color: var(--sev-pending);  background: var(--sev-pending-bg);  border-color: color-mix(in srgb, var(--sev-pending) 34%, transparent); }
+.badge.bundled          { color: var(--sev-bundled); background: var(--sev-bundled-bg); border-color: color-mix(in srgb, var(--sev-bundled) 34%, transparent); }
 .badge.ok               { color: var(--ok);           background: var(--ok-bg);           border-color: color-mix(in srgb, var(--ok) 34%, transparent); }
 .badge-stack { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 

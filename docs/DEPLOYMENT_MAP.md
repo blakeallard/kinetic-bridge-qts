@@ -81,6 +81,30 @@ Build source: `widget/app/` (ZIP is build output; not duplicated under deploy_re
 
 `Tier_Scheme` must be exactly `Hardware` / `License` (dropdown, case-sensitive).
 
+Both files carry **45 rows** as of pricelist v1.0 (2026-07-01). The two hidden legacy
+`300300` / `300500` rows are deliberately held back — see
+`docs/PRICELIST_UPDATE_2026-07-01_V1.0.md` D-P3.
+
+## 6b. Creator → Pricelist_Meta (new form, build by hand first)
+
+Creator has no field-creation API, so the form must be built in the UI before the import —
+same pattern as the `Active` / `Item_Status` / `Quote_Warning` fields.
+
+1. Creator → QTS (Edit, Development) → Design → **new form `Pricelist_Meta`** with five
+   **Single Line** fields named exactly: `Pricelist_Version`, `Valid_From`, `Source_File`,
+   `Source_SHA256`, `Imported_On`. Save. Confirm the report is `Pricelist_Meta_Report`.
+2. Import `/Users/blakeallard/bevco/repos/kinetic-bridge-qts/deploy_ready/creator/imports/pricelist_meta_import.csv`
+   (one record).
+
+The widget degrades gracefully if the form is missing — the masthead chip just shows `—`.
+`fn_generate_pdf` falls back to the old generic wording.
+
+## 6c. Item_Status = `Bundled`
+
+`fn_calc_line_price_draft` reads the `Item_Status` field by its Creator **internal link
+name, which is `Item`** (`item.Item`). If the paste fails with "Item is not defined",
+change that single line to `item.Item_Status`. The widget already handles both.
+
 ## 7. CRM (no paste artifacts currently)
 
 No CRM-side scripts in this repo. Related but separate: the local CRM sync burning ~20k credits/day lives in another repo —

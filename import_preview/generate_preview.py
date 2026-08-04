@@ -13,6 +13,8 @@ Outputs (written next to this script):
     import_preview_report.md
 """
 import csv
+import datetime
+import hashlib
 import json
 import os
 import re
@@ -39,9 +41,13 @@ def resolve_workbook_path():
     env_path = os.environ.get("LIBAL_RSP_XLSX", "").strip()
     if env_path:
         return env_path
+    # The 2026-07-31 restructure moved the repo under <bevco>/repos/, so the shared
+    # reference library now sits two levels up, not inside the repo. Both are tried.
+    bevco_root = os.path.dirname(os.path.dirname(REPO_ROOT))
     candidates = [
         os.path.join(HERE, "fixtures", _WORKBOOK_NAME),
         os.path.join(REPO_ROOT, "data", "references", "lithium_balance", "BMS Pricelist", _WORKBOOK_NAME),
+        os.path.join(bevco_root, "data", "references", "lithium_balance", "BMS Pricelist", _WORKBOOK_NAME),
     ]
     for path in candidates:
         if os.path.isfile(path):
@@ -97,12 +103,30 @@ VENDOR_DISCONTINUED_SKUS = {'102100', '103005', '200400', '300400'}
 OBSOLETE_SECTION = 'Software for obsolesenced BMS'
 NOT_RELEASED_RE = re.compile(r'\bDRAFT\b|\(RELEASE Q[1-4]/\d{4}\)')
 
+# Vendor writes a literal "Included in <SKU>" into a price band when a part stops
+# being separately chargeable because it now ships inside a bundle kit. First seen
+# in the 2026-07-01 v1.0 revision: 103006 -> "Included in 100985.2".
+BUNDLED_RE = re.compile(r'included\s+in\s+(\d+(?:\.\d+)?)', re.IGNORECASE)
+
+
+def derive_bundled_into(raw_band_cells):
+    """Return the bundling parent SKU if any band cell reads 'Included in <SKU>'."""
+    for raw in raw_band_cells:
+        m = BUNDLED_RE.search(raw or '')
+        if m:
+            return m.group(1)
+    return ''
+
 
 def derive_item_status(it):
     """Return (Item_Status, Quote_Warning) for one parsed item row."""
     if it['sku'] in VENDOR_DISCONTINUED_SKUS:
         return ('Discontinued',
                 'Y — vendor marked Discontinued in July 2026 RSP; warn and double-check before quoting')
+    if it['bundled_into']:
+        return ('Bundled',
+                'Included in %s — no separate charge; quote %s instead'
+                % (it['bundled_into'], it['bundled_into']))
     if it['section'] == OBSOLETE_SECTION:
         return ('Obsolescent',
                 'Y — vendor section "Software for obsolesenced BMS"; warn and double-check before quoting')
@@ -299,6 +323,45 @@ def fmt_price(raw):
         return ''
 
 
+def sha256_of(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def derive_pricelist_meta(rows, xlsx_path):
+    """Pull the vendor's pricelist version banner out of the RSP_EUR header rows.
+
+    The 2026-07-01 revision introduced formal versioning: column A "Version" with
+    the number in column B, and the "Valid from ..." banner alongside the currency
+    statement. Older workbooks carry neither, so both fields degrade to ''.
+    """
+    version, valid_from = '', ''
+    for _rownum, cells in rows:
+        col0 = cells.get(0, '').strip()
+        col1 = cells.get(1, '').strip()
+        if not version and col0.lower() == 'version':
+            version = col1
+        if not valid_from and col0.upper().startswith('ALL PRICES IN'):
+            m = re.search(r'valid from\s+(.+)', col1, re.IGNORECASE)
+            valid_from = m.group(1).strip() if m else col1
+        if version and valid_from:
+            break
+    return {
+        'Pricelist_Version': version,
+        'Valid_From': valid_from,
+        'Source_File': os.path.basename(xlsx_path),
+        'Source_SHA256': sha256_of(xlsx_path),
+        'Imported_On': datetime.date.today().isoformat(),
+    }
+
+
+PRICELIST_META_HEADER = ['Pricelist_Version', 'Valid_From', 'Source_File',
+                         'Source_SHA256', 'Imported_On']
+
+
 def main():
     xlsx = resolve_workbook_path()
     if not os.path.isfile(xlsx):
@@ -307,6 +370,7 @@ def main():
     rows = read_rsp_rows(xlsx)
     visibility_map = read_rsp_hidden_map(xlsx)
     duplicate_classification = load_duplicate_classification(CLASSIFICATION_JSON)
+    pricelist_meta = derive_pricelist_meta(rows, xlsx)
 
     items = []        # dicts with parse metadata
     skipped = []      # (sheet_row, reason, preview_text)
@@ -344,7 +408,9 @@ def main():
 
         sec_name, tier_scheme, category, nbands = section
         band_cols = range(2, 2 + nbands)
-        prices = [fmt_price(cells.get(i, '')) for i in band_cols]
+        raw_bands = [cells.get(i, '') for i in band_cols]
+        prices = [fmt_price(raw) for raw in raw_bands]
+        bundled_into = derive_bundled_into(raw_bands)
 
         # Tail scan beyond the band columns: the DISTRIB DISCOUNT column carries
         # a standalone "X" meaning discountable (vendor legend + Blake 2026-07-31:
@@ -369,6 +435,7 @@ def main():
             'tier_scheme': tier_scheme, 'category': category,
             'prices': prices, 'discountable': discountable,
             'priced': any(p for p in prices),
+            'bundled_into': bundled_into,
             'visibility': visibility_map.get(rownum, 'visible'),
         })
 
@@ -407,6 +474,13 @@ def main():
                                'see duplicate_sku_classification.json and ' + QC_DOC + '.')
             else:
                 action = 'PENDING_CONFIRMATION (bundle-vs-unit ambiguity)'
+        elif it['bundled_into']:
+            # Not a data gap: the vendor deliberately removed the price because the
+            # part now ships inside a bundle kit. Stays Active so history and manual
+            # lookups keep resolving, but carries Item_Status=Bundled so the widget
+            # keeps it out of the picker instead of raising an UNPRICED blocker.
+            action = ('IMPORT_AS_BUNDLED (vendor removed standalone pricing; quote '
+                      + it['bundled_into'] + ' instead - see docs/PRICELIST_UPDATE_2026-07-01_V1.0.md)')
         elif not it['priced']:
             flag, active = 'UNPRICED', 'REVIEW'
             if it['sku'] in VENDOR_DISCONTINUED_SKUS:
@@ -456,6 +530,20 @@ def main():
             return list(CREATOR_CSV_HEADER)
         return [c for c in CREATOR_CSV_HEADER if c != 'Tier_Scheme']
 
+    # Creator's Item_Master is keyed by Part_Number, so a duplicated SKU would import
+    # as two competing records and make fn_get_tier_price's `break` pick whichever row
+    # Creator returns first. The audit preview above keeps every row; the import files
+    # drop the rows classified EXCLUDE_CANDIDATE. Still a WORKING_ASSUMPTION pending
+    # Bill/Bryan - see duplicate_sku_classification.json.
+    creator_items = [it for it in items if it['dup_classification'] != 'EXCLUDE_CANDIDATE']
+    excluded_items = [it for it in items if it['dup_classification'] == 'EXCLUDE_CANDIDATE']
+    _creator_skus = [it['sku'] for it in creator_items]
+    if len(_creator_skus) != len(set(_creator_skus)):
+        _dupes = sorted({s for s in _creator_skus if _creator_skus.count(s) > 1})
+        raise SystemExit(
+            'Creator import would contain duplicate Part_Numbers after applying '
+            'duplicate_sku_classification.json: ' + ', '.join(_dupes))
+
     # ---- Audit preview (familiar full layout; do NOT import into Creator) ----
     csv_path = os.path.join(HERE, 'item_master_import_preview.csv')
     with open(csv_path, 'w', newline='') as f:
@@ -469,7 +557,7 @@ def main():
     with open(creator_csv_path, 'w', newline='') as f:
         w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         w.writerow(creator_header(include_tier=True))
-        for it in items:
+        for it in creator_items:
             w.writerow(creator_csv_row(it, include_tier=True, tier_style='lower'))
 
     # Fallback if live dropdown is Hardware/License (title case)
@@ -477,7 +565,7 @@ def main():
     with open(creator_title_path, 'w', newline='') as f:
         w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         w.writerow(creator_header(include_tier=True))
-        for it in items:
+        for it in creator_items:
             w.writerow(creator_csv_row(it, include_tier=True, tier_style='title'))
 
     # Fallback if Tier_Scheme picklist blocks import: omit column (Deluge defaults blank→hardware).
@@ -486,14 +574,21 @@ def main():
     with open(creator_no_tier_path, 'w', newline='') as f:
         w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         w.writerow(creator_header(include_tier=False))
-        for it in items:
+        for it in creator_items:
             w.writerow(creator_csv_row(it, include_tier=False))
+
+    # ---- Pricelist version banner (Creator form Pricelist_Meta, one record) ----
+    meta_csv_path = os.path.join(HERE, 'pricelist_meta_import.csv')
+    with open(meta_csv_path, 'w', newline='') as f:
+        w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+        w.writerow(PRICELIST_META_HEADER)
+        w.writerow([pricelist_meta[c] for c in PRICELIST_META_HEADER])
 
     disc_csv_path = os.path.join(HERE, 'item_master_discountable_update.csv')
     with open(disc_csv_path, 'w', newline='') as f:
         w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         w.writerow(['Part_Number', 'Discountable'])
-        for it in items:
+        for it in creator_items:
             w.writerow([it['sku'], it['discountable']])
 
     # ---- Report ----
@@ -519,8 +614,13 @@ def main():
     lines.append('# July 2026 RSP -> Item_Master Import Preview Report')
     lines.append('')
     lines.append(f'- **Source**: `{os.path.basename(xlsx)}` (sheet `RSP_EUR`, {len(rows)} non-empty rows)')
+    lines.append(f'- **Source SHA-256**: `{pricelist_meta["Source_SHA256"]}`')
     lines.append('- **Generated by**: `generate_preview.py` (stdlib xlsx parser; reproducible)')
     lines.append('- **Currency**: EUR - "ALL PRICES IN EURO", valid from July 2026')
+    lines.append('- **Pricelist version**: `{v}` (valid from {vf}) - vendor began formal versioning in the '
+                 '2026-07-01 revision; emitted to `pricelist_meta_import.csv` for the Creator '
+                 '`Pricelist_Meta` form.'.format(v=pricelist_meta['Pricelist_Version'] or '(none published)',
+                                                 vf=pricelist_meta['Valid_From'] or 'n/a'))
     lines.append('')
     lines.append('## Methodology')
     lines.append('')
@@ -535,6 +635,7 @@ def main():
     lines.append('9. `import_preview/duplicate_sku_classification.json` is the single source of truth for duplicate-SKU working assumptions. Preview generation verifies the workbook row visibility against that file and fails loudly if any duplicate SKU lacks exactly one `CANONICAL_CANDIDATE` row with all others marked `EXCLUDE_CANDIDATE`.')
     lines.append('10. `Recommended_Action` is a non-destructive, additive column — it never changes `Active` or removes a row. It surfaces an evidence-backed recommendation (see docs/LIBAL_REFERENCE_PRICE_QC.md) for Bill/Bryan to approve or reject; no row is auto-decided or auto-excluded by this script.')
     lines.append('11. Identical Creator License / Service Tool pricing across n-BMS, c-BMS24, c-BMS24X, and i-BMS (see rows for SKUs 200200/200500 and 300200/300500) is **not** flagged as an error here. It is vendor-documented: the source workbook\'s `Changes_Log` sheet records "Added Creator/Service Unified version" (change batch dated 2024-09-01). See docs/LIBAL_NBMS_CBMS24_PRICE_QC.md and docs/LIBAL_REFERENCE_PRICE_QC.md for the full evidence trail.')
+    lines.append('12a. `Item_Status=Bundled` is set when the vendor replaces a part\'s price bands with a literal `Included in <SKU>` note (first used in the 2026-07-01 v1.0 revision for `103006` -> `100985.2`). Such a row is **not** an UNPRICED data gap: it stays `Active=Y` so quote history and manual lookups still resolve, carries a `Quote_Warning` naming the bundle parent, and the widget keeps it out of the part picker instead of raising a blocking unpriced warning.')
     lines.append('12. `Item_Status` + `Quote_Warning` implement the 2026-07-07 meeting policy (docs/MEETING_REQUIREMENTS_2026-07-07.md §R2): obsolete/discontinued items are imported with a quote-time warn-and-double-check, never blanket-excluded. Statuses: `Discontinued` = workbook red-fill legend (audit/reports/status_marks.csv); `Obsolescent` = section "Software for obsolesenced BMS"; `Not_Released` = description marked DRAFT / (RELEASE Qn/yyyy); `Delivery_Stop` = supported legend value, carried by no current RSP_EUR item row; `Active` otherwise. Precedence unchanged: UNPRICED rows stay `Active=REVIEW` and unquotable until priced, regardless of status.')
     lines.append('')
     lines.append('## Counts')
@@ -553,6 +654,10 @@ def main():
     status_summary = ', '.join(f'{s}={c}' for s, c in sorted(status_counts.items()))
     lines.append(f'| Item_Status breakdown | {status_summary} |')
     lines.append(f'| Rows with Quote_Warning | {len(warned)} |')
+    lines.append(f'| Rows in the Creator import files | {len(creator_items)} |')
+    lines.append('| Rows held back from Creator import (EXCLUDE_CANDIDATE) | '
+                 + (', '.join('%s (row %d)' % (it['sku'], it['row']) for it in excluded_items) or 'none')
+                 + ' |')
     lines.append('')
     lines.append('## Known data-quality notes')
     lines.append('')
@@ -562,7 +667,23 @@ def main():
         lines.append(f'  - Sheet row {rownum} (SKU {sku}): {note}')
     if not junk_notes:
         lines.append('  - none')
-    lines.append('- **Duplicate SKU detail**: 300500 and 300300 each appear twice in Service Tool. `duplicate_sku_classification.json` classifies rows 54/55 as hidden `EXCLUDE_CANDIDATE` legacy rows and rows 58/60 as visible `CANONICAL_CANDIDATE` current rows. This is a working assumption pending Bill/Bryan approval; preview generation aborts if workbook visibility or duplicate classifications drift from that file.')
+    _excluded_rows = sorted(r for p in duplicate_classification.values() for r in p.get('exclude_rows', []))
+    _canonical_rows = sorted(p['canonical_row'] for p in duplicate_classification.values()
+                             if p.get('canonical_row') is not None)
+    lines.append('- **Duplicate SKU detail**: 300500 and 300300 each appear twice in Service Tool. '
+                 '`duplicate_sku_classification.json` classifies rows {ex} as hidden `EXCLUDE_CANDIDATE` legacy rows '
+                 'and rows {can} as visible `CANONICAL_CANDIDATE` current rows. Row numbers moved down by 4 in the '
+                 '2026-07-01 v1.0 revision, which inserted four header rows above the product table. This is a '
+                 'working assumption pending Bill/Bryan approval; preview generation aborts if workbook visibility '
+                 'or duplicate classifications drift from that file.'.format(
+                     ex='/'.join(str(r) for r in _excluded_rows),
+                     can='/'.join(str(r) for r in _canonical_rows)))
+    _bundled = [it for it in items if it['bundled_into']]
+    if _bundled:
+        lines.append('- **Bundled parts (no standalone price by vendor intent)**: '
+                     + '; '.join('%s -> included in %s (sheet row %d)' % (it['sku'], it['bundled_into'], it['row'])
+                                 for it in _bundled)
+                     + '. Imported `Active=Y` with `Item_Status=Bundled`; not counted as UNPRICED.')
     lines.append('- **Vendor-documented unified Creator/Service pricing**: SKUs 200200/200500 (Creator License FULL) and 300200/300500 (Service Tool, unit-price rows) are priced identically across c-BMS24 and n-BMS (and i-BMS/c-BMS24X). This is confirmed intentional via the source workbook\'s `Changes_Log` ("Added Creator/Service Unified version", 2024-09-01 batch) - see docs/LIBAL_NBMS_CBMS24_PRICE_QC.md and docs/LIBAL_REFERENCE_PRICE_QC.md. Not flagged as a data-quality issue.')
     lines.append('')
     lines.append('## Skipped rows (not items)')
@@ -600,6 +721,7 @@ def main():
     print(f'Wrote {creator_csv_path} [IMPORT — Tier_Scheme=hardware|license]')
     print(f'Wrote {creator_title_path} [IMPORT alt — Tier_Scheme=Hardware|License]')
     print(f'Wrote {creator_no_tier_path} [IMPORT alt — no Tier_Scheme column]')
+    print(f'Wrote {meta_csv_path} [IMPORT — Pricelist_Meta, 1 record]')
     print(f'Wrote {disc_csv_path} (Part_Number + Discountable only)')
     print(f'Wrote {report_path}')
     print(f'total={total} priced={priced} unpriced={unpriced} dup_skus={len(dup_skus)} '

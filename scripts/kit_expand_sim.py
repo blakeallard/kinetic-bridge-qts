@@ -243,12 +243,13 @@ def main():
     check(shunt_n is not None and shunt_n['qty'] == 0,
           'nbms_cmu12: 100684 shunt must be INCLUDED at qty 0 (preparer raises it)')
 
-    # --- n3bms_cmu12 @ 96 (blocked shunt lives here) ---
+    # --- n3bms_cmu12 @ 96 (pricelist v1.0 retired the unpriced 300A shunt) ---
     n3 = expansions['n3bms_cmu12']
-    check(_find(n3, 'omitted', '100683') is not None,
-          'n3bms_cmu12: 100683 must be OMITTED (not_in_rsp_unquotable)')
-    check(_find(n3, 'included', '100683') is None,
-          'n3bms_cmu12: 100683 must never be included')
+    check(_row(kits['n3bms_cmu12'], '100683') is None,
+          'n3bms_cmu12: unpriced 300A shunt 100683 must be gone (Q3 resolved by pricelist v1.0)')
+    shunt_n3 = _find(n3, 'included', '100684')
+    check(shunt_n3 is not None and shunt_n3['qty'] == 0,
+          'n3bms_cmu12: 100684 shunt must be INCLUDED at qty 0 (preparer raises it)')
 
     # --- n3bms_cmu18 @ 96 ---
     x = expansions['n3bms_cmu18']
@@ -258,10 +259,12 @@ def main():
     check(cmu18 is not None and cmu18['qty_unconfirmed'],
           'n3bms_cmu18: 101814 must be flagged qty_unconfirmed (pending_datasheet)')
     check(_row(kits['n3bms_cmu18'], '100985.1') is None,
-          'n3bms_cmu18: CMU12 harness 100985.1 must be gone (Q2 resolved by 103006)')
-    harn18 = _find(x, 'included', '103006')
+          'n3bms_cmu18: CMU12 harness 100985.1 must be gone (Q2)')
+    check(_row(kits['n3bms_cmu18'], '103006') is None,
+          'n3bms_cmu18: bare harness 103006 must be gone (pricelist v1.0 bundles it into 100985.2)')
+    harn18 = _find(x, 'included', '100985.2')
     check(harn18 is not None and harn18['qty'] == 6,
-          'n3bms_cmu18: 103006 CMU18 harness match_cmu_qty should be 6')
+          'n3bms_cmu18: 100985.2 CMU18 harness bundle match_cmu_qty should be 6')
     shunt = _find(x, 'included', '100684')
     check(shunt is not None and shunt['qty'] == 0,
           'n3bms_cmu18: 100684 shunt must be INCLUDED at qty 0 (preparer raises it)')

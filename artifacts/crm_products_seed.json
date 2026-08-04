@@ -64,6 +64,13 @@
     "Unit_Price": 66.0
   },
   {
+    "Product_Code": "100985.2",
+    "Product_Name": "n3-BMS CMU18 101814 wireharness kit (1000mm) Flatcable and ISO SPI",
+    "Product_Active": true,
+    "Product_Category": "Hardware",
+    "Unit_Price": 108.4
+  },
+  {
     "Product_Code": "100986",
     "Product_Name": "n-BMS MCU isoSPI Wire harness kit CMU 100809/101814",
     "Product_Active": true,
@@ -79,10 +86,10 @@
   },
   {
     "Product_Code": "103006",
-    "Product_Name": "n-BMS CMU18/4 101814 Wire harness kit (1000mm) shielded com cable",
-    "Product_Active": true,
+    "Product_Name": "n3-BMS CMU18/4 101814 Wire harness kit (1000mm) shielded com cable",
+    "Product_Active": false,
     "Product_Category": "Hardware",
-    "Unit_Price": 66.0
+    "Description": "Included in 100985.2 — no separate charge; quote 100985.2 instead"
   },
   {
     "Product_Code": "100916",
@@ -159,7 +166,7 @@
     "Product_Name": "Compact shunt (500A/50mV)",
     "Product_Active": true,
     "Product_Category": "Accessory",
-    "Unit_Price": 81.9
+    "Unit_Price": 136.0
   },
   {
     "Product_Code": "000637",
@@ -255,7 +262,7 @@
   {
     "Product_Code": "300300",
     "Product_Name": "c-BMS24X Unified Service Tool",
-    "Product_Active": true,
+    "Product_Active": false,
     "Product_Category": "Software",
     "Unit_Price": 450.0
   },
@@ -269,7 +276,7 @@
   {
     "Product_Code": "300500",
     "Product_Name": "n-BMS Unified Service Tool",
-    "Product_Active": true,
+    "Product_Active": false,
     "Product_Category": "Software",
     "Unit_Price": 450.0
   },
