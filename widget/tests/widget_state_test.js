@@ -12,11 +12,12 @@ const vm = require('vm');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'app', 'widget.js'), 'utf8');
 
-function freshWidget() {
+function freshWidget(referrer) {
   const documentStub = {
     readyState: 'loading',
     addEventListener() {},
     querySelector() { return null; }, // no DOM: getCurrentCurrency falls back to DATA.meta
+    referrer: referrer || '',          // drives detectCreatorEnvironment()
   };
   const windowStub = {};
   const sandbox = { document: documentStub, window: windowStub, console, setTimeout, clearTimeout, Promise };
@@ -1314,6 +1315,29 @@ const KIT7 = [
       JSON.stringify(t.DATA.pricelist));
     t.applyPricelistMeta([]);
     check('missing Pricelist_Meta leaves prior value untouched (no crash)', t.DATA.pricelist.version === '1.0');
+  }
+
+  /* ---- Environment pill: never claim Dev when it isn't (was hardcoded) ---- */
+  {
+    const prod = freshWidget('https://creatorapp.zoho.com/bevcollc/qts/#Page:QTS_Quote_Builder');
+    check('production URL detected as production', prod.detectCreatorEnvironment() === 'production',
+      prod.detectCreatorEnvironment());
+
+    const dev = freshWidget('https://creatorapp.zoho.com/bevcollc/environment/development/qts/#Page:QTS_Quote_Builder');
+    check('development URL detected as development', dev.detectCreatorEnvironment() === 'development',
+      dev.detectCreatorEnvironment());
+
+    const stage = freshWidget('https://creatorapp.zoho.com/bevcollc/environment/stage/qts/#Page:QTS_Quote_Builder');
+    check('stage URL detected as stage', stage.detectCreatorEnvironment() === 'stage',
+      stage.detectCreatorEnvironment());
+
+    const local = freshWidget('http://127.0.0.1:8789/');
+    check('non-Creator host returns empty so the page keeps its own label',
+      local.detectCreatorEnvironment() === '', local.detectCreatorEnvironment());
+
+    const none = freshWidget();
+    check('missing referrer stays neutral rather than guessing Dev',
+      none.detectCreatorEnvironment() === '', none.detectCreatorEnvironment());
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASS' : '\n' + failures + ' FAILURE(S)');

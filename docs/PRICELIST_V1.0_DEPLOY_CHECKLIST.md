@@ -218,10 +218,35 @@ non-functional in Production for some time and nobody had noticed. Set by hand.
 silently drift between environments. Reconcile Production `Kit_Components` against
 `kit_bom/kit_components.csv` field-by-field — `Channels_Per_CMU` may not be the only gap.
 
-### Follow-ups still open
+### Follow-ups
 
-- Widget env pill is hardcoded to "Creator Dev · Live Data" in `widget.html`, so Production
-  mislabels itself as Development.
-- CRM Products: `100684` still 81.90 (should be 136.00); `103006` still Active at 66.00.
-- `QUOTE0035` (Development) — throwaway from the smoke test, safe to delete.
+- **DONE** — widget env pill no longer hardcoded. `detectCreatorEnvironment()` reads the
+  parent Creator URL from `document.referrer` and prints Dev / Stage / Prod; a non-Creator
+  host (the `local_qts` sandbox) keeps its own label, and an unknown host stays neutral
+  rather than guessing. **Needs one more ZIP upload to Dev and Production.**
+- **DONE** — CRM Products: `100684` -> 136.00; `103006` price cleared, renamed to the
+  `n3-BMS` spelling, Description records the bundling. Left Active because existing quotes
+  reference it.
+- **DONE** — `scripts/kit_components_reconcile.py` added, so this class of drift is
+  detectable instead of waiting for a kit to fail. Run it against a Production export.
+- `QUOTE0035` (Development) — throwaway from the smoke test. Deleting records is Tier 3
+  (Bill), so left in place.
 - D-P3 (hidden-row exclusion) and D-P4 (shunt swap) still unconfirmed by Bill/Bryan.
+
+
+---
+
+## Environment drift check (run this quarterly, and after every publish)
+
+```bash
+# Creator -> Kit_Components report -> Export -> CSV, in EACH environment
+python3 scripts/kit_components_reconcile.py ~/Downloads/Kit_Components_Report.csv
+```
+
+Exit 0 = Creator matches `kit_bom/kit_components.csv`. Exit 1 lists rows missing from
+Creator, rows Creator has that the repo does not, and per-field mismatches. It reads both
+Creator display headers ("Channels Per CMU") and repo link names ("Channels_Per_CMU").
+
+This exists because publishing moves app design but not records, so Development and
+Production diverge silently. It would have caught the missing `Channels_Per_CMU` values
+years before a quote failed.

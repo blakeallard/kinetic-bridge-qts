@@ -788,6 +788,40 @@
     });
   }
 
+  // The Creator page URL carries /environment/<env>/ for Development and Stage;
+  // Production has no such segment. The widget runs cross-origin in an iframe, so
+  // document.referrer is the only readable handle on the parent URL. Returns ''
+  // when the host is not Creator at all (e.g. the local_qts sandbox), so callers
+  // can leave that page's own label alone.
+  function detectCreatorEnvironment() {
+    var ref = '';
+    try { ref = str(document.referrer); } catch (e) { ref = ''; }
+    if (!/creator(app)?\.zoho/i.test(ref)) return '';
+    if (/\/environment\/development\//i.test(ref)) return 'development';
+    if (/\/environment\/stage\//i.test(ref)) return 'stage';
+    return 'production';
+  }
+
+  var ENV_PILL_LABEL = {
+    development: 'Creator Dev · Live Data',
+    stage: 'Creator Stage · Live Data',
+    production: 'Creator Prod · Live Data',
+  };
+
+  // Previously the pill was hardcoded to "Creator Dev", so Production mislabelled
+  // itself as Development — the opposite of what a status badge is for. Unknown
+  // environments now stay neutral rather than guessing.
+  function renderEnvPill() {
+    var el = $('#env-pill');
+    if (!el) return;
+    var env = detectCreatorEnvironment();
+    if (!env) return;
+    var dot = el.querySelector('.dot');
+    el.textContent = ENV_PILL_LABEL[env] || 'Creator · Live Data';
+    if (dot) el.insertBefore(dot, el.firstChild);
+    el.setAttribute('data-env', env);
+  }
+
   function loadPricelistMetaSafe() {
     return fetchAllRecords('Pricelist_Meta_Report').catch(function () {
       return fetchAllRecords('Pricelist_Meta').catch(function () { return []; });
@@ -833,6 +867,7 @@
       var priceRuleRecords = results[3] || [];
       applyPricelistMeta(results[4] || []);
       renderPricelistMeta();
+      renderEnvPill();
       if (!itemRecords.length) throw new Error('Item_Master_Report returned 0 records — cannot build the picker.');
       DATA.items = mapItems(itemRecords);
       DATA.bmsKits = mapKits(kitRecords);
@@ -3562,6 +3597,7 @@
       statusFlagsForSku: statusFlagsForSku,
       warningTally: warningTally,
       applyPricelistMeta: applyPricelistMeta,
+      detectCreatorEnvironment: detectCreatorEnvironment,
       tierPriceForQty: tierPriceForQty,
       repriceEurRefLine: repriceEurRefLine,
       recalculate: recalculate,
