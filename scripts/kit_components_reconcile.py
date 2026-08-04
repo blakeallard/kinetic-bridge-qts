@@ -60,6 +60,19 @@ def norm_value(v):
     return "" if s in ("-", "--") else s
 
 
+def load_with_columns(path):
+    """Return (rows, present_columns). Absent columns must not read as blank values.
+
+    A Creator report exports only the columns its view displays, so a narrow export
+    is normal. Comparing an absent column against the repo produces one false
+    'drift' per row — noise that buries the real findings.
+    """
+    rows = load(path)
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        header = [norm_header(h) for h in next(csv.reader(f))]
+    return rows, set(header)
+
+
 def load(path):
     """Return {(kit_key, component_sku): {normalised_field: value}}."""
     with open(path, newline="", encoding="utf-8-sig") as f:
@@ -95,15 +108,19 @@ def main():
     ap.add_argument("--json", action="store_true", help="emit the report as JSON")
     args = ap.parse_args()
 
-    bom = load(args.bom)
-    live = load(args.export_csv)
+    bom, bom_cols = load_with_columns(args.bom)
+    live, live_cols = load_with_columns(args.export_csv)
+
+    # Only compare columns the export actually contains.
+    comparable = [c for c in COMPARED if norm_header(c) in live_cols and norm_header(c) in bom_cols]
+    skipped = [c for c in COMPARED if c not in comparable]
 
     missing = sorted(k for k in bom if k not in live)     # in repo, absent from Creator
     extra = sorted(k for k in live if k not in bom)       # in Creator, absent from repo
     diffs = []
     notes_only = []
     for key in sorted(set(bom) & set(live)):
-        for col in COMPARED:
+        for col in comparable:
             n = norm_header(col)
             want, got = bom[key].get(n, ""), live[key].get(n, "")
             if want != got:
@@ -111,6 +128,8 @@ def main():
                               "field": col, "repo": want, "creator": got})
         for col in INFORMATIONAL:
             n = norm_header(col)
+            if n not in live_cols:
+                continue
             if bom[key].get(n, "") != live[key].get(n, ""):
                 notes_only.append({"kit_key": key[0], "component_sku": key[1], "field": col})
 
@@ -121,6 +140,8 @@ def main():
         "extra_in_creator": [{"kit_key": k[0], "component_sku": k[1]} for k in extra],
         "field_mismatches": diffs,
         "informational_only": notes_only,
+        "columns_compared": comparable,
+        "columns_not_in_export": skipped,
     }
     drift = bool(missing or extra or diffs)
 
@@ -129,6 +150,10 @@ def main():
         return 1 if drift else 0
 
     print(f"repo BOM rows: {len(bom)}   Creator rows: {len(live)}")
+    print(f"columns compared: {', '.join(comparable) or '(none)'}")
+    if skipped:
+        print(f"NOT IN EXPORT, so unchecked: {', '.join(skipped)}")
+        print("  -> add these columns to the Creator report view and re-export to check them.")
     print()
     if missing:
         print(f"MISSING from Creator ({len(missing)}) — the kit resolver will never see these:")
@@ -157,7 +182,9 @@ def main():
     if drift:
         print("DRIFT — fix Creator to match the repo BOM, then re-export and re-run.")
         return 1
-    print("PASS — Creator Kit_Components matches the repo BOM.")
+    print("PASS — Creator matches the repo BOM on the columns present in this export.")
+    if skipped:
+        print(f"      ({len(skipped)} column(s) were not exported and remain unchecked.)")
     return 0
 
 
