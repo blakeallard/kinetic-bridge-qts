@@ -73,3 +73,34 @@ def test_every_cmu_from_series_cells_row_has_channels_per_cmu():
     for key, rec in bom.items():
         if rec.get("qty_rule") == "cmu_from_series_cells":
             assert rec.get("channels_per_cmu"), f"{key} lacks Channels_Per_CMU"
+
+
+def test_narrow_export_does_not_report_absent_columns_as_drift():
+    """A Creator report exports only its displayed columns.
+
+    First run against the real Production export reported 51 mismatches; every one
+    was an absent column being read as a blank value. Noise on that scale buries
+    the single real finding, which is worse than not running the check at all.
+    """
+    rows = _bom_rows()
+    header = rows[0]
+    keep = ["Kit_Key", "Kit_Main_SKU", "Component_SKU", "Description",
+            "Requirement", "Qty_Rule", "Qty_Value"]
+    idx = [header.index(c) for c in keep]
+    narrow = [[c.replace("_", " ") for c in keep]]
+    narrow += [[r[i] for i in idx] for r in rows[1:]]
+
+    with tempfile.TemporaryDirectory() as d:
+        export = Path(d) / "narrow.csv"
+        _write(narrow, export)
+        _, live_cols = recon.load_with_columns(str(export))
+        _, bom_cols = recon.load_with_columns(str(BOM))
+
+    comparable = [c for c in recon.COMPARED
+                  if recon.norm_header(c) in live_cols and recon.norm_header(c) in bom_cols]
+    skipped = [c for c in recon.COMPARED if c not in comparable]
+
+    assert "Channels_Per_CMU" in skipped, "absent column must be reported unchecked, not drifted"
+    assert "Confidence" in skipped
+    assert "Description" in comparable
+    assert "Qty_Rule" in comparable
