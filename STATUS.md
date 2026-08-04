@@ -96,10 +96,11 @@ Next actions:
    ("Kit data error: Channels Per CMU missing") and had been broken there for some time.
    Fixed by hand 2026-08-03. Other columns may have drifted too — reconcile Production
    `Kit_Components` field-by-field against `kit_bom/kit_components.csv`.
-0b. **Widget env pill is hardcoded.** `widget.html` prints "Creator Dev · Live Data"
-   unconditionally, so Production mislabels itself as Dev. Needs a small widget change.
-0c. **CRM Products stale prices**: `100684` still 81.90 (should be 136.00); `103006` still
-   Active at 66.00 (now bundled). Flag D-P3 / D-P4 to Bryan.
+0b. **Widget env pill — FIXED**, pending a ZIP upload. Was hardcoded to "Creator Dev", so
+   Production mislabelled itself; now detected from the parent Creator URL, neutral when
+   unknown. Upload `widget/dist/qts-quote-builder.zip` to Dev and Production.
+0c. **CRM Products — FIXED.** `100684` -> 136.00; `103006` price cleared + renamed.
+   `100985.2` seeded earlier (id 6719186000004047001). Flag D-P3 / D-P4 to Bryan.
 1. Retest Send for Signature end-to-end (Writer PDF -> Sign -> Sign_Request_ID -> Deal
    attachment) with TEST signer identities.
 2. Verify the CRM Quote's Quoted Items picked up the shunt 0 -> 2 edit (screenshot ambiguity).
