@@ -34,6 +34,24 @@ if(quote_number == "")
 	result.put("reason","quote_number_missing");
 	return result;
 }
+total_probe = ifnull(merge_data.get("grand_total"),ifnull(merge_data.get("sub_total"),"")).toString().trim();
+total_clean = total_probe.remove("$").remove(",").trim();
+total_value = 0.0;
+try
+{
+	total_value = total_clean.toDecimal();
+}
+catch (total_parse_error)
+{
+	total_value = 0.0;
+}
+if(total_value <= 0)
+{
+	result.put("status","failed");
+	result.put("reason","quote_total_zero");
+	result.put("quote_total",total_probe);
+	return result;
+}
 // Save Quote Package stamps Deal note QTS_SAVE_ONLY|{qno} before Status write.
 // Live Flow often only runs the Package Requested / send_email=true branch; the
 // marker forces shared PDF+WorkDrive+Deal-attach without client email / Quotes / stage.

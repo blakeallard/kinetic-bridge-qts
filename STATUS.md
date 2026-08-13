@@ -4,7 +4,7 @@
 
 # BI1-T71 Status
 
-Last updated: 2026-08-03 (pricelist v1.0 DEPLOYED to Production and verified)
+Last updated: 2026-08-13 ($0.00 quote emailed to a client — fixed and DEPLOYED to Production)
 
 ## Active: QTS two-button CRM package
 
@@ -48,6 +48,30 @@ Current source of truth:
 ## Current State
 
 All items live-verified 2026-07-26 unless noted:
+
+- **QUOTE0039 shipped a $0.00 quote to a client 2026-08-13 — root-caused and fixed.**
+  The `Quote_Lines` price fields (`Unit_Price`, `Line_Total_USD`, `FX_Unit_Price`,
+  `Line_Total_FX`, `Line_Number`, `Discountable`) were flagged **admin-only**, so a
+  non-admin preparer's save silently dropped them while `Qty` / `Part_Number` /
+  `Description` landed normally. The quote's 10% header margin stamps `«MARGIN:10»`
+  on every line, which puts `fn_calc_quote_lines` into its preserve-widget-price
+  branch — that branch read the dropped price as `ifnull(...,0)` = 0 and stored it,
+  skipping both the tier lookup and the `[NO PRICE ON FILE - DO NOT QUOTE]` stamp.
+  Zero then flowed to the Deal (Amount $0.00), the merge payload, the PDF and the
+  client email with nothing flagging it. Never seen in testing because every prior
+  test ran as a Creator admin, the one account the drop cannot happen on.
+  Fixes, all DEPLOYED to Production 2026-08-13: (1) admin-only removed from the six
+  subform fields — verified live via form metadata; (2) `fn_calc_quote_lines`
+  preserve branch falls through to normal pricing when the kept price is `<= 0`;
+  (3) `publish_quote_package` refuses a `<= 0` grand total up front (`quote_total_zero`)
+  before any PDF, WorkDrive write, Deal attach, CRM Quote or client email;
+  (4) widget treats a stored `0` unit as missing, so it raises `unpriced` and blocks
+  publish. Widget tests 269/269.
+  **Open:** end-to-end run as a non-admin preparer still outstanding — that is the
+  test that was missing all along. **Backlog:** `publish_quote_package` deletes the
+  `QTS_SAVE_ONLY` marker as it reads it and `send_email` defaults true when absent,
+  so a second Flow run on one save can email the client; QUOTE0039's Deal carries
+  both a `|save|` and an `|email|` dedupe note 30s apart.
 
 - **Pricelist v1.0 (vendor batch 2026-07-01) DEPLOYED to Production 2026-08-03 and
   live-verified.** New SKU `100985.2` (108.40/88.68) replaces the bare

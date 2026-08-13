@@ -2141,6 +2141,7 @@
     normRows.forEach(function (row) {
       var sku = row.sku;
       var unit = parseFloat(String(row.unit).replace(/[$,]/g, ''));
+      if (unit === 0) unit = NaN;
       var item = itemBySku(sku);
       var prev = keepPrev[linePriceKey(sku, row.warning)];
       var kept = false;

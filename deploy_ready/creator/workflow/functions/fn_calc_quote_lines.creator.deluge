@@ -142,6 +142,15 @@ void fn_calc_quote_lines(string p_quote_id)
 
 				if(preserve_widget_price)
 				{
+					kept_unit_probe = ifnull(line.Unit_Price,0);
+					if(kept_unit_probe <= 0)
+					{
+						preserve_widget_price = false;
+					}
+				}
+
+				if(preserve_widget_price)
+				{
 					kept_unit = ifnull(line.Unit_Price,0);
 					line.Unit_Price = kept_unit.round(2);
 					line.FX_Unit_Price = kept_unit.round(2);
